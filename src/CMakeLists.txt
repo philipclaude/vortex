@@ -14,34 +14,34 @@ set(SOURCES
   voronoi.cpp)
 
 # create an object library for all the sources
-add_library(tb_src OBJECT ${SOURCES})
+add_library(vortex_src OBJECT ${SOURCES})
 add_definitions(-DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_compile_features(tb_src PRIVATE cxx_std_17)
-#target_compile_definitions(tb_src PUBLIC -DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(tb_src PROPERTIES
+target_compile_features(vortex_src PRIVATE cxx_std_17)
+#target_compile_definitions(vortex_src PUBLIC -DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(vortex_src PROPERTIES
             CXX_STANDARD 17
             CXX_EXTENSIONS OFF)
 
 # create both shared and static libraries with same name
-set(VORTEX_LIBS tb_static tb_shared )
-add_library(tb_shared SHARED $<TARGET_OBJECTS:tb_src> $<TARGET_OBJECTS:tb_external>)
-set_target_properties(tb_shared PROPERTIES OUTPUT_NAME tb CLEAN_DIRECT_OUTPUT 1)
-target_link_libraries(tb_shared dl)
+set(VORTEX_LIBS vortex_static vortex_shared )
+add_library(vortex_shared SHARED $<TARGET_OBJECTS:vortex_src> $<TARGET_OBJECTS:vortex_external>)
+set_target_properties(vortex_shared PROPERTIES OUTPUT_NAME tb CLEAN_DIRECT_OUTPUT 1)
+target_link_libraries(vortex_shared dl)
 if (UNIX AND NOT APPLE)
-  target_link_libraries(tb_shared rt dl)
+  target_link_libraries(vortex_shared rt dl)
 endif()
-add_library(tb_static STATIC $<TARGET_OBJECTS:tb_src> $<TARGET_OBJECTS:tb_external>)
-set_target_properties(tb_static PROPERTIES OUTPUT_NAME tb CLEAN_DIRECT_OUTPUT 1)
+add_library(vortex_static STATIC $<TARGET_OBJECTS:vortex_src> $<TARGET_OBJECTS:vortex_external>)
+set_target_properties(vortex_static PROPERTIES OUTPUT_NAME tb CLEAN_DIRECT_OUTPUT 1)
 
-add_custom_target(tb_lib DEPENDS ${VORTEX_LIBS})
-target_link_libraries(tb_shared ${VORTEX_EXTERNAL_LIBRARIES})
-target_link_libraries(tb_static ${VORTEX_EXTERNAL_LIBRARIES})
+add_custom_target(vortex_lib DEPENDS ${VORTEX_LIBS})
+target_link_libraries(vortex_shared ${VORTEX_EXTERNAL_LIBRARIES})
+target_link_libraries(vortex_static ${VORTEX_EXTERNAL_LIBRARIES})
 
 # create executables
-add_executable(tbx tbx.cpp)
-add_dependencies(tbx tb_lib)
-target_link_libraries(tbx tb_static dl)
+add_executable(vortex vortex.cpp)
+add_dependencies(vortex vortex_lib)
+target_link_libraries(vortex vortex_static dl)
 
 # function to add unit test files with a suffix in directories
 function(add_test_files var type)
@@ -74,7 +74,7 @@ foreach(test_src ${TEST_FILES})
 
   # the actual executable: target for simply building
   add_executable(${test_exe} ${test_src})
-  target_link_libraries(${test_exe} tb_shared ${VORTEX_EXTERNAL_LIBRARIES})
+  target_link_libraries(${test_exe} vortex_shared ${VORTEX_EXTERNAL_LIBRARIES})
   target_compile_definitions(${test_exe} PUBLIC -DSTANDALONE -DVORTEX_FULL_UNIT_TEST=false)
 
   # create the target
@@ -87,7 +87,7 @@ endforeach()
 
 # create the full unit executable
 add_executable(unit_exe tester.cpp ${TEST_FILES})
-target_link_libraries(unit_exe tb_shared)
+target_link_libraries(unit_exe vortex_shared)
 target_compile_definitions(unit_exe PUBLIC -DSTDOUT_REDIRECT="${CMAKE_BINARY_DIR}/unit_tests_output.txt" -DVORTEX_FULL_UNIT_TEST=true)
 
 # target for running all unit tests from a single executable

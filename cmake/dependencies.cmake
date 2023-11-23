@@ -47,7 +47,7 @@ add_extern_repository(mapletrees GIT_REPOSITORY "https://github.com/middpolymer/
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middpolymer/stlext.git" SKIP_CONFIG TRUE)
 
 # utilities to clean up and update repositories
-add_custom_target(tb_clean_extern COMMAND rm -rf ${extern_repositories})
+add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
 
 set(WINGS_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/wings.cpp
@@ -55,11 +55,11 @@ set(WINGS_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/shader.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/util.cpp
 )
-add_library(tbwings ${WINGS_SOURCES})
-target_compile_definitions(tbwings PRIVATE WINGS_COMPILE_STB)
+add_library(vortex_wings ${WINGS_SOURCES})
+target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
 
 # external repositories
-set(external_libraries fmt argparse shp tbwings)
+set(external_libraries fmt argparse shp vortex_wings)
 
 # OpenGL
 set(GL_LIBRARIES)
@@ -70,7 +70,7 @@ else()
         find_package(OpenGL COMPONENTS REQUIRED OpenGL EGL)
         set(GL_LIBRARIES ${LIBRARIES} OpenGL::EGL pthread)
 endif()
-target_link_libraries(tbwings ${GL_LIBRARIES} fmt)
+target_link_libraries(vortex_wings ${GL_LIBRARIES} fmt)
 
 # TBB
 find_package(TBB)
@@ -122,6 +122,6 @@ set(EXTERN_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/spmat.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/linear_algebra.cpp
 )
-add_library(tb_external OBJECT ${EXTERN_SOURCES})
+add_library(vortex_external OBJECT ${EXTERN_SOURCES})
 
-set_target_properties(tb_external PROPERTIES COMPILE_FLAGS "-w")
+set_target_properties(vortex_external PROPERTIES COMPILE_FLAGS "-w")
