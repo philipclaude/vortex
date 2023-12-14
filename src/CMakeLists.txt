@@ -10,7 +10,9 @@ set(SOURCES
   library.cpp
   log.cpp
   mesh.cpp
+  mesher.cpp
   predicates.c
+  texture.cpp
   triangulate.cpp
   util.cpp
   voronoi.cpp)
