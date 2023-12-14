@@ -1,5 +1,7 @@
 #pragma once
 
+#include "halfedges.h"
+
 namespace vortex {
 
 class Mesh;
@@ -16,6 +18,7 @@ class OceanTriangulator {
 
   Mesh& mesh_;
   const Mesh& coast_;
+  HalfMesh hmesh_;
 };
 
 }  // namespace vortex

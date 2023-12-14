@@ -22,8 +22,7 @@ enum LayoutCategory {
  *        or jagged arrays, in which the size along the second dimension
  *        is different for each element.
  */
-template <typename T>
-class array2d {
+template <typename T> class array2d {
  public:
   /**
    * \brief Constructs a 2d array, setting the layout and stride
@@ -160,8 +159,7 @@ class array2d {
    *
    * \param[in] x - values to add (there must be stride elements)
    */
-  template <typename R>
-  void add(const R* x) {
+  template <typename R> void add(const R* x) {
     ASSERT(layout_ == Layout_Rectangular);
     for (int j = 0; j < stride_; j++) data_.push_back(x[j]);
   }
@@ -172,8 +170,7 @@ class array2d {
    * \param[in] x - values to add (there must be stride elements)
    * \param[in] n - number of values to add
    */
-  template <typename R>
-  void add(const R* x, int m) {
+  template <typename R> void add(const R* x, int m) {
     if (layout_ == Layout_Rectangular) {
       add(x);
       return;
@@ -230,6 +227,9 @@ class array2d {
   const std::vector<T>& data() const { return data_; }
   const std::vector<index_t>& first() const { return first_; }
   const std::vector<uint32_t>& length() const { return length_; }
+  void set_data(const std::vector<T>& d) { data_ = d; }
+  void set_first(const std::vector<index_t>& f) { first_ = f; }
+  void set_length(const std::vector<uint32_t>& l) { length_ = l; }
 
   void reserve(int64_t n, int max_item = 10) {
     if (layout_ == Layout_Rectangular) {
@@ -247,12 +247,24 @@ class array2d {
    * \param[in] reset_stride - whether stride should be set to 0.
    *            e.g. with 3d vertices, we still want the stride to be 3.
    */
-  void clear(bool reset_stride = true) {
+  void clear(bool reset_stride = false) {
     // do not reset layout because this should not change
     if (reset_stride) stride_ = 0;
     data_.clear();
     first_.clear();
     length_.clear();
+  }
+
+  /**
+   * \brief Copies the contents of this array to another one.
+   *
+   * \param[in] dst - destination of the copy.
+   */
+  void copy(array2d& dst) const {
+    ASSERT(dst.stride() == stride_);
+    dst.set_data(data_);
+    dst.set_first(first_);
+    dst.set_length(length_);
   }
 
   /**

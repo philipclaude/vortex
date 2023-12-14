@@ -14,6 +14,7 @@
 #include <unordered_set>
 
 #include "mesh.h"
+#include "numerics.h"
 
 namespace vortex {
 
@@ -486,7 +487,6 @@ void read(const std::string& filename, Mesh& mesh) {
       const double point[3] = {X, Y, Z};
       if (std::fabs(x[j] - 180) < tol || std::fabs(180 - x[j]) < tol)
         border.insert({j + offset, {lon, lat}});
-
       mesh.vertices().add(point);
     }
 
@@ -497,6 +497,7 @@ void read(const std::string& filename, Mesh& mesh) {
       int j0 = part_start[k];
       int j1 = (k + 1 == n_parts) ? n_vertices : part_start[k + 1];
       int e0 = j0 + offset;
+      int first = mesh.lines().n();
       for (int j = j0; j < j1; j++) {
         int e1 = (j + 1 == j1) ? e0 : j + 1 + offset;
         int edge[2] = {e0, e1};
@@ -505,6 +506,16 @@ void read(const std::string& filename, Mesh& mesh) {
         mesh.lines().set_group(n, group);
         e0 = e1;
       }
+
+      int last = mesh.lines().n() - 1;
+      vec3d p(mesh.vertices()[mesh.lines()(first, 0)]);
+      vec3d q(mesh.vertices()[mesh.lines()(last, 1)]);
+      double d = length(q - p);
+      if (d < 1e-12) {
+        mesh.lines()(last, 1) = mesh.lines()(first, 0);
+      } else
+        LOG << fmt::format("entity {}, part {}, distance = {}", i, k, d);
+      // ASSERT(mesh.lines()(last, 1) == mesh.lines()(first, 0));
     }
   }
   LOG << fmt::format("# border vertices = {}", border.size());

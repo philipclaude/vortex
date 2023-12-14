@@ -75,7 +75,8 @@ UT_TEST_CASE(test_sphere) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
   };
   static const int dim = 3;
-  size_t n_sites = 1e6;
+  size_t M = 5;
+  size_t n_sites = M * 1e6;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
     coord_t theta = 2.0 * M_PI * irand(0, 1);
@@ -99,11 +100,12 @@ UT_TEST_CASE(test_sphere) {
   SphereDomain domain(1.0);
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
+  options.n_neighbors = 75;
   options.allow_reattempt = false;
   options.parallel = true;
-  int n_iter = 10;
+  int n_iter = 1;
   for (int iter = 1; iter <= n_iter; ++iter) {
-    options.store_mesh = iter == n_iter;
+    options.store_mesh = false;  // iter == n_iter;
     options.verbose = (iter == 1 || iter == n_iter - 1);
     voronoi.vertices().clear();
     voronoi.vertices().set_dim(3);
