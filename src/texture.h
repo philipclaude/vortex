@@ -30,6 +30,11 @@ class Texture {
   int width() const { return width_; }
   int height() const { return height_; }
   int channels() const { return channels_; }
+  void make_binary(double threshold, double min, double max);
+  void limit(double min, double max, bool reverse = false);
+  void make_periodic();
+  void smooth(int n_iter);
+  void write(const std::string& filename) const;
 
  private:
   void read(const std::string& filename);

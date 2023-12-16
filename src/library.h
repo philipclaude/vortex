@@ -7,8 +7,7 @@ namespace vortex {
 /**
  * \brief represents a structured grid for any element type
  */
-template <typename T>
-class Grid : public Mesh {
+template <typename T> class Grid : public Mesh {
  public:
   /**
    * \brief initializes and build a structured grid
@@ -39,6 +38,8 @@ class Sphere : public Mesh {
   Sphere(int n = 0) : Mesh(3) { build(n); }
 
   void build(int n);
+
+  static const int n_icosahedron_triangles = 20;
 
  private:
   void subdivide();

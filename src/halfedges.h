@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stack>
 #include <vector>
 
 #include "log.h"
@@ -20,8 +21,12 @@ class HalfNode {
   half_t edge() const { return edge_; }
   HalfEdge& get_edge();
   const HalfEdge& get_edge() const;
+  void set_index(int64_t id) { index_ = id; }
   void set_edge(const HalfEdge& e);
   const double* point() const;
+  double* point();
+  void deactivate() { index_ = halfnull_t; }
+  bool active() const { return index_ != halfnull_t; }
 
   template <typename T> void get_onering(std::vector<T*>& ring) const;
 
@@ -35,6 +40,8 @@ class HalfFace;
 class HalfEdge {
  public:
   HalfEdge(HalfMesh& m, int64_t id) : mesh_(m), index_(id) {}
+  void deactivate() { index_ = halfnull_t; }
+  bool active() const { return index_ != halfnull_t; }
   HalfNode& get_node();
   const HalfNode& get_node() const;
 
@@ -50,6 +57,7 @@ class HalfEdge {
   HalfEdge& get_next();
   const HalfEdge& get_next() const;
 
+  void set_index(int64_t id) { index_ = id; }
   void set_face(const HalfFace& f);
   void set_next(const HalfEdge& e) { next_ = e.index(); }
   void set_prev(const HalfEdge& e) { prev_ = e.index(); }
@@ -81,11 +89,14 @@ class HalfFace {
  public:
   HalfFace(HalfMesh& mesh, int64_t index, uint8_t n)
       : mesh_(mesh), index_(index), n_(n) {}
+  void deactivate() { index_ = halfnull_t; }
+  bool active() const { return index_ != halfnull_t; }
 
   half_t index() const { return index_; }
   half_t edge() const { return edge_; }
   int32_t group() const { return group_; }
   uint8_t n() const { return n_; }
+  void set_index(int64_t id) { index_ = id; }
   void set_group(int group) { group_ = group; }
   void set_edge(const HalfEdge& e) { edge_ = e.index(); }
   HalfEdge& get_edge();
@@ -105,18 +116,40 @@ class HalfMesh {
 
   HalfNode& create_node(const double* x) {
     ASSERT(nodes_.size() == size_t(vertices_.n()));
+    if (available_node_.size() > 0) {
+      size_t id = available_node_.top();
+      ASSERT(!nodes_[id].active());
+      available_node_.pop();
+      nodes_[id].set_index(id);
+      for (int d = 0; d < 3; d++) vertices_[id][d] = x[d];
+      return nodes_[id];
+    }
     size_t id = nodes_.size();
     nodes_.emplace_back(*this, x, id);
     return nodes_[id];
   }
 
   HalfEdge& create_edge() {
+    if (available_edge_.size() > 0) {
+      size_t id = available_edge_.top();
+      ASSERT(!edges_[id].active());
+      available_edge_.pop();
+      edges_[id].set_index(id);
+      return edges_[id];
+    }
     size_t id = edges_.size();
     edges_.emplace_back(*this, id);
     return edges_[id];
   }
 
   HalfFace& create_face(int n) {
+    if (available_face_.size() > 0) {
+      size_t id = available_face_.top();
+      ASSERT(!faces_[id].active());
+      available_face_.pop();
+      faces_[id].set_index(id);
+      return faces_[id];
+    }
     size_t id = faces_.size();
     faces_.emplace_back(*this, id, n);
     return faces_[id];
@@ -143,12 +176,31 @@ class HalfMesh {
   auto& faces() { return faces_; }
   auto& vertices() { return vertices_; }
 
+  void deactivate(HalfNode& node) {
+    // available_node_.push(node.index());
+    node.deactivate();
+  }
+
+  void deactivate(HalfEdge& edge) {
+    // available_edge_.push(edge.index());
+    edge.deactivate();
+  }
+
+  void deactivate(HalfFace& face) {
+    // available_face_.push(face.index());
+    face.deactivate();
+  }
+
  private:
   void build(const Mesh& mesh);
   Vertices vertices_;
   std::vector<HalfNode> nodes_;
   std::vector<HalfEdge> edges_;
   std::vector<HalfFace> faces_;
+
+  std::stack<size_t> available_node_;
+  std::stack<size_t> available_edge_;
+  std::stack<size_t> available_face_;
 };
 
 }  // namespace vortex

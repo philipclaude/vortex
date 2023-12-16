@@ -1,5 +1,6 @@
 #include "halfedges.h"
 
+#include "numerics.h"
 #include "stlext.h"
 
 namespace vortex {
@@ -113,7 +114,7 @@ bool HalfMesh::check() const {
   bool ok = true;
 
   for (const auto& node : nodes_) {
-    if (node.edge() == halfnull_t) ok = false;
+    if (!node.active()) continue;
     ASSERT(node.edge() != halfnull_t);
 
     int count = 1;
@@ -122,8 +123,6 @@ bool HalfMesh::check() const {
       ASSERT(edges_[e].node() != halfnull_t);
       ASSERT(node.index() != halfnull_t);
       e = edges_[e].next();
-      // LOG << fmt::format("i = {}, e = {}, node = {}", e, edges_[e].node(),
-      //                    node.index());
       if (edges_[e].node() == node.index()) break;
       count++;
     }
@@ -131,8 +130,32 @@ bool HalfMesh::check() const {
   }
 
   for (const auto& face : faces_) {
+    if (!face.active()) continue;
     if (face.edge() == halfnull_t) ok = false;
   }
+
+  size_t n_issues = 0;
+  size_t n_zero_length;
+  for (auto& edge : edges_) {
+    if (!edge.active()) continue;
+    if (edge.get_triangle_left_node().index() ==
+        edge.get_triangle_right_node().index()) {
+      n_issues++;
+      LOG << fmt::format("non-manifold edge {} {}", edge.node(),
+                         edge.get_twin().node());
+      ok = false;
+    }
+    vec3d p(edge.get_node().point());
+    vec3d q(edge.get_twin().get_node().point());
+    double l = length(q - p);
+    if (l == 0) {
+      LOG << fmt::format("zero-length edge {} {}", edge.node(),
+                         edge.get_twin().node());
+      n_zero_length++;
+      ok = false;
+    }
+  }
+  if (n_issues != 0) LOG << fmt::format("# non-manifold edges = {}", n_issues);
   return ok;
 }
 
@@ -147,6 +170,7 @@ void HalfMesh::extract(Mesh& mesh) const {
   std::unordered_map<half_t, index_t> node_map;
   node_map.reserve(nodes_.size());
   for (const auto& node : nodes_) {
+    if (node.index() == halfnull_t) continue;
     mesh.vertices().add(vertices_[node.index()]);
     node_map.insert({node.index(), node_map.size()});
   }
@@ -154,6 +178,7 @@ void HalfMesh::extract(Mesh& mesh) const {
   // create the faces
   std::vector<index_t> elem(16);
   for (const auto& face : faces_) {
+    if (face.index() == halfnull_t) continue;
     half_t e = face.edge();
     elem.clear();
     elem.resize(face.n());
@@ -177,7 +202,9 @@ void HalfMesh::flip(HalfEdge& edge) {
   auto& p = edge.get_node();
   auto& q = twin.get_node();
 
-  ASSERT(p.index() != q.index());
+  ASSERT(p.index() != q.index())
+      << fmt::format("error flipping edge {} with vertices {}-{}", edge.index(),
+                     p.index(), q.index());
 
   auto& vL = edge.get_triangle_left_node();
   auto& vR = edge.get_triangle_right_node();
@@ -427,111 +454,78 @@ void HalfMesh::insert(half_t iface, const double* x) {
   e4.set_next(e2);
 }
 
-#if 0
+void HalfMesh::collapse(half_t iedge) {
+  HalfEdge& edge = edges_[iedge];
+  HalfEdge& twin = edge.get_twin();
 
-void Surface::collapse(HalfEdge* edge) {
-  HalfNode* p = edge->node;        // vertex that will be removed
-  HalfNode* q = edge->twin->node;  // receiving vertex
+  HalfNode& p = edge.get_node();  // vertex that will be removed
+  HalfNode& q = twin.get_node();  // receiving vertex
 
-  // do not collapse boundary edges for now
-  //   if (p->index != 0 || q->index != 0) {
-  //     heap.erase(edge);
-  //     return false;
-  //   }
-
-  HalfNode* vL = edge->next->next->node;
-  HalfNode* vR = edge->twin->next->next->node;
-
-  HalfEdge* twin = edge->twin;
+  HalfNode& vL = edge.get_triangle_left_node();
+  HalfNode& vR = edge.get_triangle_right_node();
 
   // get the faces adjacent to this edge
-  HalfFace* fL = edge->face;
-  HalfFace* fR = twin->face;
+  HalfFace& fL = edge.get_face();
+  HalfFace& fR = twin.get_face();
 
   // we are assuming a closed mesh
-  ASSERT(fL != nullptr);
-  ASSERT(fR != nullptr);
-
-  // determine if the collapse is geometrically valid
-  //   std::vector<HalfFace*> faces;
-  //   get_onering(p, faces);
-  //   bool flips = false;
-  //   // check the first ring
-  //   for (int i = 0; i < faces.size(); i++) {
-  //     if (faces[i] == fL || faces[i] == fR) continue;
-  //     if (face_flips(faces[i], p, q->point)) {
-  //       flips = true;
-  //       break;
-  //     }
-  //   }
-  //   if (flips) {
-  //     heap.erase(edge);
-  //     return false;
-  //   }
+  ASSERT(fL.index() != halfnull_t);
+  ASSERT(fR.index() != halfnull_t);
 
   // loop through the one-ring of the vertex
   // and re-assign the vertex of the affected half edges
-  HalfEdge* e = edge;
-  int nb_edges = 0;
+  HalfEdge* e = &edge;
+  int n_edges = 0;
   do {
     // assign the vertex of this half edge to the receiving vertex
-    e->node = q;
+    e->set_node(q);
 
     // go to the next edge
-    e = e->twin->next;
+    e = &e->get_twin().get_next();
 
-    nb_edges++;
-    if (size_t(nb_edges) > edges_.size()) NOT_POSSIBLE;
-
-  } while (e != edge);
+    ASSERT(size_t(n_edges++) < edges_.size());
+  } while (e->index() != edge.index());
 
   // get the lower edges
-  HalfEdge* edgeLR = twin->next;
-  HalfEdge* edgeLL = edge->next->next;
+  HalfEdge& edgeLR = twin.get_next();
+  HalfEdge& edgeLL = edge.get_next().get_next();
 
   // get the upper edges
-  HalfEdge* edgeUR = twin->next->next;
-  HalfEdge* edgeUL = edge->next;
+  HalfEdge& edgeUR = twin.get_next().get_next();
+  HalfEdge& edgeUL = edge.get_next();
 
   // glue the lower and upper edges together on the right side
-  edgeUR->twin->twin = edgeLR->twin;
-  edgeLR->twin->twin = edgeUR->twin;
+  edgeUR.get_twin().set_twin(edgeLR.get_twin());
+  edgeLR.get_twin().set_twin(edgeUR.get_twin());
 
   // glue the lower and upper edges together on the left side
-  edgeUL->twin->twin = edgeLL->twin;
-  edgeLL->twin->twin = edgeUL->twin;
+  edgeUL.get_twin().set_twin(edgeLL.get_twin());
+  edgeLL.get_twin().set_twin(edgeUL.get_twin());
 
-  // re-assign the vertex edges in case they previously pointed to deleted ones
-  vL->edge = edgeUL->twin;
-  vR->edge = edgeLR->twin;
-  q->edge = edgeUR->twin;
+  // re-assign the vertex edges in case they previously pointed to deleted
+  // ones
+  vL.set_edge(edgeUL.get_twin());
+  vR.set_edge(edgeLR.get_twin());
+  q.set_edge(edgeUR.get_twin());
 
-  ASSERT(edgeUR->twin->node == q);
-  ASSERT(edgeLL->twin->node == q);
+  ASSERT(edgeUR.get_twin().node() == q.index());
+  ASSERT(edgeLL.get_twin().node() == q.index());
 
-  // remove the deleted edges
-  HalfEdge* deleted_edges[6] = {edge, twin, edgeLR, edgeLL, edgeUR, edgeUL};
-  for (int k = 0; k < 6; k++) {
-    // mesh.remove(deleted_edges[k]);
-  }
+  // deactivate deleted edges
+  deactivate(edge);
+  deactivate(twin);
+  deactivate(edgeLR);
+  deactivate(edgeLL);
+  deactivate(edgeUR);
+  deactivate(edgeUL);
 
-  // remove the deleted faces
-  // mesh.remove(fL);
-  // mesh.remove(fR);
+  // deactivate deleted faces
+  deactivate(fL);
+  deactivate(fR);
 
-  // remove the unused vertex
-  // mesh.remove(p);
-
-  // remove the edges from the heap
-  //   heap.erase(edgeLR);
-  //   heap.erase(edgeLL);
-  //   heap.erase(edgeUR);
-  //   heap.erase(edgeUL);
-  //   heap.erase(twin);
-  //   heap.erase(edge);
+  // deactivate the deleted vertex
+  deactivate(p);
 }
-
-#endif
 
 int HalfMesh::get_connected_components(std::vector<int>& components) const {
   int n_components = 0;
@@ -578,6 +572,7 @@ HalfNode::HalfNode(HalfMesh& mesh, const double* x, int64_t index)
 }
 void HalfNode::set_edge(const HalfEdge& e) { edge_ = e.index(); }
 const double* HalfNode::point() const { return mesh_.vertices()[index_]; }
+double* HalfNode::point() { return mesh_.vertices()[index_]; }
 HalfEdge& HalfNode::get_edge() { return mesh_.edges()[edge_]; }
 const HalfEdge& HalfNode::get_edge() const { return mesh_.edges()[edge_]; }
 

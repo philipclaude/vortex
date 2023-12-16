@@ -7,7 +7,7 @@ class Mesh;
 
 struct MeshingParameters {
   double h_min{0.025};
-  double h_max{0.1};
+  double h_max{0.05};
   int max_iter{5};
 };
 

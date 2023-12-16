@@ -1,3 +1,4 @@
+#pragma once
 #include <algorithm>
 #include <llama/mat.hpp>
 #include <llama/vec.hpp>
@@ -11,7 +12,7 @@ using vec3d = llama::vec3d;
 using mat3 = llama::mats<3, 3, double>;
 using vec2d = llama::vecs<2, double>;
 
-static void sphere_params(const vec3d& xyz, vec3d& uv) {
+inline void sphere_params(const vec3d& xyz, vec3d& uv) {
   constexpr double tol = 1e-12;
   uv[0] = 0.5 * (atan2(xyz[1], xyz[0]) + M_PI) / M_PI;
   if (std::fabs(xyz[0]) < tol && std::fabs(xyz[1]) < tol) uv[0] = 0.0;
@@ -22,7 +23,7 @@ static void sphere_params(const vec3d& xyz, vec3d& uv) {
   ASSERT(uv[1] >= 0 && uv[1] <= 1);
 }
 
-static bool get_params(const vec3d& pa, const vec3d& pb, const vec3d& pc,
+inline bool get_params(const vec3d& pa, const vec3d& pb, const vec3d& pc,
                        vec3d& pd, vec3d& ua, vec3d& ub, vec3d& uc, vec3d& ud) {
   sphere_params(pa, ua);
   sphere_params(pb, ub);
@@ -43,7 +44,7 @@ static bool get_params(const vec3d& pa, const vec3d& pb, const vec3d& pc,
   return true;
 }
 
-static bool get_params(const vec3d& pa, const vec3d& pb, const vec3d& pc,
+inline bool get_params(const vec3d& pa, const vec3d& pb, const vec3d& pc,
                        vec3d& ua, vec3d& ub, vec3d& uc) {
   sphere_params(pa, ua);
   sphere_params(pb, ub);
@@ -62,13 +63,20 @@ static bool get_params(const vec3d& pa, const vec3d& pb, const vec3d& pc,
   return true;
 }
 
-static double face_area(const double* xa, const double* xb, const double* xc) {
+inline double face_area(const double* xa, const double* xb, const double* xc) {
   vec3d pa(xa);
   vec3d pb(xb);
   vec3d pc(xc);
   vec3d ua, ub, uc;
   get_params(pa, pb, pc, ua, ub, uc);
   return 0.5 * orient2d(&ua[0], &ub[0], &uc[0]);
+}
+
+inline double spherical_triangle_area(const vec3d& a, const vec3d& b,
+                                      const vec3d& c) {
+  coord_t num = std::fabs(dot(a, cross(b, c)));
+  coord_t den = 1.0 + dot(a, b) + dot(b, c) + dot(a, c);
+  return 2.0 * std::atan2(num, den);
 }
 
 }  // namespace vortex
