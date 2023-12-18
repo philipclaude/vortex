@@ -32,8 +32,6 @@ double size(const Texture& texture, const MeshingParameters& opts, double* p,
   double hq = size(texture, opts, q);
 
   // calculate the interpolated size
-  vec3d vp(p), vq(q);
-  double l = length(vq - vp);
   double r, hm;
   if (hp > hq) {
     r = hp / hq;
@@ -183,7 +181,7 @@ void collapse(HalfMesh& mesh, const Texture& texture,
 }
 
 bool split(HalfMesh& mesh, const Texture& texture,
-           const MeshingParameters& opts) {
+           const MeshingParameters& opts, double lmax) {
   // metric edge length
   auto metric_length = [&mesh, &texture, &opts](const half_t iedge) {
     auto& edge = mesh.edges()[iedge];
@@ -199,7 +197,6 @@ bool split(HalfMesh& mesh, const Texture& texture,
   };
 
   // insert long edges into the queue
-  const double lmax = std::sqrt(2.0);
   double lmin = 1e-8;
   auto cmp = [&metric_length](half_t i, half_t j) {
     return metric_length(i) > metric_length(j);
@@ -297,7 +294,7 @@ bool valid_flip(const HalfEdge& edge) {
   double q1 = std::min(quality(pl, pr, pb), quality(pa, pr, pl));
   if (q1 < q0) return false;  // quality should improve
 
-  double d0 = dot(normal(pa, pb, pl), normal(pa, pr, pb));
+  // double d0 = dot(normal(pa, pb, pl), normal(pa, pr, pb));
   double d1 = dot(normal(pl, pr, pb), normal(pa, pr, pl));
   if (d1 < 0.1) return false;
 
@@ -312,14 +309,12 @@ void flips(HalfMesh& mesh, const Texture& texture) {
   };
 
   // create initial list of faces
-  auto cmp = [&mesh, &q_edge](half_t a, half_t b) {
-    return q_edge(a) < q_edge(b);
-  };
+  auto cmp = [&q_edge](half_t a, half_t b) { return q_edge(a) < q_edge(b); };
   std::vector<half_t> queue;
   std::vector<bool> visited;
   std::vector<HalfFace*> faces;
 
-  double qmin = 0.5;
+  double qmin = 0.8;
 
   bool flipped = true;
   size_t n_flipped = 0;
@@ -331,9 +326,11 @@ void flips(HalfMesh& mesh, const Texture& texture) {
     flipped = false;
     visited.resize(mesh.edges().size(), false);
     queue.clear();
+    double qmax = -1;
     for (auto& e : mesh.edges()) {
       if (!e.active()) continue;
       double q = q_edge(e.index());
+      if (q > qmax) qmax = q;
       if (q < qmin) queue.push_back(e.index());
     }
     std::sort(queue.begin(), queue.end(), cmp);
@@ -385,39 +382,39 @@ void smooth(HalfMesh& mesh, int max_iter) {
   std::vector<double> distance(n_threads, 0);
   std::vector<double> coordinates(mesh.nodes().size() * 3);
   for (int iter = 0; iter < max_iter; iter++) {
-    std::parafor_i(0, mesh.nodes().size(),
-                   [iter, &mesh, &n_smoothed, &distance, &coordinates](
-                       int tid, int inode) {
-                     HalfNode& n = mesh.nodes()[inode];
-                     if (!n.active()) return;
-                     n_smoothed[tid]++;
-                     double area = 0;
-                     half_t e = n.edge();
-                     half_t first = e;
-                     vec3d centroid;
-                     const double alpha = 0.0;
-                     vec3d p(n.point());
-                     vec3d moment;
-                     do {
-                       HalfFace& f = mesh.edges()[e].get_face();
-                       const auto& e0 = f.get_edge();
-                       const auto& e1 = e0.get_next();
-                       const auto& e2 = e1.get_next();
-                       vec3d pa(e0.get_node().point());
-                       vec3d pb(e1.get_node().point());
-                       vec3d pc(e2.get_node().point());
-                       double at = spherical_triangle_area(pa, pb, pc);
-                       vec3d c = normalize((1.0 / 3.0) * (pa + pb + pc));
-                       moment = moment + at * c;
-                       area += at;
-                       e = mesh.edges()[e].get_twin().next();
-                     } while (e != first);
-                     centroid = normalize(moment / area);
-                     distance[tid] += length(centroid - p);
-                     for (int d = 0; d < 3; d++)
-                       coordinates[n.index() * 3 + d] =
-                           alpha * p[d] + (1 - alpha) * centroid[d];
-                   });
+    std::parafor_i(
+        0, mesh.nodes().size(),
+        [&mesh, &n_smoothed, &distance, &coordinates](int tid, int inode) {
+          HalfNode& n = mesh.nodes()[inode];
+          if (!n.active()) return;
+          n_smoothed[tid]++;
+          double area = 0;
+          half_t e = n.edge();
+          half_t first = e;
+          vec3d centroid;
+          const double alpha = 0.0;
+          vec3d p(n.point());
+          vec3d moment;
+          do {
+            HalfFace& f = mesh.edges()[e].get_face();
+            const auto& e0 = f.get_edge();
+            const auto& e1 = e0.get_next();
+            const auto& e2 = e1.get_next();
+            vec3d pa(e0.get_node().point());
+            vec3d pb(e1.get_node().point());
+            vec3d pc(e2.get_node().point());
+            double at = spherical_triangle_area(pa, pb, pc);
+            vec3d c = normalize((1.0 / 3.0) * (pa + pb + pc));
+            moment = moment + at * c;
+            area += at;
+            e = mesh.edges()[e].get_twin().next();
+          } while (e != first);
+          centroid = normalize(moment / area);
+          distance[tid] += length(centroid - p);
+          for (int d = 0; d < 3; d++)
+            coordinates[n.index() * 3 + d] =
+                alpha * p[d] + (1 - alpha) * centroid[d];
+        });
     std::parafor_i(0, mesh.nodes().size(),
                    [&mesh, coordinates](int tid, int inode) {
                      if (!mesh.nodes()[inode].active()) return;
@@ -436,7 +433,7 @@ void smooth(HalfMesh& mesh, int max_iter) {
 
 EarthMesher::EarthMesher(const Texture& texture) : texture_(texture) {}
 
-void EarthMesher::generate(MeshingParameters params, Mesh& output_mesh) const {
+void EarthMesher::generate(MeshingParameters params) {
   // estimate the number of levels from the mean of the min and max sizes
   double h_avg = params.h_max;  // 0.5 * (params.h_min + params.h_max);
   double at = std::sqrt(3.0) * h_avg * h_avg / 4.0;
@@ -446,7 +443,8 @@ void EarthMesher::generate(MeshingParameters params, Mesh& output_mesh) const {
   LOG << fmt::format("initializing sphere mesh with {} subdivisions", n_level);
   Sphere sphere(n_level);
 
-  HalfMesh mesh(sphere);
+  mesh_ = std::make_unique<HalfMesh>(sphere);
+  auto& mesh = *mesh_;
 
   for (int iter = 1; iter <= params.max_iter; iter++) {
     size_t n_nodes = std::count_if(mesh.nodes().begin(), mesh.nodes().end(),
@@ -459,9 +457,11 @@ void EarthMesher::generate(MeshingParameters params, Mesh& output_mesh) const {
     // collapse short edges
     collapse(mesh, texture_, params);
     if (!mesh.check()) break;
+    flips(mesh, texture_);
 
     // split long edges without creating short edges
-    split(mesh, texture_, params);
+    split(mesh, texture_, params, 2.0);
+    split(mesh, texture_, params, std::sqrt(2.0));
     ASSERT(mesh.check());
 
     // optimize by flips
@@ -472,30 +472,10 @@ void EarthMesher::generate(MeshingParameters params, Mesh& output_mesh) const {
     smooth(mesh, 10);
     // if (iter == params.max_iter) smooth(mesh, 100);
   }
-
-  for (auto& n : mesh.nodes()) {
-    if (!n.active()) continue;
-    vec3d p(n.point());
-    vec3d u;
-    sphere_params(p, u);
-    double t;
-    texture_.sample(u[0], u[1], &t);
-    if (t < 11) n.deactivate();
-  }
-
-  for (auto& f : mesh.faces()) {
-    if (!f.active()) continue;
-    half_t e = f.edge();
-    for (int i = 0; i < 3; i++) {
-      if (!mesh.edges()[e].get_node().active()) {
-        f.deactivate();
-        break;
-      }
-      e = mesh.edges()[e].next();
-    }
-  }
-
-  mesh.extract(output_mesh);
 }
+
+void EarthMesher::extract(Mesh& mesh) const { mesh_->extract(mesh); }
+
+EarthMesher::~EarthMesher() {}
 
 }  // namespace vortex

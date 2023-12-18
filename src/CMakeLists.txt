@@ -30,13 +30,13 @@ set_target_properties(vortex_src PROPERTIES
 # create both shared and static libraries with same name
 set(VORTEX_LIBS vortex_static vortex_shared )
 add_library(vortex_shared SHARED $<TARGET_OBJECTS:vortex_src> $<TARGET_OBJECTS:vortex_external>)
-set_target_properties(vortex_shared PROPERTIES OUTPUT_NAME tb CLEAN_DIRECT_OUTPUT 1)
+set_target_properties(vortex_shared PROPERTIES OUTPUT_NAME vortex CLEAN_DIRECT_OUTPUT 1)
 target_link_libraries(vortex_shared dl)
 if (UNIX AND NOT APPLE)
   target_link_libraries(vortex_shared rt dl)
 endif()
 add_library(vortex_static STATIC $<TARGET_OBJECTS:vortex_src> $<TARGET_OBJECTS:vortex_external>)
-set_target_properties(vortex_static PROPERTIES OUTPUT_NAME tb CLEAN_DIRECT_OUTPUT 1)
+set_target_properties(vortex_static PROPERTIES OUTPUT_NAME vortex CLEAN_DIRECT_OUTPUT 1)
 
 add_custom_target(vortex_lib DEPENDS ${VORTEX_LIBS})
 target_link_libraries(vortex_shared ${VORTEX_EXTERNAL_LIBRARIES})

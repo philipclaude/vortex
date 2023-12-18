@@ -31,9 +31,9 @@ class HalfNode {
   template <typename T> void get_onering(std::vector<T*>& ring) const;
 
  private:
+  HalfMesh& mesh_;
   int64_t index_{halfnull_t};
   half_t edge_{halfnull_t};
-  HalfMesh& mesh_;
 };
 
 class HalfFace;
@@ -47,6 +47,8 @@ class HalfEdge {
 
   HalfEdge& get_twin();
   const HalfEdge& get_twin() const;
+  HalfEdge& get_prev();
+  const HalfEdge& get_prev() const;
 
   HalfNode& get_triangle_left_node();
   HalfNode& get_triangle_right_node();
@@ -103,11 +105,11 @@ class HalfFace {
   const HalfEdge& get_edge() const;
 
  private:
+  HalfMesh& mesh_;
   half_t edge_{halfnull_t};
   half_t index_{halfnull_t};
   int32_t group_{-1};
   uint8_t n_{0};
-  HalfMesh& mesh_;
 };
 
 class HalfMesh {
@@ -189,6 +191,37 @@ class HalfMesh {
   void deactivate(HalfFace& face) {
     // available_face_.push(face.index());
     face.deactivate();
+  }
+
+  template <typename fn> void deactivate_by(const fn& mask) {
+    std::vector<HalfFace*> faces;
+    for (auto& n : nodes_) {
+      if (!n.active()) continue;
+      if (mask(n)) {
+        n.deactivate();
+        n.get_onering(faces);
+        for (auto* f : faces) f->deactivate();
+      }
+    }
+  }
+
+  template <typename fn> void activate_faces_by(const fn& predicate) {
+    for (auto& f : faces_) f.deactivate();
+    for (auto& n : nodes_) n.deactivate();
+    for (size_t k = 0; k < faces_.size(); k++) {
+      auto& f = faces_[k];
+      if (predicate(k)) {
+        f.set_index(k);
+        // activate nodes of this face
+        half_t e = f.edge();
+        half_t first = e;
+        do {
+          half_t id = edges_[e].node();
+          nodes_[id].set_index(id);
+          e = edges_[e].next();
+        } while (first != e);
+      }
+    }
   }
 
  private:

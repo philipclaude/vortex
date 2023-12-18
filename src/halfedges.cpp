@@ -17,7 +17,7 @@ void HalfMesh::build(const Mesh& mesh) {
   // create nodes
   vertices_.reserve(mesh.vertices().n());
   for (index_t k = 0; k < mesh.vertices().n(); k++) {
-    auto& node = create_node(mesh.vertices()[k]);
+    (void)create_node(mesh.vertices()[k]);
     vertices_.set_entity(k, mesh.vertices().entity(k));
   }
 
@@ -135,7 +135,7 @@ bool HalfMesh::check() const {
   }
 
   size_t n_issues = 0;
-  size_t n_zero_length;
+  size_t n_zero_length = 0;
   for (auto& edge : edges_) {
     if (!edge.active()) continue;
     if (edge.get_triangle_left_node().index() ==
@@ -156,6 +156,8 @@ bool HalfMesh::check() const {
     }
   }
   if (n_issues != 0) LOG << fmt::format("# non-manifold edges = {}", n_issues);
+  if (n_zero_length != 0)
+    LOG << fmt::format("detected {} zero-length edges", n_zero_length);
   return ok;
 }
 
@@ -193,6 +195,13 @@ void HalfMesh::extract(Mesh& mesh) const {
       mesh.quads().add(elem.data());
     else
       mesh.polygons().add(elem.data(), elem.size());
+  }
+
+  // map lines
+  for (size_t k = 0; k < mesh.lines().n(); k++) {
+    auto* e = mesh.lines()[k];
+    e[0] = node_map.at(e[0]);
+    e[1] = node_map.at(e[1]);
   }
 }
 
@@ -400,10 +409,6 @@ void HalfMesh::insert(half_t iface, const double* x) {
   auto& n1 = e1.get_node();
   auto& n2 = e2.get_node();
 
-  auto& f0 = e0.get_twin().get_face();
-  auto& f1 = e1.get_twin().get_face();
-  auto& f2 = e2.get_twin().get_face();
-
   n.set_edge(e7);
 
   // face
@@ -580,6 +585,8 @@ HalfEdge& HalfFace::get_edge() { return mesh_.edges()[edge_]; }
 const HalfEdge& HalfFace::get_edge() const { return mesh_.edges()[edge_]; }
 HalfEdge& HalfEdge::get_next() { return mesh_.edges()[next_]; }
 const HalfEdge& HalfEdge::get_next() const { return mesh_.edges()[next_]; }
+HalfEdge& HalfEdge::get_prev() { return mesh_.edges()[prev_]; }
+const HalfEdge& HalfEdge::get_prev() const { return mesh_.edges()[prev_]; }
 HalfNode& HalfEdge::get_node() { return mesh_.nodes()[node_]; }
 const HalfNode& HalfEdge::get_node() const { return mesh_.nodes()[node_]; }
 

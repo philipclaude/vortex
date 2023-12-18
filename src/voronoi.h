@@ -18,8 +18,7 @@ enum class VoronoiStatusCode : uint8_t {
   kNeedPredicates
 };
 
-template <typename T>
-class pool {
+template <typename T> class pool {
  public:
   pool(T* data, int n) : data_(data), capacity_(n) {}
 
@@ -65,18 +64,15 @@ class pool {
   size_t capacity_{0};
 };
 
-template <typename T, int dim>
-struct vec;
+template <typename T, int dim> struct vec;
 
-template <typename T>
-struct vec<T, 4> {
+template <typename T> struct vec<T, 4> {
   T x{0};
   T y{0};
   T z{0};
   T w{0};
   vec<T, 3> xyz() const;
-  template <typename R>
-  vec(const R* coord, int dim) {
+  template <typename R> vec(const R* coord, int dim) {
     x = coord[0];
     y = coord[1];
     if (dim > 2) z = coord[2];
@@ -91,8 +87,7 @@ struct vec<T, 4> {
   vec() : x(0), y(0), z(0), w(0) {}
 };
 
-template <typename T>
-struct vec<T, 3> {
+template <typename T> struct vec<T, 3> {
   T x{0};
   T y{0};
   T z{0};
@@ -105,13 +100,9 @@ struct vec<T, 3> {
   T& operator[](int d) { return *(&x + d); }
 };
 
-template <typename T>
-vec<T, 3> vec<T, 4>::xyz() const {
-  return {x, y, z};
-}
+template <typename T> vec<T, 3> vec<T, 4>::xyz() const { return {x, y, z}; }
 
-template <typename T>
-vec<T, 3> cross(const vec<T, 3>& u, const vec<T, 3>& v) {
+template <typename T> vec<T, 3> cross(const vec<T, 3>& u, const vec<T, 3>& v) {
   return {u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x};
 }
 
@@ -130,8 +121,7 @@ vec<T, 3> operator*(const R& a, const vec<T, 3>& u) {
   return {a * u.x, a * u.y, a * u.z};
 }
 
-template <typename T>
-T dot(const vec<T, 3>& u, const vec<T, 3>& v) {
+template <typename T> T dot(const vec<T, 3>& u, const vec<T, 3>& v) {
   return u.x * v.x + u.y * v.y + u.z * v.z;
 }
 
@@ -155,18 +145,15 @@ vec<T, 4> operator/(const vec<T, 4>& u, const R& a) {
   return {u.x / a, u.y / a, u.z / a, u.w / a};
 }
 
-template <typename T>
-T dot(const vec<T, 4>& u, const vec<T, 4>& v) {
+template <typename T> T dot(const vec<T, 4>& u, const vec<T, 4>& v) {
   return u.x * v.x + u.y * v.y + u.z * v.z + u.w * v.w;
 }
 
-template <typename T>
-T length(const vec<T, 3>& u) {
+template <typename T> T length(const vec<T, 3>& u) {
   return std::sqrt(u.x * u.x + u.y * u.y + u.z * u.z);
 }
 
-template <typename T>
-vec<T, 3> unit_vector(const vec<T, 3>& u) {
+template <typename T> vec<T, 3> unit_vector(const vec<T, 3>& u) {
   const T len = length(u);
   return {u.x / len, u.y / len, u.z / len};
 }
@@ -181,34 +168,15 @@ inline double det2x2(double a11, double a12, double a21, double a22) {
   return a11 * a22 - a12 * a21;
 }
 
-inline double det3x3(double a11,
-                     double a12,
-                     double a13,
-                     double a21,
-                     double a22,
-                     double a23,
-                     double a31,
-                     double a32,
-                     double a33) {
+inline double det3x3(double a11, double a12, double a13, double a21, double a22,
+                     double a23, double a31, double a32, double a33) {
   return a11 * det2x2(a22, a23, a32, a33) - a21 * det2x2(a12, a13, a32, a33) +
          a31 * det2x2(a12, a13, a22, a23);
 }
 
-inline double det4x4(double a11,
-                     double a12,
-                     double a13,
-                     double a14,
-                     double a21,
-                     double a22,
-                     double a23,
-                     double a24,
-                     double a31,
-                     double a32,
-                     double a33,
-                     double a34,
-                     double a41,
-                     double a42,
-                     double a43,
+inline double det4x4(double a11, double a12, double a13, double a14, double a21,
+                     double a22, double a23, double a24, double a31, double a32,
+                     double a33, double a34, double a41, double a42, double a43,
                      double a44) {
   double m12 = a21 * a12 - a11 * a22;
   double m13 = a31 * a12 - a11 * a32;
@@ -275,25 +243,6 @@ class VoronoiDiagram : public Mesh {
   std::vector<VoronoiStatusCode> status_;
 };
 
-class ClippedVoronoiDiagram : public Mesh {
- public:
-  ClippedVoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
-      : Mesh(3), dim_(dim), sites_(sites), n_sites_(n_sites) {}
-
-  void compute(const Mesh& domain,
-               VoronoiDiagramOptions options = VoronoiDiagramOptions());
-
-  const auto& properties() const { return properties_; }
-  const auto& sites() const { return polygon2site_; }
-
- private:
-  int dim_;
-  const coord_t* sites_;
-  uint64_t n_sites_;
-  std::vector<VoronoiCellProperties> properties_;
-  std::vector<index_t> polygon2site_;
-};
-
 struct VoronoiVertex {
   uint8_t bl;  // left bisector
   uint8_t br;  // right bisector
@@ -309,13 +258,11 @@ struct SphericalVoronoiPolygon {
     return plane_side(compute(pi, pj), p);
   }
   vec4 plane_equation(const vec4& ui, const vec4& uj);
-  void get_properties(const pool<Vertex_t>& polygon,
-                      const pool<vec4>& planes,
+  void get_properties(const pool<Vertex_t>& polygon, const pool<vec4>& planes,
                       VoronoiCellProperties& props) const;
 };
 
-template <typename Domain_t>
-class VoronoiPolygon;
+template <typename Domain_t> class VoronoiPolygon;
 
 struct SphereDomain {
   typedef SphericalVoronoiPolygon Cell_t;

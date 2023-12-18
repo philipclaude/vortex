@@ -74,8 +74,8 @@ inline double face_area(const double* xa, const double* xb, const double* xc) {
 
 inline double spherical_triangle_area(const vec3d& a, const vec3d& b,
                                       const vec3d& c) {
-  coord_t num = std::fabs(dot(a, cross(b, c)));
-  coord_t den = 1.0 + dot(a, b) + dot(b, c) + dot(a, c);
+  double num = std::fabs(dot(a, cross(b, c)));
+  double den = 1.0 + dot(a, b) + dot(b, c) + dot(a, c);
   return 2.0 * std::atan2(num, den);
 }
 

@@ -34,7 +34,6 @@ UT_TEST_CASE(insert_test) {
   size_t n_faces = hmesh.faces().size();
   LOG << n_faces;
   for (size_t i = 0; i < n_faces; i++) {
-    auto& f = hmesh.faces()[i];
     double x[3] = {0, 0, 0};
     for (int j = 0; j < 3; j++)
       for (int d = 0; d < 3; d++)
@@ -56,11 +55,9 @@ UT_TEST_CASE(split_test) {
   size_t n_edges = hmesh.edges().size();
   for (size_t i = 0; i < n_edges; i++) {
     auto& e = hmesh.edges()[i];
-    double x[3] = {0, 0, 0};
     vec3d p(e.get_node().point());
     vec3d q(e.get_twin().get_node().point());
     vec3d m = 0.5 * (p + q);
-    // LOG << fmt::format("edge {}, m = ({}, {}, {})", i, m[0], m[1], m[2]);
     hmesh.split(i, &m[0]);
   }
   UT_ASSERT(hmesh.check());

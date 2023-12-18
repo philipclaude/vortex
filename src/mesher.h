@@ -1,9 +1,12 @@
 #pragma once
 
+#include <memory>
+
 namespace vortex {
 
 class Texture;
 class Mesh;
+class HalfMesh;
 
 struct MeshingParameters {
   double h_min{0.025};
@@ -14,9 +17,13 @@ struct MeshingParameters {
 class EarthMesher {
  public:
   EarthMesher(const Texture& texture);
-  void generate(MeshingParameters params, Mesh& output_mesh) const;
+  ~EarthMesher();
+  void generate(MeshingParameters params);
+  auto& mesh() { return *mesh_; }
+  void extract(Mesh& mesh) const;
 
  private:
+  std::unique_ptr<HalfMesh> mesh_;
   const Texture& texture_;
 };
 
