@@ -54,10 +54,10 @@ void main() {
 
   float w = 0.008 * max(abs(p0.w), abs(p1.w));
 
-  vec3 q0 = p0.xyz - 0.000 * len * dir - w * n;
-  vec3 q1 = p1.xyz + 0.000 * len * dir - w * n;
-  vec3 q2 = p1.xyz + 0.000 * len * dir + w * n;
-  vec3 q3 = p0.xyz - 0.000 * len * dir + w * n;
+  vec3 q0 = normalize(p0.xyz - 0.000 * len * dir - w * n);
+  vec3 q1 = normalize(p1.xyz + 0.000 * len * dir - w * n);
+  vec3 q2 = normalize(p1.xyz + 0.000 * len * dir + w * n);
+  vec3 q3 = normalize(p0.xyz - 0.000 * len * dir + w * n);
 
   gl_Position = vec4(q0, p0.w);
   id = v_id[0];
