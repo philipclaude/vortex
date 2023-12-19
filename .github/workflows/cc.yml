@@ -12,7 +12,7 @@ env:
 
 jobs:
   cc-build-format-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-bionic
 
     steps:
     - uses: actions/checkout@v3
