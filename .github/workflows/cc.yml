@@ -12,11 +12,15 @@ env:
 
 jobs:
   cc-build-format-test:
-    runs-on: ubuntu-bionic
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - uses: openrndr/setup-opengl@v1.1
+
+    - name: install
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
 
     - name: configure
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} cc/
