@@ -178,22 +178,33 @@ void read_polygons(int64_t fid, Mesh& mesh) {
                 });
 }
 
+void plus_one(int64_t begin, int64_t end, void* data) {
+  index_t* v = (index_t*)data;
+  for (int64_t i = begin; i <= end; i++) v[i]++;
+};
+
 void write_polygons(int64_t fid, const Mesh& mesh) {
   if (mesh.polygons().n() == 0) return;
 
   index_t n_boundary = mesh.polygons().n();
   GmfSetKwd(fid, GmfBoundaryPolygonHeaders, n_boundary);
+  std::vector<index_t> headers(mesh.polygons().n());
   index_t m = 1;
-  for (int k = 0; k < mesh.polygons().n(); k++) {
-    GmfSetLin(fid, GmfBoundaryPolygonHeaders, m, mesh.polygons().group(k));
+  size_t np = mesh.polygons().n();
+  for (int k = 0; k < np; k++) {
+    headers[k] = m;
     m += mesh.polygons().length(k);
   }
+  const auto& groups = mesh.polygons().groups();
+  GmfSetBlock(fid, GmfBoundaryPolygonHeaders, 1, np, 0, nullptr, nullptr,
+              GmfLong, &headers[0], &headers[np - 1], GmfInt, &groups[0],
+              &groups[np - 1]);
 
   GmfSetKwd(fid, GmfBoundaryPolygonVertices, m - 1);
-  for (int k = 0; k < mesh.polygons().n(); k++) {
-    for (int j = 0; j < mesh.polygons().length(k); j++)
-      GmfSetLin(fid, GmfBoundaryPolygonVertices, mesh.polygons()(k, j) + 1);
-  }
+  std::vector<index_t> v = mesh.polygons().data();
+  for (auto& x : v) x += 1;
+  GmfSetBlock(fid, GmfBoundaryPolygonVertices, 1, m - 1, 0, nullptr, nullptr,
+              GmfLong, &v[0], &v[m - 2]);
 }
 
 template <typename T>
@@ -258,15 +269,11 @@ void write(const Mesh& mesh, const std::string& filename, bool twod) {
   ASSERT(fid);
 
   GmfSetKwd(fid, GmfVertices, mesh.vertices().n());
-  for (int k = 0; k < mesh.vertices().n(); k++) {
-    int ref = mesh.vertices().group(k) + 1;
-    if (dim == 2)
-      GmfSetLin(fid, GmfVertices, mesh.vertices()[k][0], mesh.vertices()[k][1],
-                ref);
-    else if (dim == 3)
-      GmfSetLin(fid, GmfVertices, mesh.vertices()[k][0], mesh.vertices()[k][1],
-                mesh.vertices()[k][2], ref);
-  }
+  size_t nv = mesh.vertices().n();
+  auto& groups = mesh.vertices().groups();
+  GmfSetBlock(fid, GmfVertices, dim, nv, 1, nullptr, nullptr, GmfDoubleVec, dim,
+              mesh.vertices()[0], mesh.vertices()[nv - 1], GmfInt, &groups[0],
+              &groups[nv - 1]);
 
   // write the elements
   write_simplex(fid, mesh.lines());

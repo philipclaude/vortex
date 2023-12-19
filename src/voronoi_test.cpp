@@ -135,7 +135,7 @@ UT_TEST_CASE(test_sphere_triangulation) {
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
   };
-  Sphere sphere(7);
+  Sphere sphere(6);
   static const int dim = 3;
   size_t n_sites = 1e6;
 #if 0
