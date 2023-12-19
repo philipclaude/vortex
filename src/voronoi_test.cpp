@@ -196,7 +196,6 @@ UT_TEST_CASE(test_sphere_triangulation) {
 
   // randomize the colors a bit, otherwise neighboring cells
   // will have similar colors and won't visually stand out
-
   size_t n_colors = 20;
   std::vector<int> site2color(n_sites);
   for (size_t k = 0; k < n_sites; k++)
