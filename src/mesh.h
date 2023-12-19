@@ -109,6 +109,23 @@ class Vertices : public array2d<coord_t> {
 
   void print() const;
   const auto& groups() const { return group_; }
+  auto& params() { return param_; }
+
+  void allocate(size_t n) {
+    entity_.resize(n);
+    group_.resize(n);
+  }
+
+  void copy(Vertices& dst) const {
+    array2d<coord_t>::copy(dst);
+    dst.allocate(n());
+    param_.copy(dst.params());
+    for (int k = 0; k < n(); k++) {
+      dst.set_entity(k, entity_[k]);
+      dst.set_group(k, group_[k]);
+      dst.set_param(k, param_[k], param_.stride());
+    }
+  }
 
  private:
   std::vector<int32_t> group_;

@@ -296,6 +296,7 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
       for (size_t j = 0; j < polygon.size(); j++)
         polygon[j] = polygons_[k][j] + n;
       mesh.polygons().add(polygon.data(), polygon.size());
+      mesh.polygons().set_group(mesh.polygons().n() - 1, polygons_.group(k));
     }
   }
 
@@ -306,7 +307,7 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
 
  private:
   VoronoiStatusCode compute(int dim, uint64_t site, Mesh* mesh) {
-    auto status = cell_.compute(domain_, dim, site);
+    auto status = cell_.compute(domain_, dim, site, mesh ? this : nullptr);
     if (properties_) {
       cell_.get_properties(properties_[site]);
       properties_[site].site = site;

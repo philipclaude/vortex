@@ -222,14 +222,14 @@ void run_voronoi(argparse::ArgumentParser& program) {
   auto arg_points = program.get<std::string>("--points");
   int n_points = program.get<int>("--n_points");
   auto n_smooth = program.get<int>("--n_smooth");
-  auto arg_output = program.get<std::string>("--output");
 
   // set up the mesh if using a triangle mesh
   Mesh background_mesh(3);
+  bool using_mesh = true;
   if (arg_domain == "sphere") {
-    // nothing to do
+    using_mesh = false;
   } else if (arg_domain == "icosahedron") {
-    Sphere sphere(6);  // make input
+    Sphere sphere(program.get<int>("--n_subdiv"));
     sphere.vertices().copy(background_mesh.vertices());
     sphere.triangles().copy(background_mesh.triangles());
   } else {  // TODO implement "square" domain
@@ -258,6 +258,10 @@ void run_voronoi(argparse::ArgumentParser& program) {
       }
     } else
       sample_surface(background_mesh, sample, n_points);
+  } else {
+    Mesh tmp(dim);
+    read_mesh(arg_points, tmp);
+    tmp.vertices().copy(sample);
   }
   n_points = sample.n();
   LOG << fmt::format("initialized {} points", n_points);
@@ -279,8 +283,14 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.allow_reattempt = false;
   options.parallel = true;
 
-  auto calculate_voronoi_diagram = [&voronoi, &options, &points](auto& domain) {
-    int n_iter = 1;  // TODO use n_smooth
+  if (n_smooth > 1 && using_mesh) {
+    LOG << "[warning]: Lloyd relaxation not yet implemented for mesh domain";
+    n_smooth = 1;
+  }
+
+  auto calculate_voronoi_diagram = [&voronoi, &options, &points,
+                                    &n_smooth](auto& domain) {
+    int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
       options.store_mesh = iter == n_iter;
       options.verbose = (iter == 1 || iter == n_iter - 1);
@@ -325,11 +335,20 @@ void run_voronoi(argparse::ArgumentParser& program) {
     site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
   for (size_t k = 0; k < voronoi.polygons().n(); k++) {
     int group = voronoi.polygons().group(k);  // the group is the site
+    ASSERT(group >= 0 && group < n_points) << group;
     voronoi.polygons().set_group(k, site2color[group]);
   }
 
-  LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
-  if (voronoi.polygons().n() > 0) meshb::write(voronoi, arg_output);
+  if (program.present<std::string>("--output")) {
+    LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
+    auto arg_output = program.get<std::string>("--output");
+    if (voronoi.polygons().n() > 0) meshb::write(voronoi, arg_output);
+  }
+  if (program.present<std::string>("--output_points")) {
+    Mesh tmp(dim);
+    points.copy(tmp.vertices());
+    meshb::write(tmp, program.get<std::string>("--output_points"));
+  }
 }
 }  // namespace
 }  // namespace vortex
@@ -381,7 +400,13 @@ int main(int argc, char** argv) {
   argparse::ArgumentParser cmd_voronoi("voronoi");
   cmd_voronoi.add_description("calculate Voronoi diagram on surface");
   cmd_voronoi.add_argument("--domain")
-      .help("input surface: (.obj or .meshb) or sphere");
+      .help("input surface: (.obj or .meshb), sphere or icosahedron");
+  cmd_voronoi.add_argument("--n_subdiv")
+      .help(
+          "number of subdivisions of the sphere mesh (only applicable to "
+          "icosahedron domain)")
+      .default_value(4)
+      .scan<'i', int>();
   cmd_voronoi.add_argument("--points")
       .help(
           "sampling technique to use (random, vertices, or specify mesh file "
@@ -394,10 +419,12 @@ int main(int argc, char** argv) {
       .scan<'i', int>();
   cmd_voronoi.add_argument("--n_smooth")
       .help("# iterations of Lloyd relaxation")
-      .default_value(0)
+      .default_value(1)
       .scan<'i', int>();
   cmd_voronoi.add_argument("--output")
       .help("output mesh file ([prefer] .meshb or .obj)");
+  cmd_voronoi.add_argument("--output_points")
+      .help("output points filename ([prefer] .meshb or .obj)");
   program.add_subparser(cmd_voronoi);
 
   try {
