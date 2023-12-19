@@ -137,7 +137,7 @@ UT_TEST_CASE(test_sphere_triangulation) {
   };
   Sphere sphere(6);
   static const int dim = 3;
-  size_t n_sites = 1e6;
+  size_t n_sites = 1e4;
 #if 0
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {

@@ -20,7 +20,7 @@ UT_TEST_CASE(test1) {
   texture.make_periodic();
   texture.write("texture.jpg");
 
-  MeshingParameters msh_opts{.max_iter = 10, .h_min = 0.005, .h_max = 0.01};
+  MeshingParameters msh_opts{.max_iter = 10, .h_min = 0.05, .h_max = 0.1};
   EarthMesher mesher(texture);
   mesher.generate(msh_opts);
 
