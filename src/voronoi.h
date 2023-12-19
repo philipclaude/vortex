@@ -272,4 +272,33 @@ struct SphereDomain {
   double radius{1.0};
 };
 
+struct PlanarVoronoiPolygon {
+  typedef VoronoiVertex Vertex_t;
+  vec4 base{0, 0, 1, 0};
+
+  vec4 compute(const vec4& pi, const vec4& pj) const;
+  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const;
+  void initialize(const vec3* points, const size_t n_points,
+                  pool<Vertex_t>& polygon, pool<vec4>& planes);
+  vec4 plane_equation(const vec4& ui, const vec4& uj);
+  void get_properties(const pool<Vertex_t>& polygon, const pool<vec4>& planes,
+                      VoronoiCellProperties& props) const;
+};
+
+struct TriangulationDomain {
+  typedef PlanarVoronoiPolygon Cell_t;
+
+  TriangulationDomain(const coord_t* p, uint64_t np, const index_t* t,
+                      uint64_t nt)
+      : points(p), n_points(np), triangles(t), n_triangles(nt) {}
+  void initialize(int64_t elem,
+                  VoronoiPolygon<TriangulationDomain>& cell) const;
+  size_t n_elems() const { return n_triangles; }
+
+  const coord_t* points{nullptr};
+  uint64_t n_points{0};
+  const index_t* triangles{nullptr};
+  uint64_t n_triangles{0};
+};
+
 }  // namespace vortex
