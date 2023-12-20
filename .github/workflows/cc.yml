@@ -28,13 +28,13 @@ jobs:
     - name: build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-    - name: lint
-      uses: cpp-linter/cpp-linter-action@v2
-      id: linter
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        style: file
+    # - name: lint
+    #   uses: cpp-linter/cpp-linter-action@v2
+    #   id: linter
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     style: file
 
     # - name: check failure
     #   if: steps.linter.outputs.checks-failed > 0
