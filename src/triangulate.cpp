@@ -1,11 +1,10 @@
 #include "triangulate.h"
 
-#include <mapletrees/kdtree.h>
-
 #include <queue>
 #include <unordered_set>
 
 #include "io.h"
+#include "kdtree.h"
 #include "library.h"
 #include "math/linalg.h"
 #include "mesh.h"
@@ -149,7 +148,7 @@ bool valid_flip(const HalfEdge& edge, bool check_quality = true) {
   double a1 = face_area(&pa[0], &pr[0], &pl[0]);
   if (a0 <= 0 || a1 <= 0) return false;
 
-  double d0 = dot(normal(pa, pb, pl), normal(pa, pr, pb));
+  // double d0 = dot(normal(pa, pb, pl), normal(pa, pr, pb));
   double d1 = dot(normal(pl, pr, pb), normal(pa, pr, pl));
   if (d1 < 1e-2) return false;
   // if (d1 < d0) return false;  // dot product should increase
@@ -289,7 +288,7 @@ void OceanTriangulator::insert_points() {
   size_t n_inserted = 0;
   size_t n_edge = 0;
   LOG << "inserting " << coast_.vertices().n();
-  for (int i = 0; i < coast_.vertices().n(); i++) {
+  for (size_t i = 0; i < coast_.vertices().n(); i++) {
     // find the closest node (in the original mesh)
     const auto* qi = coast_.vertices()[i];
     index_t n = tree.nearest(qi);
@@ -382,7 +381,7 @@ bool edge_intersects(HalfNode& n0, HalfNode& n1, HalfEdge* e) {
 
 bool recover_edge(HalfMesh& mesh, index_t e0, index_t e1) {
   auto& n0 = mesh.nodes()[e0];
-  auto& n1 = mesh.nodes()[e1];
+  // auto& n1 = mesh.nodes()[e1];
   std::vector<HalfEdge*> edges;
 
   // extract the edges around e0
@@ -406,7 +405,7 @@ void OceanTriangulator::recover_edges() {
   for (size_t i = 0; i < mesh_.lines().n(); i++) {
     auto e0 = mesh_.lines()(i, 0);
     auto e1 = mesh_.lines()(i, 1);
-    auto& node = hmesh_.nodes()[e0];
+    // auto& node = hmesh_.nodes()[e0];
     if (e0 == e1) continue;
     if (recover_edge(hmesh_, e0, e1)) {
       n_recovered++;

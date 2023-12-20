@@ -21,7 +21,8 @@ namespace {
 
 void apply_mask(const std::string& input, double tmin, double tmax,
                 Mesh& mesh) {
-  TextureOptions tex_opts{.format = TextureFormat::kGrayscale};
+  TextureOptions tex_opts;
+  tex_opts.format = TextureFormat::kGrayscale;
   Texture mask(input, tex_opts);
   mask.make_binary(tmin, tmin, tmax);
 
@@ -48,7 +49,8 @@ void apply_mask(const std::string& input, double tmin, double tmax,
 }
 
 void run_mesher(argparse::ArgumentParser& program) {
-  TextureOptions tex_opts{.format = TextureFormat::kGrayscale};
+  TextureOptions tex_opts;
+  tex_opts.format = TextureFormat::kGrayscale;
   std::string filename = program.get<std::string>("metric");
   bool no_smooth = program.get<bool>("--no_smooth");
   Texture texture(filename, tex_opts);
@@ -72,7 +74,10 @@ void run_mesher(argparse::ArgumentParser& program) {
   LOG << fmt::format("generating mesh (# iter = {}) with hmin = {}, hmax = {}",
                      n_iter, hmin, hmax);
 
-  MeshingParameters msh_opts{.max_iter = n_iter, .h_min = hmin, .h_max = hmax};
+  MeshingParameters msh_opts;
+  msh_opts.max_iter = n_iter;
+  msh_opts.h_min = hmin;
+  msh_opts.h_max = hmax;
   EarthMesher mesher(texture);
   mesher.generate(msh_opts);
 
@@ -220,7 +225,7 @@ void run_extract(argparse::ArgumentParser& program) {
 void run_voronoi(argparse::ArgumentParser& program) {
   auto arg_domain = program.get<std::string>("--domain");
   auto arg_points = program.get<std::string>("--points");
-  int n_points = program.get<int>("--n_points");
+  size_t n_points = program.get<int>("--n_points");
   auto n_smooth = program.get<int>("--n_smooth");
 
   // set up the mesh if using a triangle mesh
@@ -335,7 +340,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
     site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
   for (size_t k = 0; k < voronoi.polygons().n(); k++) {
     int group = voronoi.polygons().group(k);  // the group is the site
-    ASSERT(group >= 0 && group < n_points) << group;
     voronoi.polygons().set_group(k, site2color[group]);
   }
 

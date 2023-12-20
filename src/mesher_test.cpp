@@ -12,7 +12,8 @@ using namespace vortex;
 UT_TEST_SUITE(mesher_test_suite)
 
 UT_TEST_CASE(test1) {
-  TextureOptions tex_opts{.format = TextureFormat::kGrayscale};
+  TextureOptions tex_opts;
+  tex_opts.format = TextureFormat::kGrayscale;
   std::string filename = "oceans_2048.png";
   Texture texture(filename, tex_opts);
   texture.make_binary(10, 10, 255);
@@ -20,7 +21,10 @@ UT_TEST_CASE(test1) {
   texture.make_periodic();
   texture.write("texture.jpg");
 
-  MeshingParameters msh_opts{.max_iter = 10, .h_min = 0.05, .h_max = 0.1};
+  MeshingParameters msh_opts;
+  msh_opts.max_iter = 10;
+  msh_opts.h_min = 0.05;
+  msh_opts.h_max = 0.1;
   EarthMesher mesher(texture);
   mesher.generate(msh_opts);
 

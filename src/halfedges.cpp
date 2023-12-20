@@ -26,7 +26,7 @@ void HalfMesh::build(const Mesh& mesh) {
   twins.reserve(edges_.capacity());
 
   auto create_half_edges = [&](const auto& topology) {
-    for (int k = 0; k < topology.n(); k++) {
+    for (size_t k = 0; k < topology.n(); k++) {
       const int n_vertices = topology.length(k);
       auto& face = create_face(n_vertices);
       face.set_group(topology.group(k));

@@ -12,7 +12,7 @@ UT_TEST_SUITE(IO_TESTS)
 UT_TEST_CASE(test1) {
   Mesh mesh(3);
   obj::read("/Users/philip/Desktop/earth-r50.obj", mesh);
-  for (int i = 0; i < mesh.vertices().n(); i++) {
+  for (size_t i = 0; i < mesh.vertices().n(); i++) {
     vec3d p(mesh.vertices()[i]);
     p = normalize(p);
     for (int d = 0; d < 3; d++) mesh.vertices()[i][d] = p[d];

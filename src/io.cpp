@@ -190,7 +190,7 @@ void write_polygons(int64_t fid, const Mesh& mesh) {
   std::vector<index_t> headers(mesh.polygons().n());
   index_t m = 1;
   size_t np = mesh.polygons().n();
-  for (int k = 0; k < np; k++) {
+  for (size_t k = 0; k < np; k++) {
     headers[k] = m;
     m += mesh.polygons().length(k);
   }
@@ -411,14 +411,14 @@ void write(const Mesh& mesh, const std::string& filename) {
   fprintf(out, "# obj mesh from terra\n");
 
   // write vertices
-  for (int k = 0; k < mesh.vertices().n(); k++) {
+  for (size_t k = 0; k < mesh.vertices().n(); k++) {
     const double* p = mesh.vertices()[k];
     double z = (mesh.vertices().dim() == 2) ? 0.0 : p[2];
     fprintf(out, "v %.10f %.10f %.10f\n", p[0], p[1], z);
   }
 
   // write triangles
-  for (int k = 0; k < mesh.triangles().n(); k++) {
+  for (size_t k = 0; k < mesh.triangles().n(); k++) {
     fprintf(out, "f ");
     for (int j = 0; j < 3; j++) {
       int idx = mesh.triangles()[k][j];
@@ -428,7 +428,7 @@ void write(const Mesh& mesh, const std::string& filename) {
   }
 
   // write quads
-  for (int k = 0; k < mesh.quads().n(); k++) {
+  for (size_t k = 0; k < mesh.quads().n(); k++) {
     fprintf(out, "f ");
     for (int j = 0; j < 4; j++) {
       int idx = mesh.quads()[k][j];

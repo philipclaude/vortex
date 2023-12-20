@@ -201,7 +201,7 @@ void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
   props.moment = {0, 0, 0};
   vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
   vec3 b = compute(planes[p[1].bl], planes[p[2].br]).xyz();
-  for (int k = 2; k < p.size(); k++) {
+  for (size_t k = 2; k < p.size(); k++) {
     vec3 c = compute(planes[p[k].bl], planes[p[k].br]).xyz();
     coord_t ak = 0.5 * length(cross(b - a, c - a));
     vec3 ck = (1.0 / 3.0) * (a + b + c);
@@ -284,14 +284,14 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
     // add vertices
     int n = mesh.vertices().n();
     mesh.vertices().reserve(mesh.vertices().n() + vertices_.n());
-    for (int k = 0; k < vertices_.n(); k++) {
+    for (size_t k = 0; k < vertices_.n(); k++) {
       mesh.vertices().add(vertices_[k]);
     }
 
     // add polygons
     mesh.polygons().reserve(mesh.polygons().n() + polygons_.n());
     std::vector<index_t> polygon(128);
-    for (int k = 0; k < polygons_.n(); k++) {
+    for (size_t k = 0; k < polygons_.n(); k++) {
       polygon.resize(polygons_.length(k));
       for (size_t j = 0; j < polygon.size(); j++)
         polygon[j] = polygons_[k][j] + n;
@@ -375,14 +375,14 @@ template <typename Domain_t> class ElementThreadBlock : public Mesh {
     // add vertices
     int n = mesh.vertices().n();
     mesh.vertices().reserve(mesh.vertices().n() + vertices_.n());
-    for (int k = 0; k < vertices_.n(); k++) {
+    for (size_t k = 0; k < vertices_.n(); k++) {
       mesh.vertices().add(vertices_[k]);
     }
 
     // add polygons
     mesh.polygons().reserve(mesh.polygons().n() + polygons_.n());
     std::vector<index_t> polygon(128);
-    for (int k = 0; k < polygons_.n(); k++) {
+    for (size_t k = 0; k < polygons_.n(); k++) {
       polygon.resize(polygons_.length(k));
       for (size_t j = 0; j < polygon.size(); j++)
         polygon[j] = polygons_[k][j] + n;
@@ -414,7 +414,6 @@ std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
     std::vector<index_t>& knn, size_t n_neighbors,
     const VoronoiDiagramOptions& options,
     std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> ptree = nullptr) {
-  size_t n_threads = std::thread::hardware_concurrency();
   Timer timer;
   maple::KdTreeOptions kdtree_opts;
   kdtree_opts.max_dim = options.max_kdtree_axis_dim;
@@ -437,7 +436,7 @@ std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
     maple::NearestNeighborSearch<index_t, coord_t> search(n_neighbors,
                                                           neighbors, distances);
     tree->knearest(&q[k * dim], search);
-    for (int j = 0; j < n_neighbors; ++j)
+    for (size_t j = 0; j < n_neighbors; ++j)
       knn[k * n_neighbors + j] = neighbors[j];
   });
   timer.stop();
@@ -451,7 +450,6 @@ std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> get_nearest_neighbor(
     const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
     std::vector<index_t>& nn, const VoronoiDiagramOptions& options,
     std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> ptree = nullptr) {
-  size_t n_threads = std::thread::hardware_concurrency();
   Timer timer;
   maple::KdTreeOptions kdtree_opts;
   kdtree_opts.max_dim = options.max_kdtree_axis_dim;
@@ -574,7 +572,7 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
     NOT_IMPLEMENTED;
 
   // compute voronoi diagram
-  bool set_kdtree = options.interleave_neighbors;
+  // bool set_kdtree = options.interleave_neighbors;
 
   Timer timer;
   timer.start();

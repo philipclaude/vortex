@@ -92,6 +92,7 @@ template <typename Domain_t> class VoronoiPolygon {
                             ElementVoronoiWorkspace& workspace,
                             Mesh* mesh = nullptr) {
     NOT_POSSIBLE;
+    return VoronoiStatusCode::kSuccess;
   }
 
   void clip_by_plane(uint8_t b) {

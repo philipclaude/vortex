@@ -179,7 +179,7 @@ void Sphere::subdivide() {
   std::map<Edge, index_t> edges;
 
   Topology<Triangle> triangles;
-  for (int k = 0; k < triangles_.n(); k++) {
+  for (size_t k = 0; k < triangles_.n(); k++) {
     int edge_indices[3];
     for (int j = 0; j < 3; j++) {
       index_t e0 = triangles_(k, j);
