@@ -33,7 +33,7 @@ template <typename Domain_t> class VoronoiPolygon {
     n_neighbors_ = n_neighbors;
   }
 
-  void set_kdtree(maple::KdTreeNd<coord_t, index_t>* tree) { tree_ = tree; }
+  void set_kdtree(trees::KdTreeNd<coord_t, index_t>* tree) { tree_ = tree; }
 
   void clear() {
     p_.clear();
@@ -184,7 +184,7 @@ template <typename Domain_t> class VoronoiPolygon {
   const coord_t* sites_;
 
   // only CPU
-  maple::KdTreeNd<coord_t, index_t>* tree_{nullptr};
+  trees::KdTreeNd<coord_t, index_t>* tree_{nullptr};
 };
 
 template <>

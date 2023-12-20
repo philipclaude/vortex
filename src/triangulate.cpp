@@ -4,12 +4,12 @@
 #include <unordered_set>
 
 #include "io.h"
-#include "kdtree.h"
 #include "library.h"
 #include "math/linalg.h"
 #include "mesh.h"
 #include "numerics.h"
 #include "predicates.h"
+#include "trees/kdtree.h"
 
 namespace vortex {
 
@@ -275,7 +275,7 @@ size_t optimize_mesh(HalfMesh& mesh) {
 
 void OceanTriangulator::insert_points() {
   // build a kdtree of the original surface points
-  maple::KdTree<3, coord_t, index_t, true> tree(mesh_.vertices()[0],
+  trees::KdTree<3, coord_t, index_t, true> tree(mesh_.vertices()[0],
                                                 mesh_.vertices().n());
 
   // TODO: allocate faces and edges as well

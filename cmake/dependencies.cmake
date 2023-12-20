@@ -40,7 +40,7 @@ add_extern_repository(morton GIT_REPOSITORY "https://github.com/morton-nd/morton
 add_extern_repository(wings GIT_REPOSITORY "https://github.com/middpolymer/wings" SKIP_CONFIG TRUE)
 add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middpolymer/geogram.psm.OpenNL" SKIP_CONFIG TRUE)
 add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middpolymer/geogram.psm.Predicates" SKIP_CONFIG TRUE)
-add_extern_repository(mapletrees GIT_REPOSITORY "https://github.com/middpolymer/mapletrees.git" SKIP_CONFIG TRUE)
+add_extern_repository(trees GIT_REPOSITORY "https://github.com/middpolymer/trees.git" SKIP_CONFIG TRUE)
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middpolymer/stlext.git" SKIP_CONFIG TRUE)
 
 # utilities to clean up and update repositories
@@ -101,9 +101,8 @@ set(VORTEX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_D
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/wings
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/morton/include
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/shapelib
-  ${CMAKE_CURRENT_SOURCE_DIR}/extern/mapletrees
+  ${CMAKE_CURRENT_SOURCE_DIR}/extern/trees
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/stlext
-  ${CMAKE_CURRENT_SOURCE_DIR}/extern/mapletrees/test/nanoflann/include
 )
 
 
