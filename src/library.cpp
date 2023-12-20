@@ -4,7 +4,7 @@
 #include <map>
 #include <vector>
 
-#include "llama/vec.hpp"
+#include "math/vec.hpp"
 
 namespace vortex {
 
@@ -14,8 +14,7 @@ Grid<type>::Grid(const std::vector<int>& sizes, int dim)
   build();
 }
 
-template <>
-void Grid<Triangle>::build() {
+template <> void Grid<Triangle>::build() {
   int nx = sizes_[0];
   int ny = sizes_[1];
 
@@ -56,8 +55,7 @@ void Grid<Triangle>::build() {
   }
 }
 
-template <>
-void Grid<Quad>::build() {
+template <> void Grid<Quad>::build() {
   // these are actually quads
   int nx = sizes_[0];
   int ny = sizes_[1];
@@ -95,8 +93,7 @@ void Grid<Quad>::build() {
   }
 }
 
-template <>
-void Grid<Polygon>::build() {
+template <> void Grid<Polygon>::build() {
   // these are actually quads
   int nx = sizes_[0];
   int ny = sizes_[1];
@@ -193,9 +190,9 @@ void Sphere::subdivide() {
       auto itr = edges.find({e1, e0});
       if (itr == edges.end()) {
         // create a new point on this edge
-        llama::vec3d p0(vertices_[e0]);
-        llama::vec3d p1(vertices_[e1]);
-        llama::vec3d q = 0.5 * (p0 + p1);
+        vortex::vec3d p0(vertices_[e0]);
+        vortex::vec3d p1(vertices_[e1]);
+        vortex::vec3d q = 0.5 * (p0 + p1);
 
         // normalize to place point on unit sphere
         q = normalize(q);

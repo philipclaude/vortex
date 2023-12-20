@@ -107,10 +107,10 @@ static void evaluate_topology(const Vertices& vertices,
       polytope_correction<T>(topology.length(k), phi);
 
       // interpolate the mesh coordinates
-      llama::vec3d p;
+      vortex::vec3d p;
       for (size_t i = 0; i < phi.size(); i++) {
         // vertex coordinate corresponding to this basis function
-        llama::vec3d v(vertices[topology[k][i]], vertices.dim());
+        vortex::vec3d v(vertices[topology[k][i]], vertices.dim());
 
         for (int d = 0; d < vertices.dim(); d++) p[d] += v[d] * phi[i];
       }

@@ -1,6 +1,5 @@
 #include "triangulate.h"
 
-#include <llama/linear_algebra.h>
 #include <mapletrees/kdtree.h>
 
 #include <queue>
@@ -8,6 +7,7 @@
 
 #include "io.h"
 #include "library.h"
+#include "math/linalg.h"
 #include "mesh.h"
 #include "numerics.h"
 #include "predicates.h"
@@ -50,7 +50,7 @@ vec3d get_triangle_barycentric(const Face_t& face, const double* x) {
     a(i, 2) = -pd[i];
     b[i] = -pc[i];
   }
-  vec3d solution = llama::inverse(a) * b;
+  vec3d solution = vortex::inverse(a) * b;
 
   alpha[0] = solution[0];
   alpha[1] = solution[1];
@@ -95,6 +95,7 @@ Face_t* search_for(HalfMesh& mesh, half_t root, const double* x) {
 
     half_t faces[3] = {face0.index(), face1.index(), face2.index()};
     for (int i = 0; i < 3; i++) {
+      if (faces[i] == halfnull_t) continue;
       if (visited.find(faces[i]) == visited.end()) {
         visited.insert(faces[i]);
         queue.push(faces[i]);
@@ -287,6 +288,7 @@ void OceanTriangulator::insert_points() {
   size_t n_flips = 0;
   size_t n_inserted = 0;
   size_t n_edge = 0;
+  LOG << "inserting " << coast_.vertices().n();
   for (int i = 0; i < coast_.vertices().n(); i++) {
     // find the closest node (in the original mesh)
     const auto* qi = coast_.vertices()[i];

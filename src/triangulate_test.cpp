@@ -10,17 +10,26 @@ using namespace vortex;
 UT_TEST_SUITE(TRIANGULATE_TESTS)
 
 UT_TEST_CASE(test1) {
-  Mesh mesh(3);
-  int res = 110;
-  std::string name = "coastline";
-  std::string base = fmt::format(
-      "/Users/philip/Codes/external/natural-earth-vector/{}m_physical/"
-      "ne_{}m_{}",
-      res, res, name);
-  shp::read(base, mesh);
+  Mesh input_mesh(3);
+  read_mesh("../build/release/test.meshb", input_mesh);
+
+  // only keep vertices on the lines
+  Mesh coast(3);
+  std::unordered_map<index_t, index_t> vertex_map;
+  vertex_map.reserve(input_mesh.vertices().n());
+  for (size_t k = 0; k < input_mesh.lines().n(); k++) {
+    auto* e = input_mesh.lines()[k];
+    for (int j = 0; j < 2; j++) {
+      if (vertex_map.find(e[j]) == vertex_map.end()) {
+        vertex_map.insert({e[j], vertex_map.size()});
+        coast.vertices().add(input_mesh.vertices()[e[j]]);
+      }
+      e[j] = vertex_map.at(e[j]);
+    }
+  }
 
   Sphere oceans(4);
-  OceanTriangulator triangulator(oceans, mesh);
+  OceanTriangulator triangulator(oceans, coast);
   triangulator.triangulate();
 
   meshb::write(oceans, "../data/oceans.meshb");

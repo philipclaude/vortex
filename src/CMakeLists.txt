@@ -5,10 +5,14 @@ set(SOURCES
   field.cpp
   graphics.cpp
   halfedges.cpp
-  image.cpp
   io.cpp
   library.cpp
   log.cpp
+  math/linalg.cpp
+  math/mat.cpp
+  math/spmat.cpp
+  math/sym.cpp
+  math/vec.cpp
   mesh.cpp
   mesher.cpp
   predicates.c

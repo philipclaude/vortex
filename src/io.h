@@ -17,10 +17,6 @@ void read(const std::string& filename, Mesh& mesh);
 void write(const Mesh& mesh, const std::string& filename);
 }  // namespace obj
 
-namespace shp {
-void read(const std::string& filename, Mesh& mesh);
-}
-
 inline std::string get_file_ext(const std::string& filename) {
   std::string::size_type idx;
   idx = filename.rfind('.');  // find the '.' in reverse order
