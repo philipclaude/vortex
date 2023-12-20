@@ -5,48 +5,36 @@
 
 #include "array2d.h"
 #include "elements.h"
-#include "llama/vec.h"
+#include "math/vec.h"
 
 namespace vortex {
 
 class Mesh;
-template <typename T>
-class Topology;
+template <typename T> class Topology;
 
-template <typename T>
-int n_basis(int order);
+template <typename T> int n_basis(int order);
 
-template <>
-inline int n_basis<Line>(int p) {
-  return (p + 1);
-}
+template <> inline int n_basis<Line>(int p) { return (p + 1); }
 
-template <>
-inline int n_basis<Triangle>(int p) {
+template <> inline int n_basis<Triangle>(int p) {
   return (p + 1) * (p + 2) / 2;
 }
 
-template <>
-inline int n_basis<Quad>(int p) {
-  return (p + 1) * (p + 1);
-}
+template <> inline int n_basis<Quad>(int p) { return (p + 1) * (p + 1); }
 
-template <>
-inline int n_basis<Polygon>(int p) {
+template <> inline int n_basis<Polygon>(int p) {
   ASSERT(p <= 1);
   return 1;
 }
 
-template <typename T>
-struct ReferenceElement {
-  typedef llama::vecs<T::dimension + 1, coord_t> vec;
+template <typename T> struct ReferenceElement {
+  typedef vortex::vecs<T::dimension + 1, coord_t> vec;
   ReferenceElement(int order = 0) { set_order(order); }
   void set_order(int order);
   std::vector<vec> nodes;
 };
 
-template <>
-inline void ReferenceElement<Line>::set_order(int order) {
+template <> inline void ReferenceElement<Line>::set_order(int order) {
   nodes.resize(n_basis<Line>(order));
   if (order == 0)
     nodes[0] = {1.0 / 2.0, 1.0 / 2.0};
@@ -57,8 +45,7 @@ inline void ReferenceElement<Line>::set_order(int order) {
     NOT_IMPLEMENTED;
 }
 
-template <>
-inline void ReferenceElement<Triangle>::set_order(int order) {
+template <> inline void ReferenceElement<Triangle>::set_order(int order) {
   nodes.resize(n_basis<Triangle>(order));
   if (order == 0)
     nodes[0] = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
@@ -70,8 +57,7 @@ inline void ReferenceElement<Triangle>::set_order(int order) {
     NOT_IMPLEMENTED;
 }
 
-template <>
-inline void ReferenceElement<Quad>::set_order(int order) {
+template <> inline void ReferenceElement<Quad>::set_order(int order) {
   nodes.resize(n_basis<Quad>(order));
   if (order == 0)
     nodes[0] = {0.5, 0.5, 0.0};
@@ -84,15 +70,13 @@ inline void ReferenceElement<Quad>::set_order(int order) {
     NOT_IMPLEMENTED;
 }
 
-template <>
-inline void ReferenceElement<Polygon>::set_order(int order) {
+template <> inline void ReferenceElement<Polygon>::set_order(int order) {
   nodes.resize(n_basis<Polygon>(order));
   if (order == 0) nodes[0] = {0, 0, 0};
   // else NOT_IMPLEMENTED;
 }
 
-template <typename T>
-class ElementField : public array2d<coord_t> {
+template <typename T> class ElementField : public array2d<coord_t> {
  public:
   ElementField() : ElementField(0, 1) {}
 

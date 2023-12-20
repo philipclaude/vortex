@@ -8,8 +8,6 @@ using namespace vortex;
 UT_TEST_SUITE(graphics_test_suite)
 
 UT_TEST_CASE(test1) {
-  int ws_port = 7681;
-
   // Sphere mesh(4);
   // mesh.vertices().print();
   // mesh.triangles().print();

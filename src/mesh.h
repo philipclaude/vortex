@@ -73,26 +73,27 @@ class Vertices : public array2d<coord_t> {
     array2d<coord_t>::template add<R>(x);
     group_.push_back(id);
     entity_.push_back(nullptr);
-    coord_t u[max_dim - 1];
-    param_.add(u);
+    std::array<double, max_dim - 1> u;
+    std::fill(u.begin(), u.end(), 0);
+    param_.add(u.data());
   }
 
-  int32_t group(index_t k) const {
+  int32_t group(size_t k) const {
     ASSERT(k < n());
     return group_[k];
   }
 
-  void set_group(index_t k, int value) {
+  void set_group(size_t k, int value) {
     ASSERT(k < n());
     group_[k] = value;
   }
 
-  void set_entity(index_t k, Entity* entity) {
+  void set_entity(size_t k, Entity* entity) {
     ASSERT(k < n());
     entity_[k] = entity;
   }
 
-  void set_param(index_t k, const coord_t* u, int nu) {
+  void set_param(size_t k, const coord_t* u, int nu) {
     ASSERT(k < n());
     ASSERT(k < param_.n());
     ASSERT(nu < dim());
@@ -102,7 +103,7 @@ class Vertices : public array2d<coord_t> {
   const std::vector<int>& group() const { return group_; }
   std::vector<int32_t>& group() { return group_; }
 
-  Entity* entity(int k) const {
+  Entity* entity(size_t k) const {
     ASSERT(k < n());
     return entity_[k];
   }
@@ -120,7 +121,7 @@ class Vertices : public array2d<coord_t> {
     array2d<coord_t>::copy(dst);
     dst.allocate(n());
     param_.copy(dst.params());
-    for (int k = 0; k < n(); k++) {
+    for (size_t k = 0; k < n(); k++) {
       dst.set_entity(k, entity_[k]);
       dst.set_group(k, group_[k]);
       dst.set_param(k, param_[k], param_.stride());

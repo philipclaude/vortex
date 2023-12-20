@@ -1,6 +1,6 @@
 #include "util.h"
 
-#include "llama/vec.hpp"
+#include "math/vec.hpp"
 #include "mesh.h"
 #include "morton-nd/mortonND_LUT.h"
 #include "stlext.h"
@@ -11,42 +11,34 @@ constexpr auto encoder64_2d = MortonNDLutEncoder<2, 32, 10>();
 constexpr auto encoder64_3d = MortonNDLutEncoder<3, 21, 10>();
 constexpr auto encoder64_4d = MortonNDLutEncoder<4, 16, 10>();
 
-template <int dim>
-struct Resolution;
+template <int dim> struct Resolution;
 
-template <>
-struct Resolution<2> {
+template <> struct Resolution<2> {
   // 32 bits for each coordinate
   static constexpr double value = 4294967296.0;
 };
 
-template <>
-struct Resolution<3> {
+template <> struct Resolution<3> {
   // 21 bits for each coordinate
   static constexpr double value = 2091752.0;
 };
 
-template <>
-struct Resolution<4> {
+template <> struct Resolution<4> {
   // 16 bits for each coordinate
   static constexpr double value = 65536.0;
 };
 
-template <int dim>
-morton_t encode(const std::array<uint64_t, dim>& x);
+template <int dim> morton_t encode(const std::array<uint64_t, dim>& x);
 
-template <>
-morton_t encode<2>(const std::array<uint64_t, 2>& x) {
+template <> morton_t encode<2>(const std::array<uint64_t, 2>& x) {
   return encoder64_2d.Encode(x[0], x[1]);
 }
 
-template <>
-morton_t encode<3>(const std::array<uint64_t, 3>& x) {
+template <> morton_t encode<3>(const std::array<uint64_t, 3>& x) {
   return encoder64_3d.Encode(x[0], x[1], x[2]);
 }
 
-template <>
-morton_t encode<4>(const std::array<uint64_t, 4>& x) {
+template <> morton_t encode<4>(const std::array<uint64_t, 4>& x) {
   return encoder64_4d.Encode(x[0], x[1], x[2], x[3]);
 }
 
@@ -129,11 +121,11 @@ void sample_surface(const Mesh& mesh, Vertices& sites, index_t n) {
     double beta = std::sqrt(r1) * (1.0 - r2);
     double gamma = 1.0 - alpha - beta;
 
-    llama::vec3d u(mesh.vertices()[mesh.triangles()(t, 0)]);
-    llama::vec3d v(mesh.vertices()[mesh.triangles()(t, 1)]);
-    llama::vec3d w(mesh.vertices()[mesh.triangles()(t, 2)]);
+    vortex::vec3d u(mesh.vertices()[mesh.triangles()(t, 0)]);
+    vortex::vec3d v(mesh.vertices()[mesh.triangles()(t, 1)]);
+    vortex::vec3d w(mesh.vertices()[mesh.triangles()(t, 2)]);
 
-    llama::vec3d p = {0, 0, 0};
+    vortex::vec3d p = {0, 0, 0};
     for (int d = 0; d < 3; d++)
       p[d] = alpha * u[d] + beta * v[d] + gamma * w[d];
     sites.add(p.data());

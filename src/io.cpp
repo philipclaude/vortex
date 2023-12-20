@@ -3,7 +3,6 @@
 
 #include <fmt/format.h>
 #include <libmeshb7.h>
-#include <shapelib/shapefil.h>
 #include <tinyobjloader/tiny_obj_loader.h>
 
 #include <algorithm>
@@ -191,7 +190,7 @@ void write_polygons(int64_t fid, const Mesh& mesh) {
   std::vector<index_t> headers(mesh.polygons().n());
   index_t m = 1;
   size_t np = mesh.polygons().n();
-  for (int k = 0; k < np; k++) {
+  for (size_t k = 0; k < np; k++) {
     headers[k] = m;
     m += mesh.polygons().length(k);
   }
@@ -412,14 +411,14 @@ void write(const Mesh& mesh, const std::string& filename) {
   fprintf(out, "# obj mesh from terra\n");
 
   // write vertices
-  for (int k = 0; k < mesh.vertices().n(); k++) {
+  for (size_t k = 0; k < mesh.vertices().n(); k++) {
     const double* p = mesh.vertices()[k];
     double z = (mesh.vertices().dim() == 2) ? 0.0 : p[2];
     fprintf(out, "v %.10f %.10f %.10f\n", p[0], p[1], z);
   }
 
   // write triangles
-  for (int k = 0; k < mesh.triangles().n(); k++) {
+  for (size_t k = 0; k < mesh.triangles().n(); k++) {
     fprintf(out, "f ");
     for (int j = 0; j < 3; j++) {
       int idx = mesh.triangles()[k][j];
@@ -429,7 +428,7 @@ void write(const Mesh& mesh, const std::string& filename) {
   }
 
   // write quads
-  for (int k = 0; k < mesh.quads().n(); k++) {
+  for (size_t k = 0; k < mesh.quads().n(); k++) {
     fprintf(out, "f ");
     for (int j = 0; j < 4; j++) {
       int idx = mesh.quads()[k][j];
@@ -444,95 +443,5 @@ void write(const Mesh& mesh, const std::string& filename) {
   fclose(out);
 }
 }  // namespace obj
-
-namespace shp {
-
-static const std::map<int, std::string> shpType2Name = {
-    {1, "point"}, {3, "arcs"}, {5, "polygon"}, {8, "multipoint"}};
-
-void read(const std::string& filename, Mesh& mesh) {
-  SHPHandle handle = SHPOpen(filename.c_str(), "r");
-
-  int n_entities, shape_type;
-  double adf_min[4], adf_max[4];
-  SHPGetInfo(handle, &n_entities, &shape_type, adf_min, adf_max);
-  int shx = (handle->fpSHX) ? *handle->fpSHX : 0;
-
-  // all natural-earth-vector data is represented in WGS84
-  // https://www.naturalearthdata.com/features/
-  LOG << fmt::format("# entities = {} shape type = {}, SHX = {}", n_entities,
-                     shape_type, shx);
-
-  std::map<int, std::array<double, 2>> border;
-  int group = 0;
-  for (int i = 0; i < n_entities; i++) {
-    SHPObject* object = SHPReadObject(handle, i);
-    ASSERT(object);
-    int n_vertices = object->nVertices;
-    int n_parts = object->nParts;
-    int type = object->nSHPType;
-    // LOG << fmt::format(
-    //     "reading object {} with {} parts with {} vertices, type = {}", i,
-    //     n_parts, n_vertices, shpType2Name.at(type));
-
-    const double* x = object->padfX;
-    const double* y = object->padfY;
-    const double* z = object->padfZ;
-    // const double* m = object->padfM;
-
-    // add vertices
-    double tol = 1e-6;
-    int offset = mesh.vertices().n();
-    mesh.vertices().reserve(mesh.vertices().n() + n_vertices);
-    for (int j = 0; j < n_vertices; j++) {
-      double lon = M_PI - M_PI * x[j] / 180;
-      double lat = M_PI * y[j] / 180;
-      double X = cos(lat) * cos(lon);
-      double Y = cos(lat) * sin(lon);
-      double Z = sin(lat);
-      // const double point[3] = {x[j], y[j], z[j]};
-      const double point[3] = {X, Y, Z};
-      if (std::fabs(x[j] - 180) < tol || std::fabs(180 - x[j]) < tol)
-        border.insert({j + offset, {lon, lat}});
-      mesh.vertices().add(point);
-    }
-
-    // add parts
-    const int* part_start = object->panPartStart;
-    for (int k = 0; k < n_parts; k++) {
-      group++;
-      int j0 = part_start[k];
-      int j1 = (k + 1 == n_parts) ? n_vertices : part_start[k + 1];
-      int e0 = j0 + offset;
-      int first = mesh.lines().n();
-      for (int j = j0; j < j1; j++) {
-        int e1 = (j + 1 == j1) ? e0 : j + 1 + offset;
-        int edge[2] = {e0, e1};
-        int n = mesh.lines().n();
-        mesh.lines().add(edge);
-        mesh.lines().set_group(n, group);
-        e0 = e1;
-      }
-
-      int last = mesh.lines().n() - 1;
-      vec3d p(mesh.vertices()[mesh.lines()(first, 0)]);
-      vec3d q(mesh.vertices()[mesh.lines()(last, 1)]);
-      double d = length(q - p);
-      if (d < 1e-12) {
-        mesh.lines()(last, 1) = mesh.lines()(first, 0);
-      } else
-        LOG << fmt::format("entity {}, part {}, distance = {}", i, k, d);
-      // ASSERT(mesh.lines()(last, 1) == mesh.lines()(first, 0));
-    }
-  }
-  LOG << fmt::format("# border vertices = {}", border.size());
-  for (auto& p : border) {
-    LOG << fmt::format("vtx = {}, lon = {}, lat = {}", p.first, p.second[0],
-                       p.second[1]);
-  }
-
-  SHPClose(handle);
-}
-}  // namespace shp
 
 }  // namespace vortex

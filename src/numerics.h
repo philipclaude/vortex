@@ -1,16 +1,15 @@
 #pragma once
 #include <algorithm>
-#include <llama/mat.hpp>
-#include <llama/vec.hpp>
 
 #include "log.h"
+#include "math/mat.hpp"
+#include "math/vec.hpp"
 #include "predicates.h"
 
 namespace vortex {
 
-using vec3d = llama::vec3d;
-using mat3 = llama::mats<3, 3, double>;
-using vec2d = llama::vecs<2, double>;
+using mat3 = vortex::mats<3, 3, double>;
+using vec2d = vortex::vecs<2, double>;
 
 inline void sphere_params(const vec3d& xyz, vec3d& uv) {
   constexpr double tol = 1e-12;

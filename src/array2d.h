@@ -83,7 +83,7 @@ template <typename T> class array2d {
    *
    * \return number of elements (such as number of vertices, or triangles).
    */
-  int64_t n() const {
+  size_t n() const {
     if (layout_ == Layout_Rectangular) {
       ASSERT(stride_ > 0);
       return data_.size() / stride_;
@@ -99,7 +99,7 @@ template <typename T> class array2d {
    *
    * \return const reference to component (k,j)
    */
-  const T& operator()(index_t k, uint32_t j) const {
+  const T& operator()(size_t k, uint32_t j) const {
     ASSERT(k < n()) << fmt::format(
         "attempt to access element ({}, {}), but n = {}", k, j, n());
     if (layout_ == Layout_Rectangular) return data_[k * stride_ + j];
@@ -117,7 +117,7 @@ template <typename T> class array2d {
    *
    * \return reference to component (k,j)
    */
-  T& operator()(index_t k, uint32_t j) {
+  T& operator()(size_t k, uint32_t j) {
     ASSERT(k < n());
     if (layout_ == Layout_Rectangular) return data_[k * stride_ + j];
     ASSERT(layout_ == Layout_Jagged);
@@ -132,7 +132,7 @@ template <typename T> class array2d {
    *
    * \return const pointer to data at element k
    */
-  const T* operator[](index_t k) const {
+  const T* operator[](size_t k) const {
     ASSERT(k < n()) << fmt::format("attempt to access element {}, but n = {}",
                                    k, n());
     if (layout_ == Layout_Rectangular) return &data_[k * stride_];
@@ -147,7 +147,7 @@ template <typename T> class array2d {
    *
    * \return pointer to data at element k
    */
-  T* operator[](index_t k) {
+  T* operator[](size_t k) {
     ASSERT(k < n());
     if (layout_ == Layout_Rectangular) return &data_[k * stride_];
     ASSERT(layout_ == Layout_Jagged);
@@ -188,7 +188,7 @@ template <typename T> class array2d {
    *
    * \return number of items at k
    */
-  int length(index_t k) const {
+  int length(size_t k) const {
     ASSERT(k < n());
     if (layout_ == Layout_Rectangular) return stride_;
     return length_[k];
@@ -200,9 +200,9 @@ template <typename T> class array2d {
    * \param[in]: k0, the element to remove
    *
    */
-  void remove(index_t k0) {
-    ASSERT(k0 >= 0 && k0 < n())
-        << fmt::format("attempt to remove element {}, but n() = {}", k0, n());
+  void remove(size_t k0) {
+    ASSERT(k0 < n()) << fmt::format(
+        "attempt to remove element {}, but n() = {}", k0, n());
     int start, end;
     if (layout_ == Layout_Rectangular) {
       start = k0 * stride_;
@@ -210,7 +210,7 @@ template <typename T> class array2d {
     } else {
       start = first_[k0];
       end = first_[k0] + length_[k0];
-      for (int k = k0 + 1; k < n(); k++) {
+      for (size_t k = k0 + 1; k < n(); k++) {
         first_[k] -= length_[k0];  // every element after k0 is now shifted
       }
       first_.erase(first_.begin() + k0);
@@ -273,7 +273,7 @@ template <typename T> class array2d {
    * \param[in] label (optional) - prefix for array entries.
    */
   void print(const std::string& label = std::string()) const {
-    for (int k = 0; k < n(); k++) {
+    for (size_t k = 0; k < n(); k++) {
       std::cout << (label.empty() ? "entry" : label) << "[";
       std::cout << k << "] = (";
       int m = length(k);

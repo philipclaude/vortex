@@ -32,8 +32,6 @@ set(WINGS_BUILD_APPS FALSE)
 
 add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern/fmt/include)
-
-add_extern_repository(llama GIT_REPOSITORY "https://github.com/middpolymer/llama.git" SKIP_CONFIG TRUE)
 add_extern_repository(libmeshb GIT_REPOSITORY "https://github.com/LoicMarechal/libMeshb" SKIP_CONFIG TRUE)
 add_extern_repository(stb GIT_REPOSITORY "https://github.com/nothings/stb" SKIP_CONFIG TRUE)
 add_extern_repository(tinyobjloader GIT_REPOSITORY "https://github.com/tinyobjloader/tinyobjloader")
@@ -42,8 +40,7 @@ add_extern_repository(morton GIT_REPOSITORY "https://github.com/morton-nd/morton
 add_extern_repository(wings GIT_REPOSITORY "https://github.com/middpolymer/wings" SKIP_CONFIG TRUE)
 add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middpolymer/geogram.psm.OpenNL" SKIP_CONFIG TRUE)
 add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middpolymer/geogram.psm.Predicates" SKIP_CONFIG TRUE)
-add_extern_repository(shapelib GIT_REPOSITORY "https://github.com/OSGeo/shapelib.git")
-add_extern_repository(mapletrees GIT_REPOSITORY "https://github.com/middpolymer/mapletrees.git" SKIP_CONFIG TRUE)
+add_extern_repository(trees GIT_REPOSITORY "https://github.com/middpolymer/trees.git" SKIP_CONFIG TRUE)
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middpolymer/stlext.git" SKIP_CONFIG TRUE)
 
 # utilities to clean up and update repositories
@@ -59,7 +56,7 @@ add_library(vortex_wings ${WINGS_SOURCES})
 target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
 
 # external repositories
-set(external_libraries fmt argparse shp vortex_wings)
+set(external_libraries fmt argparse vortex_wings)
 
 # OpenGL
 set(GL_LIBRARIES)
@@ -104,9 +101,8 @@ set(VORTEX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_D
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/wings
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/morton/include
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/shapelib
-  ${CMAKE_CURRENT_SOURCE_DIR}/extern/mapletrees
+  ${CMAKE_CURRENT_SOURCE_DIR}/extern/trees
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/stlext
-  ${CMAKE_CURRENT_SOURCE_DIR}/extern/mapletrees/test/nanoflann/include
 )
 
 
@@ -115,12 +111,6 @@ set(EXTERN_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/PCK/Predicates_psm.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/tinyobjloader/tiny_obj_loader.cc
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/libmeshb/sources/libmeshb7.c
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/log.cpp	
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/vec.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/mat.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/sym.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/spmat.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/llama/linear_algebra.cpp
 )
 add_library(vortex_external OBJECT ${EXTERN_SOURCES})
 

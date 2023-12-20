@@ -1,16 +1,15 @@
 #include "triangulate.h"
 
-#include <llama/linear_algebra.h>
-#include <mapletrees/kdtree.h>
-
 #include <queue>
 #include <unordered_set>
 
 #include "io.h"
 #include "library.h"
+#include "math/linalg.h"
 #include "mesh.h"
 #include "numerics.h"
 #include "predicates.h"
+#include "trees/kdtree.h"
 
 namespace vortex {
 
@@ -50,7 +49,7 @@ vec3d get_triangle_barycentric(const Face_t& face, const double* x) {
     a(i, 2) = -pd[i];
     b[i] = -pc[i];
   }
-  vec3d solution = llama::inverse(a) * b;
+  vec3d solution = vortex::inverse(a) * b;
 
   alpha[0] = solution[0];
   alpha[1] = solution[1];
@@ -95,6 +94,7 @@ Face_t* search_for(HalfMesh& mesh, half_t root, const double* x) {
 
     half_t faces[3] = {face0.index(), face1.index(), face2.index()};
     for (int i = 0; i < 3; i++) {
+      if (faces[i] == halfnull_t) continue;
       if (visited.find(faces[i]) == visited.end()) {
         visited.insert(faces[i]);
         queue.push(faces[i]);
@@ -148,7 +148,7 @@ bool valid_flip(const HalfEdge& edge, bool check_quality = true) {
   double a1 = face_area(&pa[0], &pr[0], &pl[0]);
   if (a0 <= 0 || a1 <= 0) return false;
 
-  double d0 = dot(normal(pa, pb, pl), normal(pa, pr, pb));
+  // double d0 = dot(normal(pa, pb, pl), normal(pa, pr, pb));
   double d1 = dot(normal(pl, pr, pb), normal(pa, pr, pl));
   if (d1 < 1e-2) return false;
   // if (d1 < d0) return false;  // dot product should increase
@@ -275,7 +275,7 @@ size_t optimize_mesh(HalfMesh& mesh) {
 
 void OceanTriangulator::insert_points() {
   // build a kdtree of the original surface points
-  maple::KdTree<3, coord_t, index_t, true> tree(mesh_.vertices()[0],
+  trees::KdTree<3, coord_t, index_t, true> tree(mesh_.vertices()[0],
                                                 mesh_.vertices().n());
 
   // TODO: allocate faces and edges as well
@@ -287,7 +287,8 @@ void OceanTriangulator::insert_points() {
   size_t n_flips = 0;
   size_t n_inserted = 0;
   size_t n_edge = 0;
-  for (int i = 0; i < coast_.vertices().n(); i++) {
+  LOG << "inserting " << coast_.vertices().n();
+  for (size_t i = 0; i < coast_.vertices().n(); i++) {
     // find the closest node (in the original mesh)
     const auto* qi = coast_.vertices()[i];
     index_t n = tree.nearest(qi);
@@ -380,7 +381,7 @@ bool edge_intersects(HalfNode& n0, HalfNode& n1, HalfEdge* e) {
 
 bool recover_edge(HalfMesh& mesh, index_t e0, index_t e1) {
   auto& n0 = mesh.nodes()[e0];
-  auto& n1 = mesh.nodes()[e1];
+  // auto& n1 = mesh.nodes()[e1];
   std::vector<HalfEdge*> edges;
 
   // extract the edges around e0
@@ -404,7 +405,7 @@ void OceanTriangulator::recover_edges() {
   for (size_t i = 0; i < mesh_.lines().n(); i++) {
     auto e0 = mesh_.lines()(i, 0);
     auto e1 = mesh_.lines()(i, 1);
-    auto& node = hmesh_.nodes()[e0];
+    // auto& node = hmesh_.nodes()[e0];
     if (e0 == e1) continue;
     if (recover_edge(hmesh_, e0, e1)) {
       n_recovered++;

@@ -132,13 +132,13 @@ UT_TEST_CASE(test_sphere) {
 UT_TEST_CASE_END(test_sphere)
 
 UT_TEST_CASE(test_sphere_triangulation) {
-  auto irand = [](int min, int max) {
-    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
-  };
   Sphere sphere(6);
   static const int dim = 3;
   size_t n_sites = 1e4;
 #if 0
+  auto irand = [](int min, int max) {
+    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
+  };
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
     coord_t theta = 2.0 * M_PI * irand(0, 1);

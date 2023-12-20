@@ -5,13 +5,18 @@ set(SOURCES
   field.cpp
   graphics.cpp
   halfedges.cpp
-  image.cpp
   io.cpp
   library.cpp
   log.cpp
+  math/linalg.cpp
+  math/mat.cpp
+  math/spmat.cpp
+  math/sym.cpp
+  math/vec.cpp
   mesh.cpp
   mesher.cpp
-  predicates.c
+  numerics.cpp
+  #predicates.c
   texture.cpp
   triangulate.cpp
   util.cpp
@@ -20,6 +25,7 @@ set(SOURCES
 # create an object library for all the sources
 add_library(vortex_src OBJECT ${SOURCES})
 add_definitions(-DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_definitions(-DROBUST_PREDICATES=0)
 
 target_compile_features(vortex_src PRIVATE cxx_std_17)
 #target_compile_definitions(vortex_src PUBLIC -DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
