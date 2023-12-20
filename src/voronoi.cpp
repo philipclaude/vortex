@@ -126,32 +126,142 @@ void SphericalVoronoiPolygon::get_properties(
   }
 }
 
+void PlanarVoronoiPolygon::initialize(const vec3* points, const size_t n_points,
+                                      pool<Vertex_t>& vertices,
+                                      pool<vec4>& planes) {
+  vertices.resize(n_points);
+  planes.resize(n_points);
+  const vec3 u = points[1] - points[0];
+  const vec3 v = points[n_points - 1] - points[0];
+  const vec3 n = unit_vector(cross(u, v));
+  base = {n.x, n.y, n.z, -dot(n, points[0])};
+
+  for (size_t i = 0; i < n_points; ++i) {
+    const uint16_t j = (i + 1) % n_points;
+    vertices[i].bl = i;
+    vertices[i].br = j;
+    const vec3 w = unit_vector(cross(n, points[j] - points[i]));
+    planes[i] = {w.x, w.y, w.z, -dot(w, points[i])};
+  }
+}
+
+uint8_t PlanarVoronoiPolygon::side(const vec4& pi, const vec4& pj,
+                                   const vec4& p) const {
+  const vec4& pk = base;
+  bool exact = true;
+  double det = det4x4(pi.x, pj.x, pk.z, p.x, pi.y, pj.y, pk.y, p.y, pi.z, pj.z,
+                      pk.z, p.z, pi.w, pj.w, pk.w, p.w);
+  double maxx = std::max({fabs(pi.x), fabs(pj.x), fabs(pk.x), fabs(p.x)});
+  double maxy = std::max({fabs(pi.y), fabs(pj.y), fabs(pk.y), fabs(p.y)});
+  double maxz = std::max({fabs(pi.z), fabs(pj.z), fabs(pk.z), fabs(p.z)});
+  double eps = 1.2466136531027298e-13 * maxx * maxy * maxz;
+  // double min_max = std::min({maxx, maxy, maxz});
+  double max_max = std::max({maxx, maxy, maxz});
+
+  eps *= (max_max * max_max);
+  if (fabs(det) < eps) exact = true;
+
+  if (exact) {
+    // see Partial Optimal Transport for a Constant-Volume Lagrangian Mesh
+    // with Free Boundaries [Levy, 2021], page 19 ("The first phase")
+    GEO::Sign det1 = GEO::PCK::det_3d(&pi.x, &pj.x, &pk.x);
+    GEO::Sign det2 = GEO::PCK::det_4d(&pi.x, &pj.x, &pk.x, &p.x);
+    return (det1 * det2 <= 0) ? OUTSIDE : INSIDE;
+  }
+  return plane_side(compute(pi, pj), p);
+}
+
+vec4 PlanarVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj) {
+  // bisector (plane) normal and midpoint
+  vec3 n = unit_vector((ui - uj).xyz());
+  vec3 m = 0.5 * (ui + uj).xyz();
+  return {n.x, n.y, n.z, -dot(n, m)};
+}
+
+vec4 PlanarVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
+  // find the intersection of the three planes using Cramer's formula.
+  // system of equations to be solved:
+  // pi.x * x + pi.y * y + pi.z * z = -pi.w
+  // pj.x * x + pj.y * y + pj.z * z = -pj.w
+  // pk.x * x + pk.y * y + pk.z * z = -pk.w
+  //
+  const vec4& pk = base;
+  vec4 p;
+  p.x = -det3x3(pi.w, pi.y, pi.z, pj.w, pj.y, pj.z, pk.w, pk.y, pk.z);
+  p.y = -det3x3(pi.x, pi.w, pi.z, pj.x, pj.w, pj.z, pk.x, pk.w, pk.z);
+  p.z = -det3x3(pi.x, pi.y, pi.w, pj.x, pj.y, pj.w, pk.x, pk.y, pk.w);
+  p.w = +det3x3(pi.x, pi.y, pi.z, pj.x, pj.y, pj.z, pk.x, pk.y, pk.z);
+  return p;
+}
+
+void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
+                                          const pool<vec4>& planes,
+                                          VoronoiCellProperties& props) const {
+  props.mass = 0.0;
+  props.moment = {0, 0, 0};
+  vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
+  vec3 b = compute(planes[p[1].bl], planes[p[2].br]).xyz();
+  for (int k = 2; k < p.size(); k++) {
+    vec3 c = compute(planes[p[k].bl], planes[p[k].br]).xyz();
+    coord_t ak = 0.5 * length(cross(b - a, c - a));
+    vec3 ck = (1.0 / 3.0) * (a + b + c);
+
+    props.moment = props.moment + ak * ck;
+    props.mass += ak;
+    b = c;
+  }
+}
+
+void TriangulationDomain::initialize(
+    int64_t elem, VoronoiPolygon<TriangulationDomain>& cell) const {
+  vec3 vertices[3];
+  for (int i = 0; i < 3; i++) {
+    for (int d = 0; d < 3; d++)
+      vertices[i][d] = points[3 * triangles[3 * elem + i] + d];
+  }
+  auto& planes = cell.planes();
+  cell.cell().initialize(vertices, 3, cell.vertices(), planes);
+}
+
 namespace {
 
-template <typename Domain_t>
-class VoronoiThreadBlock : public Mesh {
+template <typename Domain_t> class ThreadBlockBase : public Mesh {
+  using Cell_t = VoronoiPolygon<Domain_t>;
+  using Vertex_t = typename Cell_t::Vertex_t;
+  using Element_t = typename Cell_t::Element_t;
+
+ public:
+  void set_properties_ptr(VoronoiCellProperties* p) { properties_ = p; }
+  void set_mesh_lock(std::mutex* lock) { append_mesh_lock_ = lock; }
+  void set_status_ptr(VoronoiStatusCode* s) { status_ = s; }
+  Cell_t& cell() { return cell_; }
+
+ private:
+  // only CPU
+  std::vector<Vertex_t> vertex_pool_;
+  std::vector<vec4> plane_pool_;
+  std::mutex* append_mesh_lock_;
+
+  // CPU or GPU
+  Domain_t domain_;
+  Cell_t cell_;
+  VoronoiCellProperties* properties_{nullptr};
+  VoronoiStatusCode* status_{nullptr};
+};
+
+template <typename Domain_t> class SiteThreadBlock : public Mesh {
   using Cell_t = VoronoiPolygon<Domain_t>;
   using Vertex_t = typename Cell_t::Vertex_t;
   using Element_t = typename Cell_t::Element_t;
 
  public:
   // only CPU
-  VoronoiThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
+  SiteThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
       : Mesh(3),
         vertex_pool_(nv),
         plane_pool_(np),
         domain_(domain),  // copy the domain
         cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {}
-
-  VoronoiStatusCode compute(int dim, uint64_t k, Mesh* mesh) {
-    auto status = cell_.compute(domain_, dim, k);
-    if (properties_) {
-      cell_.get_properties(properties_[k]);
-      properties_[k].site = k;
-    }
-    if (mesh) cell_.append_to_mesh(*this);
-    return status;
-  }
 
   void compute(int dim, size_t m, size_t n, Mesh* mesh) {
     // compute all cells in range [m, n)
@@ -186,6 +296,7 @@ class VoronoiThreadBlock : public Mesh {
       for (size_t j = 0; j < polygon.size(); j++)
         polygon[j] = polygons_[k][j] + n;
       mesh.polygons().add(polygon.data(), polygon.size());
+      mesh.polygons().set_group(mesh.polygons().n() - 1, polygons_.group(k));
     }
   }
 
@@ -195,6 +306,15 @@ class VoronoiThreadBlock : public Mesh {
   Cell_t& cell() { return cell_; }
 
  private:
+  VoronoiStatusCode compute(int dim, uint64_t site, Mesh* mesh) {
+    auto status = cell_.compute(domain_, dim, site, mesh ? this : nullptr);
+    if (properties_) {
+      cell_.get_properties(properties_[site]);
+      properties_[site].site = site;
+    }
+    return status;
+  }
+
   // only CPU
   std::vector<Vertex_t> vertex_pool_;
   std::vector<vec4> plane_pool_;
@@ -205,6 +325,82 @@ class VoronoiThreadBlock : public Mesh {
   Cell_t cell_;
   VoronoiCellProperties* properties_{nullptr};
   VoronoiStatusCode* status_{nullptr};
+};
+
+template <typename Domain_t> class ElementThreadBlock : public Mesh {
+  using Cell_t = VoronoiPolygon<Domain_t>;
+  using Vertex_t = typename Cell_t::Vertex_t;
+  using Element_t = typename Cell_t::Element_t;
+
+ public:
+  ElementThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
+      : Mesh(3),
+        vertex_pool_(nv),
+        plane_pool_(np),
+        domain_(domain),  // copy the domain
+        cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {}
+
+  void compute(int dim, size_t m, size_t n, Mesh* mesh) {
+    // compute all cells in range [m, n)
+    if (mesh) {
+      vertices_.reserve((n - m) * 10);
+      get<Element_t>().reserve(n - m);
+    }
+    for (size_t k = m; k < n; ++k) {
+      // if (status_[k] == VoronoiStatusCode::kSuccess) continue;
+      status_[k] = compute(dim, k, mesh);
+    }
+    if (mesh) {
+      append_mesh_lock_->lock();
+      append_to_mesh(*mesh);
+      append_mesh_lock_->unlock();
+    }
+  }
+
+  void set_properties_ptr(VoronoiCellProperties* p) { properties_ = p; }
+  void set_mesh_lock(std::mutex* lock) { append_mesh_lock_ = lock; }
+  void set_status_ptr(VoronoiStatusCode* s) { status_ = s; }
+  void set_elem2site_ptr(const index_t* elem2site) { elem2site_ = elem2site; }
+  Cell_t& cell() { return cell_; }
+
+ private:
+  VoronoiStatusCode compute(int dim, uint64_t elem, Mesh* mesh) {
+    workspace_.clear();
+    auto status = cell_.compute(domain_, dim, elem, elem2site_[elem],
+                                workspace_, mesh ? this : nullptr);
+    return status;
+  }
+
+  void append_to_mesh(Mesh& mesh) {
+    // add vertices
+    int n = mesh.vertices().n();
+    mesh.vertices().reserve(mesh.vertices().n() + vertices_.n());
+    for (int k = 0; k < vertices_.n(); k++) {
+      mesh.vertices().add(vertices_[k]);
+    }
+
+    // add polygons
+    mesh.polygons().reserve(mesh.polygons().n() + polygons_.n());
+    std::vector<index_t> polygon(128);
+    for (int k = 0; k < polygons_.n(); k++) {
+      polygon.resize(polygons_.length(k));
+      for (size_t j = 0; j < polygon.size(); j++)
+        polygon[j] = polygons_[k][j] + n;
+      mesh.polygons().add(polygon.data(), polygon.size());
+      mesh.polygons().set_group(mesh.polygons().n() - 1, polygons_.group(k));
+    }
+  }
+
+  std::vector<Vertex_t> vertex_pool_;
+  std::vector<vec4> plane_pool_;
+  std::mutex* append_mesh_lock_;
+  Domain_t domain_;
+  Cell_t cell_;
+  VoronoiCellProperties* properties_{nullptr};
+  VoronoiStatusCode* status_{nullptr};
+  ElementVoronoiWorkspace workspace_;
+  const index_t* elem2site_{nullptr};
+  maple::KdTreeNd<coord_t, index_t>* tree_{nullptr};
 };
 
 template <typename ThreadBlock_t>
@@ -224,7 +420,6 @@ std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
   kdtree_opts.max_dim = options.max_kdtree_axis_dim;
   if (kdtree_opts.max_dim < 0) kdtree_opts.max_dim = dim;
   using kdtree_t = maple::KdTree<dim, coord_t, index_t>;
-  //  using kdtree_t = KdTree_nanoflann<dim, coord_t, index_t>;
   if (!ptree) {
     timer.start();
     ptree = std::make_shared<kdtree_t>(p, np, kdtree_opts);
@@ -251,13 +446,43 @@ std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
   return ptree;
 }
 
+template <int dim>
+std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> get_nearest_neighbor(
+    const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
+    std::vector<index_t>& nn, const VoronoiDiagramOptions& options,
+    std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> ptree = nullptr) {
+  size_t n_threads = std::thread::hardware_concurrency();
+  Timer timer;
+  maple::KdTreeOptions kdtree_opts;
+  kdtree_opts.max_dim = options.max_kdtree_axis_dim;
+  if (kdtree_opts.max_dim < 0) kdtree_opts.max_dim = dim;
+  using kdtree_t = maple::KdTree<dim, coord_t, index_t>;
+  if (!ptree) {
+    timer.start();
+    ptree = std::make_shared<kdtree_t>(p, np, kdtree_opts);
+    timer.stop();
+    if (options.verbose)
+      LOG << "kdtree created in " << timer.seconds() << " s.";
+  }
+  if (options.interleave_neighbors) return ptree;
+
+  auto* tree = static_cast<kdtree_t*>(ptree.get());
+  timer.start();
+  std::parafor_i(0, nq,
+                 [&](int tid, int k) { nn[k] = tree->nearest(&q[k * dim]); });
+  timer.stop();
+  if (options.verbose)
+    LOG << "nearest neighbors computed in " << timer.seconds() << " s.";
+  return ptree;
+}
+
 }  // namespace
 
 template <typename Domain_t>
 void VoronoiDiagram::compute(const Domain_t& domain,
                              VoronoiDiagramOptions options) {
   ASSERT(sites_);
-  using ThreadBlock_t = VoronoiThreadBlock<Domain_t>;
+  using ThreadBlock_t = SiteThreadBlock<Domain_t>;
 
   // calculate nearest neighbors
   size_t n_neighbors = options.n_neighbors;
@@ -323,6 +548,92 @@ compute_voronoi:
     recomputing = true;
     goto compute_voronoi;
   }
+}
+
+template <>
+void VoronoiDiagram::compute(const TriangulationDomain& domain,
+                             VoronoiDiagramOptions options) {
+  ASSERT(sites_);
+  using ThreadBlock_t = ElementThreadBlock<TriangulationDomain>;
+
+  // calculate nearest neighbors
+  size_t n_neighbors = options.n_neighbors;
+  if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
+  std::vector<index_t> knn(n_sites_ * n_neighbors);
+  std::shared_ptr<maple::KdTreeNd<coord_t, index_t>> tree{nullptr};
+  if (dim_ == 2)
+    tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
+                                    n_neighbors, options);
+  else if (dim_ == 3)
+    tree = get_nearest_neighbors<3>(sites_, n_sites_, sites_, n_sites_, knn,
+                                    n_neighbors, options);
+  else if (dim_ == 4)
+    tree = get_nearest_neighbors<4>(sites_, n_sites_, sites_, n_sites_, knn,
+                                    n_neighbors, options);
+  else
+    NOT_IMPLEMENTED;
+
+  // compute voronoi diagram
+  bool set_kdtree = options.interleave_neighbors;
+
+  Timer timer;
+  timer.start();
+  size_t n_threads = std::thread::hardware_concurrency();
+  if (!options.parallel) n_threads = 1;
+  std::mutex append_mesh_lock;
+  Mesh* mesh = options.store_mesh ? this : nullptr;
+  std::vector<std::thread> threads;
+  std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
+  properties_.resize(n_sites_);
+
+  // nearest neighbor to vertices of the mesh (recycle existing tree)
+  std::vector<index_t> vnn(domain.n_points);
+  if (dim_ == 2)
+    get_nearest_neighbor<2>(sites_, n_sites_, domain.points, domain.n_points,
+                            vnn, options, tree);
+  else if (dim_ == 3)
+    get_nearest_neighbor<3>(sites_, n_sites_, domain.points, domain.n_points,
+                            vnn, options, tree);
+  else if (dim_ == 4)
+    get_nearest_neighbor<4>(sites_, n_sites_, domain.points, domain.n_points,
+                            vnn, options, tree);
+
+  // use triangle nearest neighbor as nearest neighbor of first vertex
+  std::vector<index_t> tnn(domain.n_triangles);
+  polygon2site_.reserve(n_sites_ * 10);
+  for (size_t k = 0; k < domain.n_triangles; k++)
+    tnn[k] = vnn[domain.triangles[3 * k]];
+
+  // set up the thread blocks
+  size_t n_elems = domain.n_elems();
+  status_.resize(n_elems, VoronoiStatusCode::kIncomplete);
+  if (n_threads >= n_elems) n_threads = 1;
+  size_t n_elems_per_block = n_elems / n_threads;
+  for (size_t k = 0; k < n_threads; k++) {
+    blocks.push_back(std::make_shared<ThreadBlock_t>(domain));
+    blocks[k]->cell().set_sites(sites_);
+    blocks[k]->cell().set_neighbors(knn.data(), n_neighbors);
+    blocks[k]->set_mesh_lock(&append_mesh_lock);
+    blocks[k]->set_elem2site_ptr(tnn.data());
+    blocks[k]->set_properties_ptr(properties_.data());
+    blocks[k]->set_status_ptr(status_.data());
+    size_t m = k * n_elems_per_block;
+    size_t n = m + n_elems_per_block;
+    if (k + 1 == n_threads) n = n_elems;
+    std::thread t(clip<ThreadBlock_t>, blocks[k].get(), dim_, m, n, mesh);
+    threads.push_back(std::move(t));
+  }
+
+  for (auto& t : threads) t.join();
+  timer.stop();
+  if (options.verbose)
+    LOG << "voronoi computed in " << timer.seconds() << " s.";
+
+  uint64_t n_incomplete = 0;
+  for (auto s : status_) {
+    if (s == VoronoiStatusCode::kRadiusNotReached) n_incomplete++;
+  }
+  if (options.verbose) LOG << fmt::format("n_incomplete = {}", n_incomplete);
 }
 
 template void VoronoiDiagram::compute(const SphereDomain&,

@@ -1,12 +1,21 @@
 #include <unordered_set>
+#include <vector>
 
 #include "elements.h"
 #include "voronoi.h"
 
 namespace vortex {
 
-template <typename Domain_t>
-class VoronoiPolygon {
+struct ElementVoronoiWorkspace {
+  std::vector<index_t> site_stack;
+  std::unordered_set<index_t> site_visited;
+  void clear() {
+    site_stack.clear();
+    site_visited.clear();
+  }
+};
+
+template <typename Domain_t> class VoronoiPolygon {
  public:
   using Cell_t = typename Domain_t::Cell_t;
   using Vertex_t = typename Cell_t::Vertex_t;
@@ -43,19 +52,20 @@ class VoronoiPolygon {
     return cell_.side(plane_[p_[k].bl], plane_[p_[k].br], eqn);
   }
 
-  // calculate the Voronoi cell for site i clipped to the domain elem
-  VoronoiStatusCode compute(const Domain_t& domain, int dim, size_t i) {
+  // calculate the Voronoi cell for site i clipped to the domain k_elem
+  VoronoiStatusCode compute(const Domain_t& domain, int dim, size_t site,
+                            Mesh* mesh = nullptr) {
     assert(sites_);
     assert(neighbors_);
     clear();
-    const coord_t* zi = sites_ + i * dim;
+    const coord_t* zi = sites_ + site * dim;
     const vec4 ui(zi, dim);  // TODO use weights
     domain.initialize(ui, *this);
     bool security_radius_reached = false;
 
     for (size_t j = 1; j < n_neighbors_; j++) {
       // get the next point, TODO and weight
-      const index_t n = neighbors_[i * n_neighbors_ + j];
+      const index_t n = neighbors_[site * n_neighbors_ + j];
       const coord_t* zj = sites_ + n * dim;
       const vec4 uj(zj, dim);
 
@@ -70,7 +80,18 @@ class VoronoiPolygon {
       if (security_radius_reached) break;
     }
     if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
+
+    // append to the mesh if necessary
+    if (mesh) append_to_mesh(*mesh, site);
+
     return VoronoiStatusCode::kSuccess;
+  }
+
+  VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
+                            uint64_t triangle, uint64_t site,
+                            ElementVoronoiWorkspace& workspace,
+                            Mesh* mesh = nullptr) {
+    NOT_POSSIBLE;
   }
 
   void clip_by_plane(uint8_t b) {
@@ -128,7 +149,7 @@ class VoronoiPolygon {
     cell_.get_properties(p_, plane_, props);
   }
 
-  bool append_to_mesh(Mesh& mesh) const {
+  bool append_to_mesh(Mesh& mesh, int site) const {
     if (p_.size() < 3) return false;
     index_t v_offset = mesh.vertices().n();
 
@@ -142,7 +163,9 @@ class VoronoiPolygon {
       mesh.vertices().add(&p.x);
       polygon[k] = k + v_offset;
     }
+    size_t id = mesh.polygons().n();
     mesh.polygons().add(polygon.data(), polygon.size());
+    mesh.polygons().set_group(id, site);
     return true;
   }
 
@@ -162,5 +185,48 @@ class VoronoiPolygon {
   // only CPU
   maple::KdTreeNd<coord_t, index_t>* tree_{nullptr};
 };
+
+template <>
+VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
+    const TriangulationDomain& domain, int dim, uint64_t triangle,
+    uint64_t site, ElementVoronoiWorkspace& workspace, Mesh* mesh) {
+  assert(sites_);
+  assert(neighbors_);
+
+  // get the first site
+  size_t i = site;
+  workspace.site_stack.push_back(i);
+  int iter = 0;
+  while (!workspace.site_stack.empty()) {
+    iter++;
+    clear();
+    i = workspace.site_stack.back();
+    workspace.site_stack.pop_back();
+    workspace.site_visited.insert(i);
+    const coord_t* zi = sites_ + i * dim;
+    const vec4 ui(zi, dim);  // TODO use weights
+    domain.initialize(triangle, *this);
+    for (size_t j = 1; j < n_neighbors_; j++) {
+      // get the next point, TODO and weight
+      const index_t n = neighbors_[i * n_neighbors_ + j];
+      if (workspace.site_visited.find(n) == workspace.site_visited.end())
+        workspace.site_stack.push_back(n);
+      const coord_t* zj = sites_ + n * dim;
+      const vec4 uj(zj, dim);
+
+      // create the plane and clip
+      const vec4 eqn = cell_.plane_equation(ui, uj);
+      const uint8_t b = new_plane(eqn);
+      clip_by_plane(b);
+
+      // check if no more bisectors contribute to the cell
+      double r = squared_radius(ui.xyz());
+      if (4.01 * r < distance_squared(ui.xyz(), uj.xyz())) break;
+    }
+    // append to the mesh if necessary
+    if (mesh) append_to_mesh(*mesh, i);
+  }
+  return VoronoiStatusCode::kSuccess;
+}
 
 }  // namespace vortex

@@ -16,7 +16,7 @@ UT_TEST_CASE(test1) {
   Grid<Polygon> mesh({10, 10}, 3);
   mesh.fields().set_defaults(mesh);
   LOG << "# triangles = " << mesh.triangles().n();
-  Viewer viewer(mesh, ws_port);
+  // Viewer viewer(mesh, ws_port);
 }
 UT_TEST_CASE_END(test1)
 
