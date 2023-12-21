@@ -288,11 +288,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.allow_reattempt = false;
   options.parallel = true;
 
-  if (n_smooth > 1 && using_mesh) {
-    LOG << "[warning]: Lloyd relaxation not yet implemented for mesh domain";
-    n_smooth = 1;
-  }
-
   auto calculate_voronoi_diagram = [&voronoi, &options, &points,
                                     &n_smooth](auto& domain) {
     int n_iter = n_smooth;
