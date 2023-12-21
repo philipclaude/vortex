@@ -214,10 +214,15 @@ struct VoronoiDiagramOptions {
 };
 
 struct VoronoiCellProperties {
+  VoronoiCellProperties() { reset(); }
   uint64_t site;
   uint64_t elem;
-  vec3 moment;
-  double mass;
+  vec3 moment{0, 0, 0};
+  double mass{0};
+  void reset() {
+    moment = {0, 0, 0};
+    mass = 0;
+  }
 };
 
 class VoronoiDiagram : public Mesh {
@@ -230,7 +235,6 @@ class VoronoiDiagram : public Mesh {
                VoronoiDiagramOptions options = VoronoiDiagramOptions());
 
   const auto& properties() const { return properties_; }
-  const auto& sites() const { return polygon2site_; }
   auto& status() { return status_; }
   const auto& status() const { return status_; }
 
@@ -239,7 +243,6 @@ class VoronoiDiagram : public Mesh {
   const coord_t* sites_;
   uint64_t n_sites_;
   std::vector<VoronoiCellProperties> properties_;
-  std::vector<index_t> polygon2site_;
   std::vector<VoronoiStatusCode> status_;
 };
 

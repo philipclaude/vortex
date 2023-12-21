@@ -106,8 +106,6 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 void SphericalVoronoiPolygon::get_properties(
     const pool<Vertex_t>& p, const pool<vec4>& planes,
     VoronoiCellProperties& props) const {
-  props.mass = 0.0;
-  props.moment = {0, 0, 0};
   vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
   for (size_t i = 0; i < p.size(); i++) {
     size_t j = (i + 1) == p.size() ? 0 : i + 1;
@@ -197,12 +195,13 @@ vec4 PlanarVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
                                           const pool<vec4>& planes,
                                           VoronoiCellProperties& props) const {
-  props.mass = 0.0;
-  props.moment = {0, 0, 0};
-  vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
-  vec3 b = compute(planes[p[1].bl], planes[p[2].br]).xyz();
+  vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
+  vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  vec3 a = (1.0 / ah.w) * ah.xyz();
+  vec3 b = (1.0 / bh.w) * bh.xyz();
   for (size_t k = 2; k < p.size(); k++) {
-    vec3 c = compute(planes[p[k].bl], planes[p[k].br]).xyz();
+    vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    vec3 c = (1.0 / ch.w) * ch.xyz();
     coord_t ak = 0.5 * length(cross(b - a, c - a));
     vec3 ck = (1.0 / 3.0) * (a + b + c);
 
@@ -210,6 +209,7 @@ void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
     props.mass += ak;
     b = c;
   }
+  // LOG << fmt::format("{} vertices, area = {}", p.size(), props.mass);
 }
 
 void TriangulationDomain::initialize(
@@ -309,7 +309,7 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
   VoronoiStatusCode compute(int dim, uint64_t site, Mesh* mesh) {
     auto status = cell_.compute(domain_, dim, site, mesh ? this : nullptr);
     if (properties_) {
-      cell_.get_properties(properties_[site]);
+      cell_.get_properties(properties_[site], true);
       properties_[site].site = site;
     }
     return status;
@@ -367,7 +367,7 @@ template <typename Domain_t> class ElementThreadBlock : public Mesh {
   VoronoiStatusCode compute(int dim, uint64_t elem, Mesh* mesh) {
     workspace_.clear();
     auto status = cell_.compute(domain_, dim, elem, elem2site_[elem],
-                                workspace_, mesh ? this : nullptr);
+                                workspace_, properties_, mesh ? this : nullptr);
     return status;
   }
 
@@ -573,7 +573,6 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
 
   // compute voronoi diagram
   // bool set_kdtree = options.interleave_neighbors;
-
   Timer timer;
   timer.start();
   size_t n_threads = std::thread::hardware_concurrency();
@@ -598,9 +597,11 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
 
   // use triangle nearest neighbor as nearest neighbor of first vertex
   std::vector<index_t> tnn(domain.n_triangles);
-  polygon2site_.reserve(n_sites_ * 10);
   for (size_t k = 0; k < domain.n_triangles; k++)
     tnn[k] = vnn[domain.triangles[3 * k]];
+
+  // reset properties
+  for (auto& props : properties_) props.reset();
 
   // set up the thread blocks
   size_t n_elems = domain.n_elems();

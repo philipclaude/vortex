@@ -90,6 +90,7 @@ template <typename Domain_t> class VoronoiPolygon {
   VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
                             uint64_t triangle, uint64_t site,
                             ElementVoronoiWorkspace& workspace,
+                            VoronoiCellProperties* properties = nullptr,
                             Mesh* mesh = nullptr) {
     NOT_POSSIBLE;
     return VoronoiStatusCode::kSuccess;
@@ -146,7 +147,8 @@ template <typename Domain_t> class VoronoiPolygon {
     return r;
   }
 
-  void get_properties(VoronoiCellProperties& props) const {
+  void get_properties(VoronoiCellProperties& props, bool reset) const {
+    if (reset) props.reset();
     cell_.get_properties(p_, plane_, props);
   }
 
@@ -190,28 +192,31 @@ template <typename Domain_t> class VoronoiPolygon {
 template <>
 VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
     const TriangulationDomain& domain, int dim, uint64_t triangle,
-    uint64_t site, ElementVoronoiWorkspace& workspace, Mesh* mesh) {
+    uint64_t site, ElementVoronoiWorkspace& workspace,
+    VoronoiCellProperties* properties, Mesh* mesh) {
   assert(sites_);
   assert(neighbors_);
 
   // get the first site
   size_t i = site;
   workspace.site_stack.push_back(i);
+  workspace.site_visited.insert(i);
   int iter = 0;
   while (!workspace.site_stack.empty()) {
     iter++;
     clear();
     i = workspace.site_stack.back();
     workspace.site_stack.pop_back();
-    workspace.site_visited.insert(i);
     const coord_t* zi = sites_ + i * dim;
     const vec4 ui(zi, dim);  // TODO use weights
     domain.initialize(triangle, *this);
     for (size_t j = 1; j < n_neighbors_; j++) {
       // get the next point, TODO and weight
       const index_t n = neighbors_[i * n_neighbors_ + j];
-      if (workspace.site_visited.find(n) == workspace.site_visited.end())
+      if (workspace.site_visited.find(n) == workspace.site_visited.end()) {
         workspace.site_stack.push_back(n);
+        workspace.site_visited.insert(n);
+      }
       const coord_t* zj = sites_ + n * dim;
       const vec4 uj(zj, dim);
 
@@ -224,8 +229,9 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       double r = squared_radius(ui.xyz());
       if (4.01 * r < distance_squared(ui.xyz(), uj.xyz())) break;
     }
-    // append to the mesh if necessary
+    // append to the mesh and properties if necessary
     if (mesh) append_to_mesh(*mesh, i);
+    if (properties) get_properties(properties[i], false);
   }
   return VoronoiStatusCode::kSuccess;
 }

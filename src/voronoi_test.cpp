@@ -5,6 +5,7 @@
 #include "graphics.h"
 #include "io.h"
 #include "library.h"
+#include "math/vec.hpp"
 #include "tester.h"
 #include "util.h"
 
@@ -132,30 +133,16 @@ UT_TEST_CASE(test_sphere) {
 UT_TEST_CASE_END(test_sphere)
 
 UT_TEST_CASE(test_sphere_triangulation) {
-  Sphere sphere(6);
+  // Grid<Triangle> sphere({1, 1}, 3);
+  Sphere sphere(2);
   static const int dim = 3;
   size_t n_sites = 1e4;
-#if 0
-  auto irand = [](int min, int max) {
-    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
-  };
-  std::vector<coord_t> sites(n_sites * dim, 0.0);
-  for (size_t k = 0; k < n_sites; k++) {
-    coord_t theta = 2.0 * M_PI * irand(0, 1);
-    coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
-    sites[k * dim + 0] = cos(theta) * sin(phi);
-    sites[k * dim + 1] = sin(theta) * sin(phi);
-    sites[k * dim + 2] = cos(phi);
-  }
-#else
   Vertices data(3);
   sample_surface(sphere, data, n_sites);
   auto& sites = data.data();
-#endif
 
   std::vector<index_t> order(n_sites);
   sort_points_on_zcurve(sites.data(), n_sites, dim, order);
-
   Vertices vertices(dim);
   vertices.reserve(n_sites);
   coord_t x[dim];
@@ -171,7 +158,7 @@ UT_TEST_CASE(test_sphere_triangulation) {
   options.n_neighbors = 75;
   options.allow_reattempt = false;
   options.parallel = true;
-  int n_iter = 1;
+  int n_iter = 5;
   for (int iter = 1; iter <= n_iter; ++iter) {
     options.store_mesh = iter == n_iter;
     options.verbose = (iter == 1 || iter == n_iter - 1);
@@ -200,6 +187,8 @@ UT_TEST_CASE(test_sphere_triangulation) {
   std::vector<int> site2color(n_sites);
   for (size_t k = 0; k < n_sites; k++)
     site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
+  double area = 0;
+
   for (size_t k = 0; k < voronoi.polygons().n(); k++) {
     int group = voronoi.polygons().group(k);  // the group is the site
     voronoi.polygons().set_group(k, site2color[group]);
