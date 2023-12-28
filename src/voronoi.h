@@ -253,6 +253,7 @@ class VoronoiDiagram : public Mesh {
   const auto& weights() const { return weights_; }
   void smooth(Vertices& sites) const;
   VoronoiDiagramProperties analyze() const;
+  void merge();
 
  private:
   int dim_;

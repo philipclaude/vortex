@@ -173,6 +173,7 @@ UT_TEST_CASE(test_square) {
     UT_ASSERT_NEAR(dj, dk, tol);
   }
 
+  voronoi.merge();
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0) meshb::write(voronoi, "square.meshb");
 }
@@ -278,12 +279,13 @@ UT_TEST_CASE(test_sphere) {
     UT_ASSERT_NEAR(dj, dk, tol);
   }
 
+  voronoi.merge();
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0) meshb::write(voronoi, "sphere.meshb");
 }
 UT_TEST_CASE_END(test_sphere)
 
-UT_TEST_CASE_SKIP(test_sphere_triangulation) {
+UT_TEST_CASE(test_sphere_triangulation) {
   Sphere sphere(2);
   static const int dim = 3;
   size_t n_sites = 1e4;
@@ -314,6 +316,7 @@ UT_TEST_CASE_SKIP(test_sphere_triangulation) {
     options.verbose = (iter == 1 || iter == n_iter - 1);
     voronoi.vertices().clear();
     voronoi.vertices().set_dim(3);
+    voronoi.triangles().clear();
     voronoi.polygons().clear();
     voronoi.compute(domain, options);
 
@@ -334,6 +337,7 @@ UT_TEST_CASE_SKIP(test_sphere_triangulation) {
     voronoi.polygons().set_group(k, site2color[group]);
   }
 
+  voronoi.triangles().clear();  // not implemented yet
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0)
     meshb::write(voronoi, "sphere_triangulation.meshb");

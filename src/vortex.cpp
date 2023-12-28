@@ -319,6 +319,11 @@ void run_voronoi(argparse::ArgumentParser& program) {
     calculate_voronoi_diagram(domain);
   }
 
+  if (using_mesh)
+    voronoi.triangles().clear();
+  else
+    voronoi.merge();
+
   // randomize the colors a bit, otherwise neighboring cells
   // will have similar colors and won't visually stand out
   size_t n_colors = 20;

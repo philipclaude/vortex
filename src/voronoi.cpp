@@ -703,6 +703,48 @@ VoronoiDiagramProperties VoronoiDiagram::analyze() const {
   return props;
 }
 
+void VoronoiDiagram::merge() {
+  Vertices vertices(vertices_.dim());
+  vertices.reserve(vertices_.n());
+
+  std::unordered_map<std::array<index_t, 3>, index_t> tmap;
+  std::vector<index_t> vmap(vertices_.n());
+  tmap.reserve(vertices_.n());
+
+  // copy the sites
+  for (size_t k = 0; k < n_sites_; k++) vertices.add(vertices_[k]);
+
+  Topology<Triangle> triangles;
+  ASSERT(vertices_.n() == triangles_.n() + n_sites_);
+  for (size_t k = 0; k < triangles_.n(); k++) {
+    if (triangles_.group(k) < 0) {
+      // boundary vertex
+      vmap[k + n_sites_] = vertices.n();
+      vertices.add(vertices_[k + n_sites_]);
+      continue;
+    }
+    const auto* t = triangles_[k];
+    std::array<index_t, 3> triangle = {t[0], t[1], t[2]};
+    std::sort(triangle.begin(), triangle.end());
+    auto it = tmap.find(triangle);
+    if (it == tmap.end()) {
+      tmap.insert({triangle, vertices.n()});
+      vertices.add(vertices_[k + n_sites_]);
+      triangles.add(t);
+    }
+    vmap[k + n_sites_] = tmap.at(triangle);
+  }
+  LOG << fmt::format("found {} unique vertices", tmap.size());
+
+  for (size_t k = 0; k < polygons_.n(); k++) {
+    for (size_t j = 0; j < polygons_.length(k); j++) {
+      polygons_[k][j] = vmap.at(polygons_[k][j]);
+    }
+  }
+  vertices.copy(vertices_);
+  triangles.copy(triangles_);
+}
+
 template void VoronoiDiagram::compute(const SphereDomain&,
                                       VoronoiDiagramOptions);
 template void VoronoiDiagram::compute(const SquareDomain&,
