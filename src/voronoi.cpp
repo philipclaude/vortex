@@ -113,12 +113,13 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 void SphericalVoronoiPolygon::get_properties(
     const pool<Vertex_t>& p, const pool<vec4>& planes,
     VoronoiCellProperties& props) const {
-  vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
-  for (size_t i = 0; i < p.size(); i++) {
-    ASSERT(p[i].bl > 3 && p[i].br > 3);  // TODO(philip): cell may be incomplete
-    size_t j = (i + 1) == p.size() ? 0 : i + 1;
-    vec3 b = compute(planes[p[j].bl], planes[p[j].br]).xyz();
-    const vec3& c = center;
+  vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
+  vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  vec3 a = (1.0 / ah.w) * ah.xyz();
+  vec3 b = (1.0 / bh.w) * bh.xyz();
+  for (size_t k = 2; k < p.size(); k++) {
+    vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    vec3 c = (1.0 / ch.w) * ch.xyz();
 
     // https://www.johndcook.com/blog/2021/11/29/area-of-spherical-triangle/
     coord_t num = std::fabs(dot(a, cross(b, c)));
@@ -128,7 +129,7 @@ void SphericalVoronoiPolygon::get_properties(
 
     props.moment = props.moment + ak * ck;
     props.mass += ak;
-    a = b;
+    b = c;
   }
 }
 

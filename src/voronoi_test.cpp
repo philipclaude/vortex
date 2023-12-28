@@ -139,7 +139,6 @@ UT_TEST_CASE(test_square) {
   voronoi.compute(domain, options);
   auto props = voronoi.analyze();
   LOG << fmt::format("power diagram area = {}", props.area);
-  LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   UT_ASSERT_NEAR(props.area, 1.0, tol);
 
   // check the power diagram
@@ -174,16 +173,18 @@ UT_TEST_CASE(test_square) {
     UT_ASSERT_NEAR(dj, dk, tol);
   }
 
+  LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0) meshb::write(voronoi, "square.meshb");
 }
 UT_TEST_CASE_END(test_square)
 
-UT_TEST_CASE_SKIP(test_sphere) {
+UT_TEST_CASE(test_sphere) {
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
   };
-  static const int dim = 3;
-  size_t n_sites = 1e2;
+  const double tol = 1e-12;
+  static const int dim = 4;
+  size_t n_sites = 1e4;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
     coord_t theta = 2.0 * M_PI * irand(0, 1);
@@ -218,8 +219,9 @@ UT_TEST_CASE_SKIP(test_sphere) {
     options.store_mesh = iter == n_iter;
     options.verbose = (iter == 1 || iter == n_iter - 1);
     voronoi.vertices().clear();
-    voronoi.vertices().set_dim(3);
+    // voronoi.vertices().set_dim(3);
     voronoi.polygons().clear();
+    voronoi.triangles().clear();
     voronoi.compute(domain, options);
 
     // move each site to the centroid of the corresponding cell
@@ -228,21 +230,55 @@ UT_TEST_CASE_SKIP(test_sphere) {
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }
 
-#if 1
   for (int k = 0; k < n_sites; k++) {
-    weights[k] = 1e-3 + 0.2 * std::fabs(vertices[k][2]) / n_sites;
+    double x = vertices[k][0];
+    double y = vertices[k][1];
+    double r = std::sqrt(x * x + y * y);
+    // weights[k] = 4e-1 * std::pow(r - 0.5, 2);
+    //  if (r > 0.5) weights[k] = 0;
+    weights[k] = 2e-1 * std::exp(0.5 - r);
   }
-  // lift_sites(vertices, voronoi.weights());
+  lift_sites(vertices, voronoi.weights());
 
   voronoi.vertices().clear();
-  voronoi.vertices().set_dim(3);
+  // voronoi.vertices().set_dim(3);
   voronoi.polygons().clear();
+  voronoi.triangles().clear();
   voronoi.compute(domain, options);
   auto props = voronoi.analyze();
   LOG << fmt::format("power diagram area = {}", props.area);
-#endif
-  LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
+  UT_ASSERT_NEAR(props.area, 4 * M_PI, tol);
 
+  // check the power diagram
+  UT_ASSERT_EQUALS(voronoi.vertices().n() - n_sites, voronoi.triangles().n());
+  for (size_t k = 0; k < voronoi.triangles().n(); k++) {
+    auto* t = voronoi.triangles()[k];
+
+    // only check interior triangles
+    if (voronoi.triangles().group(k) < 0) continue;
+
+    // coordinates of voronoi vertex
+    auto* v = voronoi.vertices()[k + n_sites];
+    vec3d c(v);
+
+    // coordinates of 3 vertices of delaunay triangle
+    vec3d zi(vertices[t[0]]);
+    vec3d zj(vertices[t[1]]);
+    vec3d zk(vertices[t[2]]);
+    ASSERT(t[0] != t[1]) << t[0] << ", " << t[1];
+    ASSERT(t[1] != t[2]) << t[1] << ", " << t[2];
+    ASSERT(t[0] != t[2]) << t[0] << ", " << t[2];
+
+    // power distance to sites
+    double di = std::pow(length(zi - c), 2) - weights[t[0]];
+    double dj = std::pow(length(zj - c), 2) - weights[t[1]];
+    double dk = std::pow(length(zk - c), 2) - weights[t[2]];
+    UT_ASSERT_NEAR(di, dj, tol);
+    UT_ASSERT_NEAR(di, dk, tol);
+    UT_ASSERT_NEAR(dj, dk, tol);
+  }
+
+  LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0) meshb::write(voronoi, "sphere.meshb");
 }
 UT_TEST_CASE_END(test_sphere)
