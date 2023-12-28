@@ -28,6 +28,7 @@ template <typename Domain_t> class VoronoiPolygon {
   }
 
   void set_sites(const coord_t* sites) { sites_ = sites; }
+  void set_weights(const coord_t* weights) { weights_ = weights; }
   void set_neighbors(const index_t* neighbors, uint32_t n_neighbors) {
     neighbors_ = neighbors;
     n_neighbors_ = n_neighbors;
@@ -39,12 +40,14 @@ template <typename Domain_t> class VoronoiPolygon {
     p_.clear();
     q_.clear();
     plane_.clear();
+    std::fill(bisector_to_site_, bisector_to_site_ + 256, -1);
   }
 
-  uint8_t new_plane(const vec4& p) {
+  uint8_t new_plane(const vec4& p, int64_t n) {
     size_t b = plane_.size();
     ASSERT(b < plane_.capacity());
     plane_.push_back(p);
+    bisector_to_site_[b] = n;
     return b;
   }
 
@@ -58,31 +61,36 @@ template <typename Domain_t> class VoronoiPolygon {
     assert(sites_);
     assert(neighbors_);
     clear();
+    // ASSERT(dim == 4);
     const coord_t* zi = sites_ + site * dim;
-    const vec4 ui(zi, dim);  // TODO use weights
+    const coord_t wi = (weights_) ? weights_[site] : 0.0;
+    const vec4 ui(zi, dim);
     domain.initialize(ui, *this);
     bool security_radius_reached = false;
 
     for (size_t j = 1; j < n_neighbors_; j++) {
-      // get the next point, TODO and weight
+      // get the next point and weight
       const index_t n = neighbors_[site * n_neighbors_ + j];
       const coord_t* zj = sites_ + n * dim;
+      const coord_t wj = (weights_) ? weights_[n] : 0.0;
       const vec4 uj(zj, dim);
 
       // create the plane and clip
-      const vec4 eqn = cell_.plane_equation(ui, uj);
-      const uint8_t b = new_plane(eqn);
+      const vec4 eqn = cell_.plane_equation(ui, uj, wi, wj);
+      const uint8_t b = new_plane(eqn, n);
       clip_by_plane(b);
 
       // check if no more bisectors contribute to the cell
-      double r = squared_radius(ui.xyz());
-      security_radius_reached = 4.01 * r < distance_squared(ui.xyz(), uj.xyz());
+      double r = squared_radius(ui);
+      security_radius_reached = 4.01 * r < distance_squared(ui, uj);
       if (security_radius_reached) break;
     }
-    if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
 
     // append to the mesh if necessary
     if (mesh) append_to_mesh(*mesh, site);
+
+    // TODO(philip) retrieve more neighbors and keep clipping
+    if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
 
     return VoronoiStatusCode::kSuccess;
   }
@@ -137,11 +145,11 @@ template <typename Domain_t> class VoronoiPolygon {
     p_.swap(q_);
   }
 
-  double squared_radius(const vec3& c) const {
+  double squared_radius(const vec4& c) const {
     double r = 0.0;
     for (size_t k = 0; k < p_.size(); k++) {
       const vec4 p = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
-      double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w});
+      double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
       if (rk > r) r = rk;
     }
     return r;
@@ -152,19 +160,30 @@ template <typename Domain_t> class VoronoiPolygon {
     cell_.get_properties(p_, plane_, props);
   }
 
-  bool append_to_mesh(Mesh& mesh, int site) const {
+  bool append_to_mesh(Mesh& mesh, index_t site) const {
     if (p_.size() < 3) return false;
-    index_t v_offset = mesh.vertices().n();
 
+    // initialize arrays for Voronoi polygon and Delaunay triangle
     std::vector<index_t> polygon(p_.size());
+    std::array<index_t, 3> t;
+    t[0] = site;
+
+    index_t v_offset = mesh.vertices().n();
     for (size_t k = 0; k < p_.size(); k++) {
       vec4 p = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
       if (p.w == 0.0) p.w = 1.0;
-      ASSERT(p.w != 0.0) << fmt::format("p = {}, {}, {}, {}", p.x, p.y, p.z,
-                                        p.w);
       p = p / p.w;
       mesh.vertices().add(&p.x);
       polygon[k] = k + v_offset;
+
+      // add Delaunay triangle associated with this Voronoi vertex
+      auto tj = bisector_to_site_[p_[k].bl];
+      auto tk = bisector_to_site_[p_[k].br];
+      if (tj < 0) tj = kMaxSite;
+      if (tk < 0) tk = kMaxSite;
+      t[1] = tj;
+      t[2] = tk;
+      mesh.triangles().add(t.data());
     }
     size_t id = mesh.polygons().n();
     mesh.polygons().add(polygon.data(), polygon.size());
@@ -184,6 +203,8 @@ template <typename Domain_t> class VoronoiPolygon {
   const index_t* neighbors_;
   uint32_t n_neighbors_{0};
   const coord_t* sites_;
+  const coord_t* weights_{nullptr};
+  int64_t bisector_to_site_[256];  // 256 since bisectors are uint8_t
 
   // only CPU
   trees::KdTreeNd<coord_t, index_t>* tree_{nullptr};
@@ -208,7 +229,8 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
     i = workspace.site_stack.back();
     workspace.site_stack.pop_back();
     const coord_t* zi = sites_ + i * dim;
-    const vec4 ui(zi, dim);  // TODO use weights
+    const vec4 ui(zi, dim);
+    const coord_t wi = 0.0;
     domain.initialize(triangle, *this);
     for (size_t j = 1; j < n_neighbors_; j++) {
       // get the next point, TODO and weight
@@ -219,15 +241,16 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       }
       const coord_t* zj = sites_ + n * dim;
       const vec4 uj(zj, dim);
+      const coord_t wj = 0.0;
 
       // create the plane and clip
-      const vec4 eqn = cell_.plane_equation(ui, uj);
-      const uint8_t b = new_plane(eqn);
+      const vec4 eqn = cell_.plane_equation(ui, uj, wi, wj);
+      const uint8_t b = new_plane(eqn, n);
       clip_by_plane(b);
 
       // check if no more bisectors contribute to the cell
-      double r = squared_radius(ui.xyz());
-      if (4.01 * r < distance_squared(ui.xyz(), uj.xyz())) break;
+      double r = squared_radius(ui);
+      if (4.01 * r < distance_squared(ui, uj)) break;
     }
     // append to the mesh and properties if necessary
     if (mesh) append_to_mesh(*mesh, i);

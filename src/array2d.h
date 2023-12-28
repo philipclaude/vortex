@@ -148,7 +148,8 @@ template <typename T> class array2d {
    * \return pointer to data at element k
    */
   T* operator[](size_t k) {
-    ASSERT(k < n());
+    ASSERT(k < n()) << fmt::format("attempt to access element {}, but n = {}",
+                                   k, n());
     if (layout_ == Layout_Rectangular) return &data_[k * stride_];
     ASSERT(layout_ == Layout_Jagged);
     return &data_[first_[k]];

@@ -9,6 +9,7 @@
 
 namespace vortex {
 
+static constexpr index_t kMaxSite = std::numeric_limits<index_t>::max();
 enum { INSIDE = 0, OUTSIDE = 1 };
 using vint_t = uint16_t;
 enum class VoronoiStatusCode : uint8_t {
@@ -164,6 +165,12 @@ T distance_squared(const vec<T, 3>& u, const vec<T, 3>& v) {
          (u.z - v.z) * (u.z - v.z);
 }
 
+template <typename T>
+T distance_squared(const vec<T, 4>& u, const vec<T, 4>& v) {
+  return (u.x - v.x) * (u.x - v.x) + (u.y - v.y) * (u.y - v.y) +
+         (u.z - v.z) * (u.z - v.z) + (u.w - v.w) * (u.w - v.w);
+}
+
 inline double det2x2(double a11, double a12, double a21, double a22) {
   return a11 * a22 - a12 * a21;
 }
@@ -225,6 +232,11 @@ struct VoronoiCellProperties {
   }
 };
 
+struct VoronoiDiagramProperties {
+  double area{0};
+  double energy{0};
+};
+
 class VoronoiDiagram : public Mesh {
  public:
   VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
@@ -237,6 +249,10 @@ class VoronoiDiagram : public Mesh {
   const auto& properties() const { return properties_; }
   auto& status() { return status_; }
   const auto& status() const { return status_; }
+  auto& weights() { return weights_; }
+  const auto& weights() const { return weights_; }
+  void smooth(Vertices& sites) const;
+  VoronoiDiagramProperties analyze() const;
 
  private:
   int dim_;
@@ -244,7 +260,10 @@ class VoronoiDiagram : public Mesh {
   uint64_t n_sites_;
   std::vector<VoronoiCellProperties> properties_;
   std::vector<VoronoiStatusCode> status_;
+  std::vector<double> weights_;
 };
+
+void lift_sites(Vertices& sites, const std::vector<coord_t>& weights);
 
 struct VoronoiVertex {
   uint8_t bl;  // left bisector
@@ -260,7 +279,8 @@ struct SphericalVoronoiPolygon {
   uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const {
     return plane_side(compute(pi, pj), p);
   }
-  vec4 plane_equation(const vec4& ui, const vec4& uj);
+  vec4 plane_equation(const vec4& ui, const vec4& uj, const coord_t& wi,
+                      const coord_t& wj);
   void get_properties(const pool<Vertex_t>& polygon, const pool<vec4>& planes,
                       VoronoiCellProperties& props) const;
 };
@@ -283,9 +303,18 @@ struct PlanarVoronoiPolygon {
   uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const;
   void initialize(const vec3* points, const size_t n_points,
                   pool<Vertex_t>& polygon, pool<vec4>& planes);
-  vec4 plane_equation(const vec4& ui, const vec4& uj);
+  vec4 plane_equation(const vec4& ui, const vec4& uj, const coord_t& wi,
+                      const coord_t& wj);
   void get_properties(const pool<Vertex_t>& polygon, const pool<vec4>& planes,
                       VoronoiCellProperties& props) const;
+};
+
+struct SquareDomain {
+  typedef PlanarVoronoiPolygon Cell_t;
+  SquareDomain() {}
+  SquareDomain(const SquareDomain& domain) {}
+  void initialize(vec4 z, VoronoiPolygon<SquareDomain>& cell) const;
+  const vec3 points_[4] = {{0., 0., 0.}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}};
 };
 
 struct TriangulationDomain {

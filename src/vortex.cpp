@@ -300,17 +300,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
-      const auto& properties = voronoi.properties();
-      ASSERT(properties.size() == points.n());
-      vec3 x;
-      double area = 0.0;
-      for (size_t k = 0; k < points.n(); k++) {
-        x = static_cast<float>(1.0 / properties[k].mass) * properties[k].moment;
-        x = unit_vector(x);
-        for (int d = 0; d < 3; d++) points[k][d] = x[d];
-        area += properties[k].mass;
-      }
-      LOG << fmt::format("iter = {}, area = {}", iter, area);
+      voronoi.smooth(points);
+      auto props = voronoi.analyze();
+      LOG << fmt::format("iter = {}, area = {}", iter, props.area);
     }
   };
 
