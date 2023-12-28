@@ -187,7 +187,7 @@ void write_polygons(int64_t fid, const Mesh& mesh) {
 
   index_t n_boundary = mesh.polygons().n();
   GmfSetKwd(fid, GmfBoundaryPolygonHeaders, n_boundary);
-  std::vector<index_t> headers(mesh.polygons().n());
+  std::vector<long> headers(mesh.polygons().n());
   index_t m = 1;
   size_t np = mesh.polygons().n();
   for (size_t k = 0; k < np; k++) {
@@ -200,8 +200,10 @@ void write_polygons(int64_t fid, const Mesh& mesh) {
               &groups[np - 1]);
 
   GmfSetKwd(fid, GmfBoundaryPolygonVertices, m - 1);
-  std::vector<index_t> v = mesh.polygons().data();
-  for (auto& x : v) x += 1;
+  std::vector<long> v(mesh.polygons().data().size());
+  for (size_t k = 0; k < mesh.polygons().data().size(); k++) {
+    v[k] = mesh.polygons().data()[k] + 1;
+  }
   GmfSetBlock(fid, GmfBoundaryPolygonVertices, 1, m - 1, 0, nullptr, nullptr,
               GmfLong, &v[0], &v[m - 2]);
 }
