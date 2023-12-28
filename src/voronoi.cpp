@@ -16,6 +16,13 @@
 
 namespace vortex {
 
+void SquareDomain::initialize(vec4,
+                              VoronoiPolygon<SquareDomain>& polygon) const {
+  auto& vertices = polygon.vertices();
+  auto& planes = polygon.planes();
+  polygon.cell().initialize(&points_[0], 4, vertices, planes);
+}
+
 void SphereDomain::initialize(vec4 site,
                               VoronoiPolygon<SphereDomain>& polygon) const {
   auto& vertices = polygon.vertices();
@@ -53,15 +60,15 @@ void SphereDomain::initialize(vec4 site,
   vertices[3].br = 0;
 }
 
-vec4 SphericalVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj) {
-  coord_t wi = ui.w;
-  coord_t wj = uj.w;
-
+vec4 SphericalVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj,
+                                             const coord_t& wi,
+                                             const coord_t& wj) {
   // https://en.wikipedia.org/wiki/Radical_axis
+  // the weight is the radius squared, M1 = ui.xyz() and M2 = uj.xyz()
   coord_t d = length((uj - ui).xyz());
   coord_t d1 = (d * d + wi - wj) / (2.0 * d);
-  vec4 m = ui + d1 * (uj - ui) / d;
-  vec3 n = unit_vector((ui - uj).xyz());
+  vec4 m = ui + d1 * (uj - ui) / d;  // (uj - ui) / d is unit_vector(M2 - M1)
+  vec3 n = unit_vector((ui - uj).xyz());  // normal points *into* cell i
   return {n.x, n.y, n.z, -dot(n, m.xyz())};
 }
 
@@ -106,13 +113,13 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 void SphericalVoronoiPolygon::get_properties(
     const pool<Vertex_t>& p, const pool<vec4>& planes,
     VoronoiCellProperties& props) const {
-  props.mass = 0.0;
-  props.moment = {0, 0, 0};
-  vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
-  for (size_t i = 0; i < p.size(); i++) {
-    size_t j = (i + 1) == p.size() ? 0 : i + 1;
-    vec3 b = compute(planes[p[j].bl], planes[p[j].br]).xyz();
-    const vec3& c = center;
+  vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
+  vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  vec3 a = (1.0 / ah.w) * ah.xyz();
+  vec3 b = (1.0 / bh.w) * bh.xyz();
+  for (size_t k = 2; k < p.size(); k++) {
+    vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    vec3 c = (1.0 / ch.w) * ch.xyz();
 
     // https://www.johndcook.com/blog/2021/11/29/area-of-spherical-triangle/
     coord_t num = std::fabs(dot(a, cross(b, c)));
@@ -122,7 +129,7 @@ void SphericalVoronoiPolygon::get_properties(
 
     props.moment = props.moment + ak * ck;
     props.mass += ak;
-    a = b;
+    b = c;
   }
 }
 
@@ -171,11 +178,15 @@ uint8_t PlanarVoronoiPolygon::side(const vec4& pi, const vec4& pj,
   return plane_side(compute(pi, pj), p);
 }
 
-vec4 PlanarVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj) {
+vec4 PlanarVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj,
+                                          const coord_t& wi,
+                                          const coord_t& wj) {
   // bisector (plane) normal and midpoint
-  vec3 n = unit_vector((ui - uj).xyz());
-  vec3 m = 0.5 * (ui + uj).xyz();
-  return {n.x, n.y, n.z, -dot(n, m)};
+  coord_t d = length((uj - ui).xyz());
+  coord_t d1 = (d * d + wi - wj) / (2.0 * d);
+  vec4 m = ui + d1 * (uj - ui) / d;  // (uj - ui) / d is unit_vector(M2 - M1)
+  vec3 n = unit_vector((ui - uj).xyz());  // normal points *into* cell i
+  return {n.x, n.y, n.z, -dot(n, m.xyz())};
 }
 
 vec4 PlanarVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
@@ -197,12 +208,13 @@ vec4 PlanarVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
                                           const pool<vec4>& planes,
                                           VoronoiCellProperties& props) const {
-  props.mass = 0.0;
-  props.moment = {0, 0, 0};
-  vec3 a = compute(planes[p[0].bl], planes[p[0].br]).xyz();
-  vec3 b = compute(planes[p[1].bl], planes[p[2].br]).xyz();
+  vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
+  vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  vec3 a = (1.0 / ah.w) * ah.xyz();
+  vec3 b = (1.0 / bh.w) * bh.xyz();
   for (size_t k = 2; k < p.size(); k++) {
-    vec3 c = compute(planes[p[k].bl], planes[p[k].br]).xyz();
+    vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    vec3 c = (1.0 / ch.w) * ch.xyz();
     coord_t ak = 0.5 * length(cross(b - a, c - a));
     vec3 ck = (1.0 / 3.0) * (a + b + c);
 
@@ -284,8 +296,21 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
     // add vertices
     int n = mesh.vertices().n();
     mesh.vertices().reserve(mesh.vertices().n() + vertices_.n());
+    mesh.triangles().reserve(mesh.triangles().n() + vertices_.n());
     for (size_t k = 0; k < vertices_.n(); k++) {
       mesh.vertices().add(vertices_[k]);
+      bool on_boundary = false;
+      for (int j = 0; j < 3; j++) {
+        if (triangles_[k][j] == kMaxSite) on_boundary = true;
+      }
+      int group = 0;
+      if (on_boundary) {
+        for (int j = 0; j < 3; j++) triangles_[k][j] = 0;
+        group = -1;
+      }
+      size_t id = mesh.triangles().n();
+      mesh.triangles().add(triangles_[k]);
+      mesh.triangles().set_group(id, group);
     }
 
     // add polygons
@@ -303,13 +328,14 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
   void set_properties_ptr(VoronoiCellProperties* p) { properties_ = p; }
   void set_mesh_lock(std::mutex* lock) { append_mesh_lock_ = lock; }
   void set_status_ptr(VoronoiStatusCode* s) { status_ = s; }
+  void set_weights_ptr(const coord_t* w) { weights_ = w; }
   Cell_t& cell() { return cell_; }
 
  private:
   VoronoiStatusCode compute(int dim, uint64_t site, Mesh* mesh) {
     auto status = cell_.compute(domain_, dim, site, mesh ? this : nullptr);
     if (properties_) {
-      cell_.get_properties(properties_[site]);
+      cell_.get_properties(properties_[site], true);
       properties_[site].site = site;
     }
     return status;
@@ -325,6 +351,7 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
   Cell_t cell_;
   VoronoiCellProperties* properties_{nullptr};
   VoronoiStatusCode* status_{nullptr};
+  const coord_t* weights_;
 };
 
 template <typename Domain_t> class ElementThreadBlock : public Mesh {
@@ -367,7 +394,7 @@ template <typename Domain_t> class ElementThreadBlock : public Mesh {
   VoronoiStatusCode compute(int dim, uint64_t elem, Mesh* mesh) {
     workspace_.clear();
     auto status = cell_.compute(domain_, dim, elem, elem2site_[elem],
-                                workspace_, mesh ? this : nullptr);
+                                workspace_, properties_, mesh ? this : nullptr);
     return status;
   }
 
@@ -377,6 +404,7 @@ template <typename Domain_t> class ElementThreadBlock : public Mesh {
     mesh.vertices().reserve(mesh.vertices().n() + vertices_.n());
     for (size_t k = 0; k < vertices_.n(); k++) {
       mesh.vertices().add(vertices_[k]);
+      mesh.triangles().add(triangles_[k]);
     }
 
     // add polygons
@@ -499,6 +527,11 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   else
     NOT_IMPLEMENTED;
 
+  // always add sites first for the Delaunay triangulation
+  if (options.store_mesh) {
+    for (size_t k = 0; k < n_sites_; k++) vertices_.add(sites_ + k * dim_);
+  }
+
   // compute voronoi diagram
   bool set_kdtree = options.interleave_neighbors;
   bool recomputing = false;
@@ -523,6 +556,9 @@ compute_voronoi:
     blocks[k]->set_mesh_lock(&append_mesh_lock);
     blocks[k]->set_properties_ptr(properties_.data());
     blocks[k]->set_status_ptr(status_.data());
+    if (weights_.size() == n_sites_) {
+      blocks[k]->cell().set_weights(weights_.data());
+    }
     if (set_kdtree) blocks[k]->cell().set_kdtree(tree.get());
     size_t m = k * n_sites_per_block;
     size_t n = m + n_sites_per_block;
@@ -573,7 +609,6 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
 
   // compute voronoi diagram
   // bool set_kdtree = options.interleave_neighbors;
-
   Timer timer;
   timer.start();
   size_t n_threads = std::thread::hardware_concurrency();
@@ -598,9 +633,16 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
 
   // use triangle nearest neighbor as nearest neighbor of first vertex
   std::vector<index_t> tnn(domain.n_triangles);
-  polygon2site_.reserve(n_sites_ * 10);
   for (size_t k = 0; k < domain.n_triangles; k++)
     tnn[k] = vnn[domain.triangles[3 * k]];
+
+  // reset properties
+  for (auto& props : properties_) props.reset();
+
+  // always add sites first for the Delaunay triangulation
+  if (options.store_mesh) {
+    for (size_t k = 0; k < n_sites_; k++) vertices_.add(sites_ + k * dim_);
+  }
 
   // set up the thread blocks
   size_t n_elems = domain.n_elems();
@@ -634,7 +676,36 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   if (options.verbose) LOG << fmt::format("n_incomplete = {}", n_incomplete);
 }
 
+void lift_sites(Vertices& sites, const std::vector<double>& weights) {
+  ASSERT(sites.n() == weights.size() && !weights.empty());
+  ASSERT(sites.dim() == 4);
+  double wmax = *std::max_element(weights.begin(), weights.end());
+  for (size_t k = 0; k < sites.n(); k++) {
+    sites[k][3] = std::sqrt(wmax - weights[k]);
+  }
+}
+
+void VoronoiDiagram::smooth(Vertices& sites) const {
+  vec3 x;
+  for (size_t k = 0; k < n_sites_; k++) {
+    x = static_cast<float>(1.0 / properties_[k].mass) * properties_[k].moment;
+    // x = unit_vector(x);  // TODO(philip): move this elsewhere
+    for (int d = 0; d < 3; d++) sites[k][d] = x[d];
+  }
+}
+
+VoronoiDiagramProperties VoronoiDiagram::analyze() const {
+  // TODO(philip) calculate energy and gradient norms
+  VoronoiDiagramProperties props;
+  for (size_t k = 0; k < n_sites_; k++) {
+    props.area += properties_[k].mass;
+  }
+  return props;
+}
+
 template void VoronoiDiagram::compute(const SphereDomain&,
+                                      VoronoiDiagramOptions);
+template void VoronoiDiagram::compute(const SquareDomain&,
                                       VoronoiDiagramOptions);
 
 }  // namespace vortex

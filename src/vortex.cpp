@@ -288,11 +288,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.allow_reattempt = false;
   options.parallel = true;
 
-  if (n_smooth > 1 && using_mesh) {
-    LOG << "[warning]: Lloyd relaxation not yet implemented for mesh domain";
-    n_smooth = 1;
-  }
-
   auto calculate_voronoi_diagram = [&voronoi, &options, &points,
                                     &n_smooth](auto& domain) {
     int n_iter = n_smooth;
@@ -305,17 +300,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
-      const auto& properties = voronoi.properties();
-      ASSERT(properties.size() == points.n());
-      vec3 x;
-      double area = 0.0;
-      for (size_t k = 0; k < points.n(); k++) {
-        x = static_cast<float>(1.0 / properties[k].mass) * properties[k].moment;
-        x = unit_vector(x);
-        for (int d = 0; d < 3; d++) points[k][d] = x[d];
-        area += properties[k].mass;
-      }
-      LOG << fmt::format("iter = {}, area = {}", iter, area);
+      voronoi.smooth(points);
+      auto props = voronoi.analyze();
+      LOG << fmt::format("iter = {}, area = {}", iter, props.area);
     }
   };
 
