@@ -119,7 +119,7 @@ UT_TEST_CASE(test_square) {
     auto props = voronoi.analyze();
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }
-  for (int k = 0; k < n_sites; k++) {
+  for (size_t k = 0; k < n_sites; k++) {
     // coordinates relative to square center (0.5, 0.5)
     double x = vertices[k][0] - 0.5;
     double y = vertices[k][1] - 0.5;
@@ -230,7 +230,7 @@ UT_TEST_CASE(test_sphere) {
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }
 
-  for (int k = 0; k < n_sites; k++) {
+  for (size_t k = 0; k < n_sites; k++) {
     double x = vertices[k][0];
     double y = vertices[k][1];
     double r = std::sqrt(x * x + y * y);
