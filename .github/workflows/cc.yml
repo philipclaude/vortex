@@ -35,11 +35,13 @@ jobs:
       run: make -j 2
 
     - name: test
+      id: tester
       working-directory: ${{github.workspace}}/build/debug
       run: |
         make unit
     
     - name: report
+      if: steps.tester.outputs.checks-failed > 0
       working-directory: ${{github.workspace}}/build/debug
       run: |
         cat unit_tests_output.txt
