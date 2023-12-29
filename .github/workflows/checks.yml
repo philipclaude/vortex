@@ -22,13 +22,13 @@ jobs:
     - name: checkout data
       run: git lfs checkout
 
-    - name: check format
-      run: |
-        dev/check-format.sh
-
     - name: install dev dependencies
       run: |
         dev/setup.sh
+
+    - name: check format
+      run: |
+        dev/check-format.sh
 
     - name: configure
       run: cmake -B ${{github.workspace}}/build/debug -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
