@@ -66,11 +66,12 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
 /**
  * \brief Unary - operator, to write vector expression such as -u
  */
-#define INSTANTIATE_VECMINUS(R)                                \
-  template <int M> vecs<M, R> operator-(const vecs<M, R>& u) { \
-    vecs<M, R> w;                                              \
-    for (int i = 0; i < M; i++) w(i) = -u(i);                  \
-    return w;                                                  \
+#define INSTANTIATE_VECMINUS(R)               \
+  template <int M>                            \
+  vecs<M, R> operator-(const vecs<M, R>& u) { \
+    vecs<M, R> w;                             \
+    for (int i = 0; i < M; i++) w(i) = -u(i); \
+    return w;                                 \
   }
 
 /**
@@ -109,32 +110,35 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
 /**
  * \brief Computes the vector-scalar multiplication x * a
  */
-#define INSTANTIATE_VECSCAMUL_R(R, S, T)                                   \
-  template <int M> vecs<M, T> operator*(const vecs<M, R>& u, const S& a) { \
-    vecs<M, T> v;                                                          \
-    for (int i = 0; i < M; i++) v(i) = a * u(i);                           \
-    return v;                                                              \
+#define INSTANTIATE_VECSCAMUL_R(R, S, T)                  \
+  template <int M>                                        \
+  vecs<M, T> operator*(const vecs<M, R>& u, const S& a) { \
+    vecs<M, T> v;                                         \
+    for (int i = 0; i < M; i++) v(i) = a * u(i);          \
+    return v;                                             \
   }
 
 /**
  * \brief Computes the scalar-vector multiplication a * x
  */
-#define INSTANTIATE_VECSCAMUL_L(R, S, T)                                   \
-  template <int M> vecs<M, T> operator*(const R& a, const vecs<M, S>& u) { \
-    vecs<M, T> v;                                                          \
-    for (int i = 0; i < M; i++) v(i) = a * u(i);                           \
-    return v;                                                              \
+#define INSTANTIATE_VECSCAMUL_L(R, S, T)                  \
+  template <int M>                                        \
+  vecs<M, T> operator*(const R& a, const vecs<M, S>& u) { \
+    vecs<M, T> v;                                         \
+    for (int i = 0; i < M; i++) v(i) = a * u(i);          \
+    return v;                                             \
   }
 
 /**
  * \brief Computes the vector-scalar multiplication x * a
  */
-#define INSTANTIATE_VECSCADIV(R, S, T)                                     \
-  template <int M> vecs<M, T> operator/(const vecs<M, R>& u, const S& a) { \
-    vecs<M, T> v;                                                          \
-    ASSERT(a != 0) << "divide by zero";                                    \
-    for (int i = 0; i < M; i++) v(i) = u(i) / a;                           \
-    return v;                                                              \
+#define INSTANTIATE_VECSCADIV(R, S, T)                    \
+  template <int M>                                        \
+  vecs<M, T> operator/(const vecs<M, R>& u, const S& a) { \
+    vecs<M, T> v;                                         \
+    ASSERT(a != 0) << "divide by zero";                   \
+    for (int i = 0; i < M; i++) v(i) = u(i) / a;          \
+    return v;                                             \
   }
 
 /**
@@ -145,11 +149,12 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
  *
  * \return dot product u.v
  */
-#define INSTANTIATE_DOT(R, S, T)                                     \
-  template <int M> T dot(const vecs<M, R>& u, const vecs<M, S>& v) { \
-    T result = 0;                                                    \
-    for (int i = 0; i < M; i++) result += u(i) * v(i);               \
-    return result;                                                   \
+#define INSTANTIATE_DOT(R, S, T)                       \
+  template <int M>                                     \
+  T dot(const vecs<M, R>& u, const vecs<M, S>& v) {    \
+    T result = 0;                                      \
+    for (int i = 0; i < M; i++) result += u(i) * v(i); \
+    return result;                                     \
   }
 
 /**
@@ -159,7 +164,8 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
  *
  * \return length of u: || u || = sqrt( u^T u )
  */
-template <int M, typename T> T length(const vecs<M, T>& u) {
+template <int M, typename T>
+T length(const vecs<M, T>& u) {
   return sqrt(dot(u, u));
 }
 
@@ -168,13 +174,14 @@ template <int M, typename T> T length(const vecs<M, T>& u) {
  *
  * \param[in,out] u - vector (static) to normalize
  */
-#define INSTANTIATE_NORMALIZE(T)                               \
-  template <int M> vecs<M, T> normalize(const vecs<M, T>& u) { \
-    vecs<M, T> v;                                              \
-    T n = length(u);                                           \
-    if (n == 0.0) return u;                                    \
-    for (int i = 0; i < M; i++) v[i] = u[i] / n;               \
-    return v;                                                  \
+#define INSTANTIATE_NORMALIZE(T)                 \
+  template <int M>                               \
+  vecs<M, T> normalize(const vecs<M, T>& u) {    \
+    vecs<M, T> v;                                \
+    T n = length(u);                             \
+    if (n == 0.0) return u;                      \
+    for (int i = 0; i < M; i++) v[i] = u[i] / n; \
+    return v;                                    \
   }
 
 #define COMMA ,

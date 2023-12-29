@@ -1,6 +1,7 @@
 #include "numerics.h"
 
 #include "halfedges.h"
+#include "io.h"
 #include "library.h"
 #include "predicates.h"
 #include "tester.h"
@@ -22,7 +23,8 @@ double face_area(const HalfFace& face) {
 UT_TEST_CASE(test1) {
   exactinit();
 
-  Sphere sphere(6);
+  Sphere sphere(4);
+  meshb::write(sphere, "sphere.meshb");
 
   double area = 0.0;
   size_t n_periodic = 0;

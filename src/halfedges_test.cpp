@@ -44,7 +44,7 @@ UT_TEST_CASE(insert_test) {
 
   Mesh mesh(3);
   // hmesh.extract(mesh);
-  //  meshb::write(mesh, "results/insert.meshb");
+  //  meshb::write(mesh, "insert.meshb");
 }
 UT_TEST_CASE_END(insert_test)
 

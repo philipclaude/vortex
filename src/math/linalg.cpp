@@ -36,20 +36,23 @@ syms<N, T> interp(const std::vector<double>& alpha,
   return expm(m);
 }
 
-template <typename T> matd<T> transpose(const matd<T>& A) {
+template <typename T>
+matd<T> transpose(const matd<T>& A) {
   matd<T> At(A.n(), A.m());
   for (int i = 0; i < A.m(); i++)
     for (int j = 0; j < A.n(); j++) At(j, i) = A(i, j);
   return At;
 }
 
-template <typename T> matd<T> diag(const vecd<T>& d) {
+template <typename T>
+matd<T> diag(const vecd<T>& d) {
   matd<T> A(d.m(), d.m());  // initializes to zero
   for (int i = 0; i < d.m(); i++) A(i, i) = d(i);
   return A;
 }
 
-template <int N, typename T> mats<N, N, T> diag(const vecs<N, T>& d) {
+template <int N, typename T>
+mats<N, N, T> diag(const vecs<N, T>& d) {
   mats<N, N, T> A;
   for (int i = 0; i < N; i++) A(i, i) = d(i);
   return A;
@@ -158,14 +161,16 @@ void inverseLUP(const matd<T>& LU, const std::vector<int>& P,
   }
 }
 
-template <typename T> void inverseLUP(const matd<T>& A, matd<T>& Ainv) {
+template <typename T>
+void inverseLUP(const matd<T>& A, matd<T>& Ainv) {
   matd<T> LU(A.m(), A.n());
   std::vector<int> P(A.n() + 1);
   decomposeLUP(A, LU, P);
   inverseLUP(LU, P, Ainv);
 }
 
-template <typename T> matd<T> inverse(const matd<T>& M) {
+template <typename T>
+matd<T> inverse(const matd<T>& M) {
   ASSERT(M.m() == M.n());
   const T idetM = 1. / det(M);
 
@@ -284,7 +289,8 @@ template <typename T> matd<T> inverse(const matd<T>& M) {
   return Minv;
 }
 
-template <typename T> symd<T> inverse(const symd<T>& M) {
+template <typename T>
+symd<T> inverse(const symd<T>& M) {
   const T idetM = 1. / det(M);
 
   symd<T> Minv(M.m(), M.n());
@@ -402,11 +408,13 @@ template <typename T> symd<T> inverse(const symd<T>& M) {
   return Minv;
 }
 
-template <typename T> std::pair<vecd<T>, matd<T>> eig(const symd<T>& m) {
+template <typename T>
+std::pair<vecd<T>, matd<T>> eig(const symd<T>& m) {
   return m.eig();
 }
 
-template <typename T> void eig(const symd<T>& m, vecd<T>& L, matd<T>& Q) {
+template <typename T>
+void eig(const symd<T>& m, vecd<T>& L, matd<T>& Q) {
   std::pair<vecd<T>, matd<T>> decomp = m.eig();
   L.set(decomp.first);
   Q.set(decomp.second);
@@ -426,7 +434,8 @@ void eig(const syms<N, T>& m, vecs<N, T>& L, mats<N, N, T>& Q) {
   }
 }
 
-template <typename type> type det(const matd<type>& X) {
+template <typename type>
+type det(const matd<type>& X) {
   ASSERT(X.m() == X.n());
   if (X.m() == 1) return X(0, 0);
   if (X.m() == 2) return X(1, 1) * X(0, 0) - X(0, 1) * X(1, 0);
@@ -1248,7 +1257,8 @@ template <typename type> type det(const matd<type>& X) {
   return 0;
 }
 
-template <typename type> type det(const symd<type>& X) {
+template <typename type>
+type det(const symd<type>& X) {
   ASSERT(X.m() == X.n());
   if (X.m() == 1) return X(0, 0);
   if (X.m() == 2) return X(1, 1) * X(0, 0) - X(0, 1) * X(1, 0);
@@ -1279,7 +1289,8 @@ template <typename type> type det(const symd<type>& X) {
   return 0;
 }
 
-template <int N, typename T> T det(const mats<N, N, T>& X) {
+template <int N, typename T>
+T det(const mats<N, N, T>& X) {
   if (N == 1) return X(0, 0);
   if (N == 2) return X(1, 1) * X(0, 0) - X(0, 1) * X(1, 0);
   if (N == 3)
@@ -1309,49 +1320,57 @@ template <int N, typename T> T det(const mats<N, N, T>& X) {
   return 0;
 }
 
-template <typename type> symd<type> expm(const symd<type>& m) {
+template <typename type>
+symd<type> expm(const symd<type>& m) {
   std::pair<vecd<type>, matd<type>> decomp = m.eig();
   for (int k = 0; k < m.n(); k++) decomp.first(k) = ::exp(decomp.first(k));
   return symd<type>(decomp);
 }
 
-template <typename type> symd<type> logm(const symd<type>& m) {
+template <typename type>
+symd<type> logm(const symd<type>& m) {
   std::pair<vecd<type>, matd<type>> decomp = m.eig();
   for (int k = 0; k < m.n(); k++) decomp.first(k) = ::log(decomp.first(k));
   return symd<type>(decomp);
 }
 
-template <typename type> symd<type> powm(const symd<type>& m, double p) {
+template <typename type>
+symd<type> powm(const symd<type>& m, double p) {
   std::pair<vecd<type>, matd<type>> decomp = m.eig();
   for (int k = 0; k < m.n(); k++) decomp.first(k) = ::pow(decomp.first(k), p);
   return symd<type>(decomp);
 }
 
-template <typename type> symd<type> sqrtm(const symd<type>& m) {
+template <typename type>
+symd<type> sqrtm(const symd<type>& m) {
   std::pair<vecd<type>, matd<type>> decomp = m.eig();
   for (int k = 0; k < m.n(); k++) decomp.first(k) = ::sqrt(decomp.first(k));
   return symd<type>(decomp);
 }
 
-template <int N, typename T> syms<N, T> expm(const syms<N, T>& m) {
+template <int N, typename T>
+syms<N, T> expm(const syms<N, T>& m) {
   std::pair<vecs<N, T>, mats<N, N, T>> decomp = m.eig();
   for (int k = 0; k < N; k++) decomp.first(k) = ::exp(decomp.first(k));
   return syms<N, T>(decomp);
 }
 
-template <int N, typename T> syms<N, T> logm(const syms<N, T>& m) {
+template <int N, typename T>
+syms<N, T> logm(const syms<N, T>& m) {
   std::pair<vecs<N, T>, mats<N, N, T>> decomp = m.eig();
   for (int k = 0; k < N; k++) decomp.first(k) = ::log(decomp.first(k));
   return syms<N, T>(decomp);
 }
 
-template <int N, typename T> syms<N, T> powm(const syms<N, T>& m, double p) {
+template <int N, typename T>
+syms<N, T> powm(const syms<N, T>& m, double p) {
   std::pair<vecs<N, T>, mats<N, N, T>> decomp = m.eig();
   for (int k = 0; k < N; k++) decomp.first(k) = ::pow(decomp.first(k), p);
   return syms<N, T>(decomp);
 }
 
-template <int N, typename T> syms<N, T> sqrtm(const syms<N, T>& m) {
+template <int N, typename T>
+syms<N, T> sqrtm(const syms<N, T>& m) {
   std::pair<vecs<N, T>, mats<N, N, T>> decomp = m.eig();
   for (int k = 0; k < N; k++) decomp.first(k) = ::sqrt(decomp.first(k));
   return syms<N, T>(decomp);

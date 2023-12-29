@@ -10,10 +10,14 @@
 
 namespace vortex {
 
-template <typename T> class vecd;
-template <typename T> class symd;
-template <int N, typename T> class syms;
-template <int N, typename T> class vecs;
+template <typename T>
+class vecd;
+template <typename T>
+class symd;
+template <int N, typename T>
+class syms;
+template <int N, typename T>
+class vecs;
 
 /**
  * \brief Represents a dynamically-allocated m x n matrix with m rows and n
@@ -27,7 +31,8 @@ template <int N, typename T> class vecs;
  * * b , a * B matrix-vector multiplication: A * x where x is a vector unary
  * operators: +A, -A
  */
-template <typename T> class matd {
+template <typename T>
+class matd {
  public:
   /**
    * \brief Constructs a square n x n matrix.
@@ -69,7 +74,8 @@ template <typename T> class matd {
    * \param[in] A - the m x n symmetric matrix to copy where the entries have a
    * type S
    */
-  template <typename S> matd(const symd<S>& A);
+  template <typename S>
+  matd(const symd<S>& A);
 
   /**
    * \brief Read/write access to entry (i,j)
@@ -233,7 +239,8 @@ template <typename T> class matd {
  * * b , a * B matrix-vector multiplication: A * x where x is a vector unary
  * operators: +A, -A
  */
-template <int M, int N, typename T> class mats {
+template <int M, int N, typename T>
+class mats {
  public:
   /**
    * \brief Constructs a rectangular matrix and sets all entries to zero.
@@ -245,7 +252,8 @@ template <int M, int N, typename T> class mats {
    *
    * \param[in] A - M x N matrix whose entries have a type S
    */
-  template <typename S> mats(const mats<M, N, S>& A) {
+  template <typename S>
+  mats(const mats<M, N, S>& A) {
     for (int i = 0; i < M; i++)
       for (int j = 0; j < N; j++) (*this)(i, j) = A(i, j);
   }
@@ -257,7 +265,8 @@ template <int M, int N, typename T> class mats {
    * \param[in] A - the m x n symmetric matrix to copy where the entries have a
    * type S
    */
-  template <typename S> mats(const syms<M, S>& A);
+  template <typename S>
+  mats(const syms<M, S>& A);
 
   /**
    * \brief Sets all matrix entries to zero.
@@ -281,7 +290,8 @@ template <int M, int N, typename T> class mats {
    *
    * \param[in] b - M x N matrix to copy whose values have a tyep S
    */
-  template <typename S> mats<M, N, T>& operator=(const mats<M, N, S>& b) {
+  template <typename S>
+  mats<M, N, T>& operator=(const mats<M, N, S>& b) {
     for (int i = 0; i < M; i++)
       for (int j = 0; j < N; j++) (*this)(i, j) = b(i, j);
     return *this;
@@ -381,7 +391,8 @@ mats<M, N, R> operator+(const mats<M, N, R>& A, const mats<M, N, R>& B) {
 /**
  * \brief Computes the matrix-vector multiplication A * x.
  */
-template <typename T> vecd<T> operator*(const matd<T>& A, const vecd<T>& x);
+template <typename T>
+vecd<T> operator*(const matd<T>& A, const vecd<T>& x);
 
 /**
  * \brief Computes the matrix-matrix multiplication A * B.
@@ -419,12 +430,14 @@ matd<typename result_of<R, S>::type> operator-(const matd<R>& A,
 /**
  * \brief Unary + operator, for including A in expressions such as +A + B.
  */
-template <typename R> matd<R> operator+(const matd<R>& A);
+template <typename R>
+matd<R> operator+(const matd<R>& A);
 
 /**
  * \brief Unary - operator, for including A in expressions such as -A + B.
  */
-template <typename R> matd<R> operator-(const matd<R>& A);
+template <typename R>
+matd<R> operator-(const matd<R>& A);
 
 /**
  * \brief Unary + operator, for including A in expressions such as +A + B.

@@ -1,0 +1,57 @@
+name: c++-checks
+
+on:
+  pull_request:
+    branches: main
+  push:
+    branches: main
+
+env:
+  # (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Debug
+
+jobs:
+  cc-build-format-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        lfs: true
+
+    - name: checkout data
+      run: git lfs checkout
+
+    - name: install dev dependencies
+      run: |
+        dev/setup.sh
+
+    - name: check format
+      run: |
+        dev/check-format.sh
+
+    - name: configure
+      run: cmake -B ${{github.workspace}}/build/debug -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: build
+      working-directory: ${{github.workspace}}/build/debug
+      run: make -j 2
+
+    - name: test
+      id: tester
+      working-directory: ${{github.workspace}}/build/debug
+      run: |
+        make unit
+    
+    - name: report
+      if: '!cancelled()'
+      working-directory: ${{github.workspace}}/build/debug
+      run: |
+        cat unit_tests_output.txt
+        
+
+    # - name: upload artifacts
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: output
+    #     path: unit_tests_output.txt

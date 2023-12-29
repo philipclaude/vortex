@@ -54,13 +54,13 @@ struct Exception {
 #define __FILENAME__ \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
-#define LOG                                                              \
+#define LOG                                                                 \
   vortex::Log(std::cout) << "[" << getpid() << ":" << std::setw(16)         \
-                      << __FILENAME__ << ":" << std::setw(4) << __LINE__ \
-                      << "]: "
+                         << __FILENAME__ << ":" << std::setw(4) << __LINE__ \
+                         << "]: "
 
 #define __ERR__(X)                                                      \
-  vortex::Exception(std::cout, X)                                          \
+  vortex::Exception(std::cout, X)                                       \
       << "[" << getpid() << ":" << std::setw(16) << __FILENAME__ << ":" \
       << std::setw(4) << __LINE__ << "]: "
 

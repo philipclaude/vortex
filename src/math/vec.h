@@ -15,7 +15,8 @@ namespace vortex {
  * matrix. Templated by type T so the vector could store any type of entry,
  *        provided arithmetic operators are defined for the entry type.
  */
-template <typename T> class vecd : public matd<T> {
+template <typename T>
+class vecd : public matd<T> {
  public:
   /**
    * \brief Constructs an m-dimensional vector.
@@ -30,7 +31,8 @@ template <typename T> class vecd : public matd<T> {
    * \param[in] m - number of components in the vector
    * \param[in] x - pointer to array of values to set into this vector
    */
-  template <typename R> vecd(int m, const R* x) : matd<T>(m, 1) {
+  template <typename R>
+  vecd(int m, const R* x) : matd<T>(m, 1) {
     for (int i = 0; i < m; i++) data_[i] = x[i];
   }
 
@@ -153,7 +155,8 @@ template <typename T> class vecd : public matd<T> {
  *        Templated by type T so the vector could store any type of entry,
  *        provided arithmetic operators are defined for the entry type.
  */
-template <int _M, typename T> class vecs : public mats<_M, 1, T> {
+template <int _M, typename T>
+class vecs : public mats<_M, 1, T> {
  public:
   static const int M = _M;
 
@@ -174,7 +177,8 @@ template <int _M, typename T> class vecs : public mats<_M, 1, T> {
    * \param[in] _m - number of components to save into the vector (should be <=
    * M)
    */
-  template <typename R> vecs(const R* data, int _m = -1) {
+  template <typename R>
+  vecs(const R* data, int _m = -1) {
     ASSERT(_m <= M);
     if (_m < 0) _m = M;
     for (int i = 0; i < _m; i++) data_[i] = data[i];
@@ -195,7 +199,8 @@ template <int _M, typename T> class vecs : public mats<_M, 1, T> {
    *
    * \param[in] b - vector to copy of a potentially different type
    */
-  template <typename S> vecs(const vecs<M, S>& b) {
+  template <typename S>
+  vecs(const vecs<M, S>& b) {
     for (int i = 0; i < M; i++) (*this)(i) = b(i);
   }
 
@@ -241,7 +246,8 @@ template <int _M, typename T> class vecs : public mats<_M, 1, T> {
    *
    * \param[in] v - initializer list to copy of a potentially different type
    */
-  template <typename R> vecs(const std::initializer_list<R>& v) {
+  template <typename R>
+  vecs(const std::initializer_list<R>& v) {
     operator=(v);
   }
 
@@ -365,7 +371,8 @@ typename result_of<R, S>::type dot(const vecd<R>& u, const vecd<S>& v);
  *
  * \param[in,out] u - vector (static) to normalize
  */
-template <typename T, int M> vecs<M, T> normalize(const vecs<M, T>& u);
+template <typename T, int M>
+vecs<M, T> normalize(const vecs<M, T>& u);
 
 /**
  * \brief Computes the magnitude (length) of a static vector
@@ -383,7 +390,8 @@ template <typename T, int M> vecs<M, T> normalize(const vecs<M, T>& u);
  *
  * \return length of u: || u || = sqrt( u^T u )
  */
-template <typename T> T length(const vecd<T>& u);
+template <typename T>
+T length(const vecd<T>& u);
 
 /**
  * \brief Computes the cross-product of two 3d vectors: w = u x v

@@ -1,6 +1,6 @@
 #include "mat.hpp"
 
-#include "linear_algebra.h"
+#include "linalg.h"
 #include "tester.h"
 #include "vec.h"
 #include "vec.hpp"
@@ -9,7 +9,8 @@ using namespace vortex;
 
 UT_TEST_SUITE(matrix_test_suite)
 
-template <typename T> class randmatd : public matd<T> {
+template <typename T>
+class randmatd : public matd<T> {
  public:
   randmatd(int m, int n) : matd<T>(m, n) {
     for (int i = 0; i < m; i++)
@@ -17,14 +18,16 @@ template <typename T> class randmatd : public matd<T> {
   }
 };
 
-template <typename T> class randvecd : public vecd<T> {
+template <typename T>
+class randvecd : public vecd<T> {
  public:
   randvecd(int m) : vecd<T>(m) {
     for (int i = 0; i < m; i++) (*this)(i) = T(rand()) / T(RAND_MAX);
   }
 };
 
-template <int M, int N, typename T> class randmats : public mats<M, N, T> {
+template <int M, int N, typename T>
+class randmats : public mats<M, N, T> {
  public:
   randmats() : mats<M, N, T>() {
     for (int i = 0; i < M; i++)

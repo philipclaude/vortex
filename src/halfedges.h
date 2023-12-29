@@ -28,7 +28,8 @@ class HalfNode {
   void deactivate() { index_ = halfnull_t; }
   bool active() const { return index_ != halfnull_t; }
 
-  template <typename T> void get_onering(std::vector<T*>& ring) const;
+  template <typename T>
+  void get_onering(std::vector<T*>& ring) const;
 
  private:
   HalfMesh& mesh_;
@@ -42,6 +43,7 @@ class HalfEdge {
   HalfEdge(HalfMesh& m, int64_t id) : mesh_(m), index_(id) {}
   void deactivate() { index_ = halfnull_t; }
   bool active() const { return index_ != halfnull_t; }
+  bool boundary() const;
   HalfNode& get_node();
   const HalfNode& get_node() const;
 
@@ -193,7 +195,8 @@ class HalfMesh {
     face.deactivate();
   }
 
-  template <typename fn> void deactivate_by(const fn& mask) {
+  template <typename fn>
+  void deactivate_by(const fn& mask) {
     std::vector<HalfFace*> faces;
     for (auto& n : nodes_) {
       if (!n.active()) continue;
@@ -205,7 +208,8 @@ class HalfMesh {
     }
   }
 
-  template <typename fn> void activate_faces_by(const fn& predicate) {
+  template <typename fn>
+  void activate_faces_by(const fn& predicate) {
     for (auto& f : faces_) f.deactivate();
     for (auto& n : nodes_) n.deactivate();
     for (size_t k = 0; k < faces_.size(); k++) {

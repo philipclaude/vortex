@@ -15,7 +15,8 @@ struct ElementVoronoiWorkspace {
   }
 };
 
-template <typename Domain_t> class VoronoiPolygon {
+template <typename Domain_t>
+class VoronoiPolygon {
  public:
   using Cell_t = typename Domain_t::Cell_t;
   using Vertex_t = typename Cell_t::Vertex_t;
@@ -61,7 +62,6 @@ template <typename Domain_t> class VoronoiPolygon {
     assert(sites_);
     assert(neighbors_);
     clear();
-    // ASSERT(dim == 4);
     const coord_t* zi = sites_ + site * dim;
     const coord_t wi = (weights_) ? weights_[site] : 0.0;
     const vec4 ui(zi, dim);

@@ -27,11 +27,11 @@ UT_TEST_CASE(test1) {
   msh_opts.h_max = 0.1;
   EarthMesher mesher(texture);
   mesher.generate(msh_opts);
+  auto& mesh = mesher.mesh();
 
   Texture mask("oceans_2048.png", tex_opts);
   mask.make_binary(10, 10, 255);
 
-  auto& mesh = mesher.mesh();
   mesh.deactivate_by([&mask](const auto& n) {
     vec3d p(n.point());
     vec3d u;
@@ -45,7 +45,7 @@ UT_TEST_CASE(test1) {
   Mesh output_mesh(3);
   mesh.extract(output_mesh);
 
-  meshb::write(output_mesh, "earth3.meshb");
+  meshb::write(output_mesh, "water.meshb");
 }
 UT_TEST_CASE_END(test1)
 

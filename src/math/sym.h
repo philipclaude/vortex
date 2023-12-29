@@ -16,7 +16,8 @@ namespace vortex {
  * a single value for the number of rows or columns (n). Only dynamic storage is
  * currently supported (unlike the difference between matd and mats).
  */
-template <typename type> class symd {
+template <typename type>
+class symd {
  public:
   /**
    * \brief Constructs a 0x0 matrix.
@@ -58,7 +59,8 @@ template <typename type> class symd {
    *
    * \param[in] A - n x n symmetric matrix with a potentially different type S
    */
-  template <typename S> symd(const symd<S>& A) : symd(A.n()) {
+  template <typename S>
+  symd(const symd<S>& A) : symd(A.n()) {
     for (int i = 0; i < n_; i++)
       for (int j = 0; j < n_; j++) (*this)(i, j) = A(i, j);
   }
@@ -70,7 +72,8 @@ template <typename type> class symd {
    * \param[in] A - n x n matrix (hopefully symmetric) with a potentially
    * different type S
    */
-  template <typename S> symd(const matd<S>& A) : symd(A.n()) {
+  template <typename S>
+  symd(const matd<S>& A) : symd(A.n()) {
     ASSERT(A.m() == A.n());
     for (int i = 0; i < n_; i++)
       for (int j = 0; j < n_; j++) (*this)(i, j) = A(i, j);
@@ -304,7 +307,8 @@ template <typename type> class symd {
   std::pair<vecd<type>, matd<type> > __eig__() const;
 };
 
-template <int N, typename T> class syms {
+template <int N, typename T>
+class syms {
  private:
   static const int NB = N * (N + 1) / 2;
 
@@ -350,7 +354,8 @@ template <int N, typename T> class syms {
    *
    * \param[in] A - n x n symmetric matrix with a potentially different type S
    */
-  template <typename S> syms(const syms<N, S>& A) {
+  template <typename S>
+  syms(const syms<N, S>& A) {
     for (int i = 0; i < N; i++)
       for (int j = 0; j < N; j++) (*this)(i, j) = A(i, j);
   }
@@ -362,7 +367,8 @@ template <int N, typename T> class syms {
    * \param[in] A - n x n matrix (hopefully symmetric) with a potentially
    * different type S
    */
-  template <typename S> syms(const mats<N, N, S>& A) {
+  template <typename S>
+  syms(const mats<N, N, S>& A) {
     for (int i = 0; i < N; i++)
       for (int j = 0; j < N; j++) (*this)(i, j) = A(i, j);
   }

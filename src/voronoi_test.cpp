@@ -124,7 +124,7 @@ UT_TEST_CASE(test_square) {
     double x = vertices[k][0] - 0.5;
     double y = vertices[k][1] - 0.5;
     double r = std::sqrt(x * x + y * y);
-    weights[k] = 4e-1 * std::pow(r - 0.5, 2);
+    weights[k] = 2e-1 * std::pow(r - 0.5, 2);
     if (r > 0.5) weights[k] = 0;
     // weights[k] = 2e-1 * std::exp(0.5 - r);
   }
@@ -337,7 +337,9 @@ UT_TEST_CASE(test_sphere_triangulation) {
     voronoi.polygons().set_group(k, site2color[group]);
   }
 
-  voronoi.triangles().clear();  // not implemented yet
+  voronoi.merge();
+
+  // voronoi.triangles().clear();  // not implemented yet
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0)
     meshb::write(voronoi, "sphere_triangulation.meshb");

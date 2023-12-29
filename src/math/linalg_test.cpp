@@ -31,7 +31,8 @@ symd<double> random_tensor(int n) {
   return N;
 }
 
-template <int N> syms<N, double> random_tensor() {
+template <int N>
+syms<N, double> random_tensor() {
   matd<double> X(N, N);
   matd<double> Xt(N, N);
   for (int i = 0; i < N; i++)
