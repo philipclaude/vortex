@@ -1,11 +1,12 @@
 #!/bin/sh
 
+echo "$OSTYPE"
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Linux
+  # Linux
 	sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev	
+  sudo apt-get install -y --no-install-recommends libgl1-mesa-dev	
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-        # Mac OSX
+  # Mac OSX
 	xcode-select --install
 	brew install clang-format
 else
