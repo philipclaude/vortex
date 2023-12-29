@@ -237,7 +237,8 @@ void TriangulationDomain::initialize(
 
 namespace {
 
-template <typename Domain_t> class VoronoiThreadBlock : public Mesh {
+template <typename Domain_t>
+class VoronoiThreadBlock : public Mesh {
   using Cell_t = VoronoiPolygon<Domain_t>;
   using Vertex_t = typename Cell_t::Vertex_t;
   using Element_t = typename Cell_t::Element_t;

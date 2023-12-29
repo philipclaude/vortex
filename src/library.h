@@ -7,7 +7,8 @@ namespace vortex {
 /**
  * \brief represents a structured grid for any element type
  */
-template <typename T> class Grid : public Mesh {
+template <typename T>
+class Grid : public Mesh {
  public:
   /**
    * \brief initializes and build a structured grid

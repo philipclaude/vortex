@@ -5,16 +5,21 @@
 
 namespace vortex {
 
-template <typename T> matd<T> operator+(const matd<T>& A) { return A; }
+template <typename T>
+matd<T> operator+(const matd<T>& A) {
+  return A;
+}
 
-template <typename T> matd<T> operator-(const matd<T>& A) {
+template <typename T>
+matd<T> operator-(const matd<T>& A) {
   matd<T> B(A.m(), A.n());
   for (int i = 0; i < A.m(); i++)
     for (int j = 0; j < A.n(); j++) B(i, j) = -A(i, j);
   return B;
 }
 
-template <typename T> vecd<T> operator*(const matd<T>& A, const vecd<T>& x) {
+template <typename T>
+vecd<T> operator*(const matd<T>& A, const vecd<T>& x) {
   ASSERT(A.n() == x.m()) << "bad sizes";
   vecd<T> b(A.m());
   for (int i = 0; i < A.m(); i++) {

@@ -41,7 +41,8 @@ typename result_of<R, S>::type dot(const vecd<R>& u, const vecd<S>& v) {
   return d;
 }
 
-template <typename T> T length(const vecd<T>& u) {
+template <typename T>
+T length(const vecd<T>& u) {
   T m(0);
   for (int i = 0; i < u.m(); i++) m += u[i] * u[i];
   return std::sqrt(m);

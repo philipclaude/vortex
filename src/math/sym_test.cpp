@@ -10,7 +10,8 @@ using namespace vortex;
 
 UT_TEST_SUITE(symmetric_matrix_test_suite)
 
-template <typename T> class randsymd : public symd<T> {
+template <typename T>
+class randsymd : public symd<T> {
  public:
   randsymd(int n) : symd<T>(n) {
     matd<double> X(n, n);
@@ -29,14 +30,16 @@ template <typename T> class randsymd : public symd<T> {
   }
 };
 
-template <int m, typename T> class randvecs : public vecs<m, T> {
+template <int m, typename T>
+class randvecs : public vecs<m, T> {
  public:
   randvecs() : vecs<m, T>() {
     for (int i = 0; i < m; i++) (*this)(i) = T(rand()) / T(RAND_MAX);
   }
 };
 
-template <int n, typename T> class randsyms : public syms<n, T> {
+template <int n, typename T>
+class randsyms : public syms<n, T> {
  public:
   randsyms() : syms<n, T>() {
     mats<n, n, T> X;
@@ -55,7 +58,8 @@ template <int n, typename T> class randsyms : public syms<n, T> {
   }
 };
 
-template <typename T> class randvecd : public vecd<T> {
+template <typename T>
+class randvecd : public vecd<T> {
  public:
   randvecd(int m) : vecd<T>(m) {
     for (int i = 0; i < m; i++) (*this)(i) = T(rand()) / T(RAND_MAX);

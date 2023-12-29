@@ -19,7 +19,8 @@ enum class VoronoiStatusCode : uint8_t {
   kNeedPredicates
 };
 
-template <typename T> class pool {
+template <typename T>
+class pool {
  public:
   pool(T* data, int n) : data_(data), capacity_(n) {}
 
@@ -65,15 +66,18 @@ template <typename T> class pool {
   size_t capacity_{0};
 };
 
-template <typename T, int dim> struct vec;
+template <typename T, int dim>
+struct vec;
 
-template <typename T> struct vec<T, 4> {
+template <typename T>
+struct vec<T, 4> {
   T x{0};
   T y{0};
   T z{0};
   T w{0};
   vec<T, 3> xyz() const;
-  template <typename R> vec(const R* coord, int dim) {
+  template <typename R>
+  vec(const R* coord, int dim) {
     x = coord[0];
     y = coord[1];
     if (dim > 2) z = coord[2];
@@ -88,7 +92,8 @@ template <typename T> struct vec<T, 4> {
   vec() : x(0), y(0), z(0), w(0) {}
 };
 
-template <typename T> struct vec<T, 3> {
+template <typename T>
+struct vec<T, 3> {
   T x{0};
   T y{0};
   T z{0};
@@ -101,9 +106,13 @@ template <typename T> struct vec<T, 3> {
   T& operator[](int d) { return *(&x + d); }
 };
 
-template <typename T> vec<T, 3> vec<T, 4>::xyz() const { return {x, y, z}; }
+template <typename T>
+vec<T, 3> vec<T, 4>::xyz() const {
+  return {x, y, z};
+}
 
-template <typename T> vec<T, 3> cross(const vec<T, 3>& u, const vec<T, 3>& v) {
+template <typename T>
+vec<T, 3> cross(const vec<T, 3>& u, const vec<T, 3>& v) {
   return {u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x};
 }
 
@@ -122,7 +131,8 @@ vec<T, 3> operator*(const R& a, const vec<T, 3>& u) {
   return {a * u.x, a * u.y, a * u.z};
 }
 
-template <typename T> T dot(const vec<T, 3>& u, const vec<T, 3>& v) {
+template <typename T>
+T dot(const vec<T, 3>& u, const vec<T, 3>& v) {
   return u.x * v.x + u.y * v.y + u.z * v.z;
 }
 
@@ -146,15 +156,18 @@ vec<T, 4> operator/(const vec<T, 4>& u, const R& a) {
   return {u.x / a, u.y / a, u.z / a, u.w / a};
 }
 
-template <typename T> T dot(const vec<T, 4>& u, const vec<T, 4>& v) {
+template <typename T>
+T dot(const vec<T, 4>& u, const vec<T, 4>& v) {
   return u.x * v.x + u.y * v.y + u.z * v.z + u.w * v.w;
 }
 
-template <typename T> T length(const vec<T, 3>& u) {
+template <typename T>
+T length(const vec<T, 3>& u) {
   return std::sqrt(u.x * u.x + u.y * u.y + u.z * u.z);
 }
 
-template <typename T> vec<T, 3> unit_vector(const vec<T, 3>& u) {
+template <typename T>
+vec<T, 3> unit_vector(const vec<T, 3>& u) {
   const T len = length(u);
   return {u.x / len, u.y / len, u.z / len};
 }
@@ -286,7 +299,8 @@ struct SphericalVoronoiPolygon {
                       VoronoiCellProperties& props) const;
 };
 
-template <typename Domain_t> class VoronoiPolygon;
+template <typename Domain_t>
+class VoronoiPolygon;
 
 struct SphereDomain {
   typedef SphericalVoronoiPolygon Cell_t;

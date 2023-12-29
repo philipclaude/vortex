@@ -24,7 +24,8 @@ class TopologyBase : public array2d<index_t> {
     group_.reserve(m);
   }
 
-  template <typename R> void add(const R* x, int m = -1) {
+  template <typename R>
+  void add(const R* x, int m = -1) {
     (m < 0) ? array2d<index_t>::template add<R>(x)
             : array2d<index_t>::template add<R>(x, m);
     group_.push_back(-1);
@@ -47,7 +48,8 @@ class TopologyBase : public array2d<index_t> {
   std::vector<int32_t> group_;
 };
 
-template <typename T> class Topology : public TopologyBase {
+template <typename T>
+class Topology : public TopologyBase {
  public:
   using TopologyBase::length;
   using TopologyBase::n;
@@ -69,7 +71,8 @@ class Vertices : public array2d<coord_t> {
   int dim() const { return array2d<coord_t>::stride(); }
   void set_dim(int dim) { array2d<coord_t>::set_stride(dim); }
 
-  template <typename R> void add(const R* x, int32_t id = -1) {
+  template <typename R>
+  void add(const R* x, int32_t id = -1) {
     array2d<coord_t>::template add<R>(x);
     group_.push_back(id);
     entity_.push_back(nullptr);
@@ -155,9 +158,11 @@ class Mesh {
 
   void get_edges(std::vector<Edge>& edges) const;
 
-  template <typename T> const Topology<T>& get() const;
+  template <typename T>
+  const Topology<T>& get() const;
 
-  template <typename T> Topology<T>& get();
+  template <typename T>
+  Topology<T>& get();
 
   const FieldLibrary& fields() const { return fields_; }
   FieldLibrary& fields() { return fields_; }

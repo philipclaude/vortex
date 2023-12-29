@@ -11,34 +11,42 @@ constexpr auto encoder64_2d = MortonNDLutEncoder<2, 32, 10>();
 constexpr auto encoder64_3d = MortonNDLutEncoder<3, 21, 10>();
 constexpr auto encoder64_4d = MortonNDLutEncoder<4, 16, 10>();
 
-template <int dim> struct Resolution;
+template <int dim>
+struct Resolution;
 
-template <> struct Resolution<2> {
+template <>
+struct Resolution<2> {
   // 32 bits for each coordinate
   static constexpr double value = 4294967296.0;
 };
 
-template <> struct Resolution<3> {
+template <>
+struct Resolution<3> {
   // 21 bits for each coordinate
   static constexpr double value = 2091752.0;
 };
 
-template <> struct Resolution<4> {
+template <>
+struct Resolution<4> {
   // 16 bits for each coordinate
   static constexpr double value = 65536.0;
 };
 
-template <int dim> morton_t encode(const std::array<uint64_t, dim>& x);
+template <int dim>
+morton_t encode(const std::array<uint64_t, dim>& x);
 
-template <> morton_t encode<2>(const std::array<uint64_t, 2>& x) {
+template <>
+morton_t encode<2>(const std::array<uint64_t, 2>& x) {
   return encoder64_2d.Encode(x[0], x[1]);
 }
 
-template <> morton_t encode<3>(const std::array<uint64_t, 3>& x) {
+template <>
+morton_t encode<3>(const std::array<uint64_t, 3>& x) {
   return encoder64_3d.Encode(x[0], x[1], x[2]);
 }
 
-template <> morton_t encode<4>(const std::array<uint64_t, 4>& x) {
+template <>
+morton_t encode<4>(const std::array<uint64_t, 4>& x) {
   return encoder64_4d.Encode(x[0], x[1], x[2], x[3]);
 }
 

@@ -615,7 +615,8 @@ HalfFace& HalfEdge::get_face() { return mesh_.faces()[face_]; }
 const HalfFace& HalfEdge::get_face() const { return mesh_.faces()[face_]; }
 void HalfEdge::set_face(const HalfFace& f) { face_ = f.index(); }
 
-template <typename T> void HalfNode::get_onering(std::vector<T*>& ring) const {
+template <typename T>
+void HalfNode::get_onering(std::vector<T*>& ring) const {
   ring.clear();
   half_t first = edge_;
   half_t edge = first;

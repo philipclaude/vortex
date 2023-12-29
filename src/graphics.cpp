@@ -61,7 +61,8 @@ class GLPrimitive {
     write(topology);
   }
 
-  template <typename T> void write(const Topology<T>& topology) {
+  template <typename T>
+  void write(const Topology<T>& topology) {
     if (option_ == JAGGED_TEXTURE) {
       std::vector<GLuint> indices(topology.data().begin(),
                                   topology.data().end());

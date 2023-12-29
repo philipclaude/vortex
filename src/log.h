@@ -27,7 +27,8 @@ struct Log {
   Log(std::ostream& os) : os_(os) {}
   ~Log() { os_ << std::endl; }
 
-  template <typename T> std::ostream& operator<<(const T& s) && {
+  template <typename T>
+  std::ostream& operator<<(const T& s) && {
     return os_ << s;
   }
   std::ostream& os_;
@@ -42,7 +43,8 @@ struct Exception {
 
   static std::string get_backtrace(int start_frame);
 
-  template <typename T> std::ostream& operator<<(const T& t) && {
+  template <typename T>
+  std::ostream& operator<<(const T& t) && {
     return os_ << t;
   }
   std::ostream& os_;

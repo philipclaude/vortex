@@ -21,12 +21,14 @@ mats<M, N, T>::mats(const syms<M, S>& A) : mats<M, N, T>() {
     for (int j = 0; j < N; j++) (*this)(i, j) = A(i, j);
 }
 
-template <typename T> void matd<T>::set_row(int i, const vecd<T>& row) {
+template <typename T>
+void matd<T>::set_row(int i, const vecd<T>& row) {
   ASSERT(row.m() == n_);
   for (int j = 0; j < row.m(); j++) (*this)(i, j) = row(j);
 }
 
-template <typename T> void matd<T>::get_row(int i, vecd<T>& row) const {
+template <typename T>
+void matd<T>::get_row(int i, vecd<T>& row) const {
   ASSERT(row.m() == n_);
   for (int j = 0; j < row.m(); j++) row(j) = (*this)(i, j);
 }
@@ -163,20 +165,22 @@ matd<typename result_of<R, S>::type> operator-(const matd<R>& A,
 /**
  * \brief Unary + operator, for including A in expressions such as +A + B.
  */
-#define INSTANTIATE_MATPLUS(R)                                              \
-  template <int M, int N> mats<M, N, R> operator+(const mats<M, N, R>& A) { \
-    return A;                                                               \
+#define INSTANTIATE_MATPLUS(R)                      \
+  template <int M, int N>                           \
+  mats<M, N, R> operator+(const mats<M, N, R>& A) { \
+    return A;                                       \
   }
 
 /**
  * \brief Unary - operator, for including A in expressions such as -A + B.
  */
-#define INSTANTIATE_MATMINUS(R)                                             \
-  template <int M, int N> mats<M, N, R> operator-(const mats<M, N, R>& A) { \
-    mats<M, N, R> B;                                                        \
-    for (int i = 0; i < M; i++)                                             \
-      for (int j = 0; j < N; j++) B(i, j) = -A(i, j);                       \
-    return B;                                                               \
+#define INSTANTIATE_MATMINUS(R)                       \
+  template <int M, int N>                             \
+  mats<M, N, R> operator-(const mats<M, N, R>& A) {   \
+    mats<M, N, R> B;                                  \
+    for (int i = 0; i < M; i++)                       \
+      for (int j = 0; j < N; j++) B(i, j) = -A(i, j); \
+    return B;                                         \
   }
 
 template <int M, int N, typename T>
@@ -187,17 +191,20 @@ mats<N, M, T> transpose(const mats<M, N, T>& A) {
   return At;
 }
 
-template <typename T> T det(const mats<2, 2, T>& A) {
+template <typename T>
+T det(const mats<2, 2, T>& A) {
   return A(0, 0) * A(1, 1) - A(0, 1) * A(1, 0);
 }
 
-template <typename T> T det(const mats<3, 3, T>& A) {
+template <typename T>
+T det(const mats<3, 3, T>& A) {
   return A(0, 0) * (A(2, 2) * A(1, 1) - A(2, 1) * A(1, 2)) -
          A(1, 0) * (A(2, 2) * A(0, 1) - A(2, 1) * A(0, 2)) +
          A(2, 0) * (A(1, 2) * A(0, 1) - A(1, 1) * A(0, 2));
 }
 
-template <typename T> mats<2, 2, T> inverse(const mats<2, 2, T>& A) {
+template <typename T>
+mats<2, 2, T> inverse(const mats<2, 2, T>& A) {
   mats<2, 2, T> Ainv;
   const T id = 1.0 / det(A);
   Ainv(0, 0) = A(1, 1) * id;
@@ -207,7 +214,8 @@ template <typename T> mats<2, 2, T> inverse(const mats<2, 2, T>& A) {
   return Ainv;
 }
 
-template <typename T> mats<3, 3, T> inverse(const mats<3, 3, T>& M) {
+template <typename T>
+mats<3, 3, T> inverse(const mats<3, 3, T>& M) {
   mats<3, 3, T> Minv;
   const T idetM = 1.0 / det(M);
   const T a1_1 = M(0, 0);
@@ -231,7 +239,8 @@ template <typename T> mats<3, 3, T> inverse(const mats<3, 3, T>& M) {
   return Minv;
 }
 
-template <typename T> mats<4, 4, T> inverse(const mats<4, 4, T>& M) {
+template <typename T>
+mats<4, 4, T> inverse(const mats<4, 4, T>& M) {
   mats<4, 4, T> Minv;
   const T idetM = 1.0 / det(M);
   const T a1_1 = M(0, 0);
@@ -303,7 +312,8 @@ template <typename T> mats<4, 4, T> inverse(const mats<4, 4, T>& M) {
   return Minv;
 }
 
-template <int N, typename T> mats<N, N, T> inverse(const mats<N, N, T>& A) {
+template <int N, typename T>
+mats<N, N, T> inverse(const mats<N, N, T>& A) {
   matd<T> a(N, N);
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++) a(i, j) = A(i, j);

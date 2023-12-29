@@ -10,7 +10,8 @@
 
 namespace vortex {
 
-template <typename type> symd<type>::symd(const int _n) : n_(_n) {
+template <typename type>
+symd<type>::symd(const int _n) : n_(_n) {
   // constructor from size
   data_.resize(nb());
   std::fill(data_.begin(), data_.end(), 0.);
@@ -26,14 +27,16 @@ template <typename type>
 symd<type>::symd(const std::pair<vecd<type>, matd<type> >& decomp)
     : symd(decomp.first, decomp.second) {}
 
-template <typename type> symd<type>::symd(const matd<type>& M) : n_(M.n()) {
+template <typename type>
+symd<type>::symd(const matd<type>& M) : n_(M.n()) {
   ASSERT(M.m() == M.n());
   data_.resize(nb());
   for (int i = 0; i < n_; i++)
     for (int j = 0; j < n_; j++) operator()(i, j) = M(i, j);
 }
 
-template <typename type> void symd<type>::set(const matd<type>& M) {
+template <typename type>
+void symd<type>::set(const matd<type>& M) {
   n_ = M.m();
   ASSERT(n_ == M.n());
   for (int i = 0; i < n_; i++)
@@ -156,16 +159,21 @@ std::pair<vecd<type>, matd<type> > symd<type>::__eig__() const {
   return std::make_pair(L, E);
 }
 
-template <typename T> symd<T> operator+(const symd<T>& A) { return A; }
+template <typename T>
+symd<T> operator+(const symd<T>& A) {
+  return A;
+}
 
-template <typename T> symd<T> operator-(const symd<T>& A) {
+template <typename T>
+symd<T> operator-(const symd<T>& A) {
   symd<T> B(A.m());
   for (int i = 0; i < A.m(); i++)
     for (int j = 0; j < A.m(); j++) B(i, j) = -A(i, j);
   return B;
 }
 
-template <typename T> vecd<T> operator*(const symd<T>& A, const vecd<T>& x) {
+template <typename T>
+vecd<T> operator*(const symd<T>& A, const vecd<T>& x) {
   LLAMA_ASSERT_msg(A.m() == x.m(), "bad sizes");
   vecd<T> b(A.m());
   for (int i = 0; i < A.m(); i++) {
@@ -301,7 +309,8 @@ std::pair<vecs<N, T>, mats<N, N, T> > syms<N, T>::__eig__() const {
   return std::make_pair(L, E);
 }
 
-template <int N, typename T> syms<N, T> operator-(const syms<N, T>& A) {
+template <int N, typename T>
+syms<N, T> operator-(const syms<N, T>& A) {
   syms<N, T> B;
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++) B(i, j) = -A(i, j);
