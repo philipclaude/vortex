@@ -337,7 +337,9 @@ UT_TEST_CASE(test_sphere_triangulation) {
     voronoi.polygons().set_group(k, site2color[group]);
   }
 
-  voronoi.triangles().clear();  // not implemented yet
+  voronoi.merge();
+
+  // voronoi.triangles().clear();  // not implemented yet
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0)
     meshb::write(voronoi, "sphere_triangulation.meshb");

@@ -42,6 +42,7 @@ class HalfEdge {
   HalfEdge(HalfMesh& m, int64_t id) : mesh_(m), index_(id) {}
   void deactivate() { index_ = halfnull_t; }
   bool active() const { return index_ != halfnull_t; }
+  bool boundary() const;
   HalfNode& get_node();
   const HalfNode& get_node() const;
 

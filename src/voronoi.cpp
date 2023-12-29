@@ -237,60 +237,18 @@ void TriangulationDomain::initialize(
 
 namespace {
 
-template <typename Domain_t> class ThreadBlockBase : public Mesh {
+template <typename Domain_t> class VoronoiThreadBlock : public Mesh {
   using Cell_t = VoronoiPolygon<Domain_t>;
   using Vertex_t = typename Cell_t::Vertex_t;
   using Element_t = typename Cell_t::Element_t;
 
  public:
-  void set_properties_ptr(VoronoiCellProperties* p) { properties_ = p; }
-  void set_mesh_lock(std::mutex* lock) { append_mesh_lock_ = lock; }
-  void set_status_ptr(VoronoiStatusCode* s) { status_ = s; }
-  Cell_t& cell() { return cell_; }
-
- private:
-  // only CPU
-  std::vector<Vertex_t> vertex_pool_;
-  std::vector<vec4> plane_pool_;
-  std::mutex* append_mesh_lock_;
-
-  // CPU or GPU
-  Domain_t domain_;
-  Cell_t cell_;
-  VoronoiCellProperties* properties_{nullptr};
-  VoronoiStatusCode* status_{nullptr};
-};
-
-template <typename Domain_t> class SiteThreadBlock : public Mesh {
-  using Cell_t = VoronoiPolygon<Domain_t>;
-  using Vertex_t = typename Cell_t::Vertex_t;
-  using Element_t = typename Cell_t::Element_t;
-
- public:
-  // only CPU
-  SiteThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
+  VoronoiThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
       : Mesh(3),
         vertex_pool_(nv),
         plane_pool_(np),
         domain_(domain),  // copy the domain
         cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {}
-
-  void compute(int dim, size_t m, size_t n, Mesh* mesh) {
-    // compute all cells in range [m, n)
-    if (mesh) {
-      vertices_.reserve((n - m) * 10);
-      get<Element_t>().reserve(n - m);
-    }
-    for (size_t k = m; k < n; ++k) {
-      // if (status_[k] == VoronoiStatusCode::kSuccess) continue;
-      status_[k] = compute(dim, k, mesh);
-    }
-    if (mesh) {
-      append_mesh_lock_->lock();
-      append_to_mesh(*mesh);
-      append_mesh_lock_->unlock();
-    }
-  }
 
   void append_to_mesh(Mesh& mesh) {
     // add vertices
@@ -331,16 +289,7 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
   void set_weights_ptr(const coord_t* w) { weights_ = w; }
   Cell_t& cell() { return cell_; }
 
- private:
-  VoronoiStatusCode compute(int dim, uint64_t site, Mesh* mesh) {
-    auto status = cell_.compute(domain_, dim, site, mesh ? this : nullptr);
-    if (properties_) {
-      cell_.get_properties(properties_[site], true);
-      properties_[site].site = site;
-    }
-    return status;
-  }
-
+ protected:
   // only CPU
   std::vector<Vertex_t> vertex_pool_;
   std::vector<vec4> plane_pool_;
@@ -354,24 +303,27 @@ template <typename Domain_t> class SiteThreadBlock : public Mesh {
   const coord_t* weights_;
 };
 
-template <typename Domain_t> class ElementThreadBlock : public Mesh {
+template <typename Domain_t>
+class SiteThreadBlock : public VoronoiThreadBlock<Domain_t> {
   using Cell_t = VoronoiPolygon<Domain_t>;
-  using Vertex_t = typename Cell_t::Vertex_t;
   using Element_t = typename Cell_t::Element_t;
+  using Base_t = VoronoiThreadBlock<Domain_t>;
+  using Base_t::append_mesh_lock_;
+  using Base_t::cell_;
+  using Base_t::properties_;
+  using Base_t::status_;
+  using Base_t::vertices_;
 
  public:
-  ElementThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
-      : Mesh(3),
-        vertex_pool_(nv),
-        plane_pool_(np),
-        domain_(domain),  // copy the domain
-        cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {}
+  // only CPU
+  SiteThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
+      : VoronoiThreadBlock<Domain_t>(domain, nv, np) {}
 
   void compute(int dim, size_t m, size_t n, Mesh* mesh) {
     // compute all cells in range [m, n)
     if (mesh) {
       vertices_.reserve((n - m) * 10);
-      get<Element_t>().reserve(n - m);
+      Base_t::template get<Element_t>().reserve(n - m);
     }
     for (size_t k = m; k < n; ++k) {
       // if (status_[k] == VoronoiStatusCode::kSuccess) continue;
@@ -379,16 +331,57 @@ template <typename Domain_t> class ElementThreadBlock : public Mesh {
     }
     if (mesh) {
       append_mesh_lock_->lock();
-      append_to_mesh(*mesh);
+      Base_t::append_to_mesh(*mesh);
       append_mesh_lock_->unlock();
     }
   }
 
-  void set_properties_ptr(VoronoiCellProperties* p) { properties_ = p; }
-  void set_mesh_lock(std::mutex* lock) { append_mesh_lock_ = lock; }
-  void set_status_ptr(VoronoiStatusCode* s) { status_ = s; }
+ private:
+  VoronoiStatusCode compute(int dim, uint64_t site, Mesh* mesh) {
+    auto status = Base_t::cell_.compute(Base_t::domain_, dim, site,
+                                        mesh ? this : nullptr);
+    if (Base_t::properties_) {
+      cell_.get_properties(properties_[site], true);
+      properties_[site].site = site;
+    }
+    return status;
+  }
+};
+
+template <typename Domain_t>
+class ElementThreadBlock : public VoronoiThreadBlock<Domain_t> {
+  using Cell_t = VoronoiPolygon<Domain_t>;
+  using Element_t = typename Cell_t::Element_t;
+  using Base_t = VoronoiThreadBlock<Domain_t>;
+  using Base_t::append_mesh_lock_;
+  using Base_t::cell_;
+  using Base_t::domain_;
+  using Base_t::properties_;
+  using Base_t::status_;
+  using Base_t::vertices_;
+
+ public:
+  ElementThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
+      : VoronoiThreadBlock<Domain_t>(domain, nv, np) {}
+
+  void compute(int dim, size_t m, size_t n, Mesh* mesh) {
+    // compute all cells in range [m, n)
+    if (mesh) {
+      vertices_.reserve((n - m) * 10);
+      Base_t::template get<Element_t>().reserve(n - m);
+    }
+    for (size_t k = m; k < n; ++k) {
+      // if (status_[k] == VoronoiStatusCode::kSuccess) continue;
+      status_[k] = compute(dim, k, mesh);
+    }
+    if (mesh) {
+      append_mesh_lock_->lock();
+      Base_t::append_to_mesh(*mesh);
+      append_mesh_lock_->unlock();
+    }
+  }
+
   void set_elem2site_ptr(const index_t* elem2site) { elem2site_ = elem2site; }
-  Cell_t& cell() { return cell_; }
 
  private:
   VoronoiStatusCode compute(int dim, uint64_t elem, Mesh* mesh) {
@@ -398,37 +391,8 @@ template <typename Domain_t> class ElementThreadBlock : public Mesh {
     return status;
   }
 
-  void append_to_mesh(Mesh& mesh) {
-    // add vertices
-    int n = mesh.vertices().n();
-    mesh.vertices().reserve(mesh.vertices().n() + vertices_.n());
-    for (size_t k = 0; k < vertices_.n(); k++) {
-      mesh.vertices().add(vertices_[k]);
-      mesh.triangles().add(triangles_[k]);
-    }
-
-    // add polygons
-    mesh.polygons().reserve(mesh.polygons().n() + polygons_.n());
-    std::vector<index_t> polygon(128);
-    for (size_t k = 0; k < polygons_.n(); k++) {
-      polygon.resize(polygons_.length(k));
-      for (size_t j = 0; j < polygon.size(); j++)
-        polygon[j] = polygons_[k][j] + n;
-      mesh.polygons().add(polygon.data(), polygon.size());
-      mesh.polygons().set_group(mesh.polygons().n() - 1, polygons_.group(k));
-    }
-  }
-
-  std::vector<Vertex_t> vertex_pool_;
-  std::vector<vec4> plane_pool_;
-  std::mutex* append_mesh_lock_;
-  Domain_t domain_;
-  Cell_t cell_;
-  VoronoiCellProperties* properties_{nullptr};
-  VoronoiStatusCode* status_{nullptr};
   ElementVoronoiWorkspace workspace_;
   const index_t* elem2site_{nullptr};
-  trees::KdTreeNd<coord_t, index_t>* tree_{nullptr};
 };
 
 template <typename ThreadBlock_t>

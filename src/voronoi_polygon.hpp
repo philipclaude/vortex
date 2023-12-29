@@ -61,7 +61,6 @@ template <typename Domain_t> class VoronoiPolygon {
     assert(sites_);
     assert(neighbors_);
     clear();
-    // ASSERT(dim == 4);
     const coord_t* zi = sites_ + site * dim;
     const coord_t wi = (weights_) ? weights_[site] : 0.0;
     const vec4 ui(zi, dim);

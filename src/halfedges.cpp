@@ -102,7 +102,7 @@ void HalfMesh::build(const Mesh& mesh) {
     // keep looking for another boundary edge
     half_t he_next = he.twin();
     while (edges_[he_next].face() != halfnull_t) {
-      he_next = edges_[edges_[he_next].prev()].twin();
+      he_next = edges_[he_next].get_prev().twin();
     }
 
     he.set_next(edges_[he_next]);
@@ -138,11 +138,12 @@ bool HalfMesh::check() const {
   size_t n_zero_length = 0;
   for (auto& edge : edges_) {
     if (!edge.active()) continue;
-    if (edge.get_triangle_left_node().index() ==
-        edge.get_triangle_right_node().index()) {
+    if (!edge.boundary() && edge.get_triangle_left_node().index() ==
+                                edge.get_triangle_right_node().index()) {
       n_issues++;
-      LOG << fmt::format("non-manifold edge {} {}", edge.node(),
-                         edge.get_twin().node());
+      LOG << fmt::format("non-manifold edge {} {}, L/R = {}", edge.node(),
+                         edge.get_twin().node(),
+                         edge.get_triangle_left_node().index());
       ok = false;
     }
     vec3d p(edge.get_node().point());
@@ -507,8 +508,7 @@ void HalfMesh::collapse(half_t iedge) {
   edgeUL.get_twin().set_twin(edgeLL.get_twin());
   edgeLL.get_twin().set_twin(edgeUL.get_twin());
 
-  // re-assign the vertex edges in case they previously pointed to deleted
-  // ones
+  // re-assign the vertex edges in case they pointed to deleted ones
   vL.set_edge(edgeUL.get_twin());
   vR.set_edge(edgeLR.get_twin());
   q.set_edge(edgeUR.get_twin());
@@ -592,6 +592,10 @@ const HalfNode& HalfEdge::get_node() const { return mesh_.nodes()[node_]; }
 
 HalfEdge& HalfEdge::get_twin() { return mesh_.edges()[twin_]; }
 const HalfEdge& HalfEdge::get_twin() const { return mesh_.edges()[twin_]; }
+
+bool HalfEdge::boundary() const {
+  return (face_ == halfnull_t) || (get_twin().face() == halfnull_t);
+}
 
 HalfNode& HalfEdge::get_triangle_left_node() {
   return mesh_.nodes()[get_next().get_next().node()];
