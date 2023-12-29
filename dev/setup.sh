@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo "$OSTYPE"
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
