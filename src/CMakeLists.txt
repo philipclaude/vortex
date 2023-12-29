@@ -63,8 +63,8 @@ function(add_test_files var type)
   set(${var} ${${var}} ${sources} PARENT_SCOPE)
 endfunction()
 
-add_test_files(TEST_FILES "test"
-  ${CMAKE_CURRENT_SOURCE_DIR})
+add_test_files(TEST_FILES "test" ${CMAKE_CURRENT_SOURCE_DIR})
+add_test_files(TEST_FILES "test" ${CMAKE_CURRENT_SOURCE_DIR}/math)
 
 # set the directory for the test executables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test)

@@ -1,6 +1,6 @@
 #include "sym.h"
 
-#include "linear_algebra.h"
+#include "linalg.h"
 #include "mat.hpp"
 #include "sym.hpp"
 #include "tester.h"

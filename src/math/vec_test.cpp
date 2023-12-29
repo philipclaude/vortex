@@ -1,6 +1,6 @@
 #include "vec.h"
 
-#include "linear_algebra.h"
+#include "linalg.h"
 #include "tester.h"
 #include "vec.hpp"
 

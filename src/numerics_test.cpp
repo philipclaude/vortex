@@ -22,7 +22,7 @@ double face_area(const HalfFace& face) {
 UT_TEST_CASE(test1) {
   exactinit();
 
-  Sphere sphere(6);
+  Sphere sphere(0);
 
   double area = 0.0;
   size_t n_periodic = 0;

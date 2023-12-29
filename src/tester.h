@@ -26,8 +26,8 @@ class TestResult {
   void summary() {
     std::cout << "Summary" << std::endl
               << passed_ << " assertions passed out of " << asserted_
-              << " with " << failed_ << " and " << exceptions_ << " exceptions"
-              << std::endl;
+              << " with " << failed_ << " failures and " << exceptions_
+              << " exceptions" << std::endl;
   }
 
   bool successful() const { return (failed_ == 0 && exceptions_ == 0); }
