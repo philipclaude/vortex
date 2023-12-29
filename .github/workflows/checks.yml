@@ -22,6 +22,10 @@ jobs:
     - name: checkout data
       run: git lfs checkout
 
+    - name: check format
+      run: |
+        dev/check-format.sh
+
     - name: install dependencies
       run: |
         sudo apt-get update -qq

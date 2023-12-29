@@ -1,2 +1,7 @@
 build*
 test
+data/*.obj
+data/*.meshb
+data/*.png
+data/*.jpg
+data/*.jpeg
