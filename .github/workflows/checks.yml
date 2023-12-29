@@ -26,10 +26,9 @@ jobs:
       run: |
         dev/check-format.sh
 
-    - name: install dependencies
+    - name: install dev dependencies
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
+        dev/setup.sh
 
     - name: configure
       run: cmake -B ${{github.workspace}}/build/debug -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
