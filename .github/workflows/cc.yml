@@ -38,6 +38,10 @@ jobs:
       working-directory: ${{github.workspace}}/build/debug
       run: |
         make unit
+    
+    - name: report
+      working-directory: ${{github.workspace}}/build/debug
+      run: |
         cat unit_tests_output.txt
         
 
