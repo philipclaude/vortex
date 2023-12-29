@@ -41,7 +41,7 @@ jobs:
         make unit
     
     - name: report
-      if: steps.tester.outputs.checks-failed > 0
+      if: '!cancelled()'
       working-directory: ${{github.workspace}}/build/debug
       run: |
         cat unit_tests_output.txt
