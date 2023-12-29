@@ -12,10 +12,7 @@ using mat3 = vortex::mats<3, 3, double>;
 using vec2d = vortex::vecs<2, double>;
 
 inline void sphere_params(const vec3d& xyz, vec3d& uv) {
-  constexpr double tol = 1e-12;
   uv[0] = 0.5 * (atan2(xyz[1], xyz[0]) + M_PI) / M_PI;
-  if (std::fabs(xyz[0]) < tol && std::fabs(xyz[1]) < tol) uv[0] = 0.0;
-  if (std::fabs(uv[0] - 1.0) < tol) uv[0] = 0.0;
   uv[1] = (M_PI - acos(xyz[2])) / M_PI;
   uv[2] = 0.0;
   ASSERT(uv[0] >= 0 && uv[0] <= 1);

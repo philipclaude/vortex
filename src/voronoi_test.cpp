@@ -124,7 +124,7 @@ UT_TEST_CASE(test_square) {
     double x = vertices[k][0] - 0.5;
     double y = vertices[k][1] - 0.5;
     double r = std::sqrt(x * x + y * y);
-    weights[k] = 4e-1 * std::pow(r - 0.5, 2);
+    weights[k] = 2e-1 * std::pow(r - 0.5, 2);
     if (r > 0.5) weights[k] = 0;
     // weights[k] = 2e-1 * std::exp(0.5 - r);
   }
