@@ -16,8 +16,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        lfs: true
 
-    - name: install
+    - name: checkout data
+      run: git lfs checkout
+
+    - name: install dependencies
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
@@ -26,22 +31,17 @@ jobs:
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} cc/
 
     - name: build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-
-    # - name: lint
-    #   uses: cpp-linter/cpp-linter-action@v2
-    #   id: linter
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   with:
-    #     style: file
-
-    # - name: check failure
-    #   if: steps.linter.outputs.checks-failed > 0
-    #   run: |
-    #     echo "Some files failed the linting checks!"
-    #     #exit 1
+      run: cmake --build -j 2 ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: test
       working-directory: ${{github.workspace}}/build
-      run: make unit
+      run: |
+        make unit
+        cat unit_tests_output.txt
+        
+
+    # - name: upload artifacts
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: output
+    #     path: unit_tests_output.txt
