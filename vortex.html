@@ -247,7 +247,7 @@
   let connect = function (url) {
     let url_default = "ws://localhost:{WEBSOCKET_PORT}";
     if (window.location.protocol == 'file:')
-      url_default = "ws://localhost:7682";
+      url_default = "ws://localhost:7681";
 
     if (!url) url = prompt('connect to websocket server:', url_default);
     if (url == undefined) return;

@@ -29,21 +29,19 @@
 
 namespace vortex {
 
-enum BufferOption {
-  JAGGED_TEXTURE = 1,
-  RECTANGULAR_TEXTURE = 2,
-  NOT_TEXTURED = 0
+enum TextureIndex {
+  kPoint = 0,
+  kColormap = 1,
+  kIndex = 2,
+  kVisibility = 3,
+  kPrimitive2Cell = 4,
+  kField = 5,
+  kImage = 6
 };
 
-enum TextureIndex {
-  POINT_TEXTURE = 0,
-  NORMAL_TEXTURE = 1,
-  COLORMAP_TEXTURE = 3,
-  INDEX_TEXTURE = 4,
-  FIRST_TEXTURE = 5,
-  LENGTH_TEXTURE = 6,
-  FIELD_TEXTURE = 7,
-  IMAGE_TEXTURE = 8
+enum RenderingPipeline {
+  kElements,
+  kArrays,
 };
 
 struct AABB {
@@ -55,80 +53,52 @@ struct AABB {
 class GLPrimitive {
  public:
   template <typename T>
-  GLPrimitive(const std::string& title, const Topology<T>& topology,
-              const std::string& name, enum BufferOption option)
-      : title_(title), name_(name), option_(option) {
-    write(topology);
-  }
-
-  template <typename T>
-  void write(const Topology<T>& topology) {
-    if (option_ == JAGGED_TEXTURE) {
-      std::vector<GLuint> indices(topology.data().begin(),
-                                  topology.data().end());
-      GL_CALL(glGenBuffers(1, &index_buffer_));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, index_buffer_));
-      GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * indices.size(),
-                           indices.data(), GL_STATIC_DRAW));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
-
-      std::vector<GLuint> first(topology.first().begin(),
-                                topology.first().end());
-      GL_CALL(glGenBuffers(1, &first_buffer_));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, first_buffer_));
-      GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * first.size(),
-                           first.data(), GL_STATIC_DRAW));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
-
-      std::vector<GLuint> length(topology.length().begin(),
-                                 topology.length().end());
-      GL_CALL(glGenBuffers(1, &length_buffer_));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, length_buffer_));
-      GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * length.size(),
-                           length.data(), GL_STATIC_DRAW));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
-
-      n_draw_ = first.size();
-    } else if (option_ == RECTANGULAR_TEXTURE) {
-      // get all the group indices of the elements in the topology
-      std::set<int> groups;
-      for (size_t k = 0; k < topology.n(); k++)
-        groups.insert(topology.group(k));
-      std::vector<GLuint> order(topology.n());
-      int count = 0;
-      int igroup = 0;
-      n_draw_group_.resize(groups.size());
-      for (int group : groups) {
-        for (size_t k = 0; k < topology.n(); k++) {
-          if (topology.group(k) != group) continue;
-          order[count++] = k;
-        }
-        n_draw_group_[igroup++] = count;
-      }
-      std::vector<GLuint> indices(topology.data().begin(),
-                                  topology.data().end());
-      GL_CALL(glGenBuffers(1, &index_buffer_));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, index_buffer_));
-      GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * indices.size(),
-                           indices.data(), GL_STATIC_DRAW));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
-      n_draw_ = topology.n();
-    } else {
-      std::vector<GLuint> indices(topology.data().begin(),
-                                  topology.data().end());
-      GL_CALL(glGenBuffers(1, &index_buffer_));
-      GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_));
-      GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                           sizeof(GLuint) * indices.size(), indices.data(),
-                           GL_STATIC_DRAW));
-      GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
-      n_draw_ = indices.size();
-    }
-    LOG << fmt::format("wrote {} {}", n_draw_, title_);
+  GLPrimitive(const std::string& title, const Vertices& vertices,
+              const Topology<T>& topology, const std::string& name,
+              RenderingPipeline pipeline, GLenum type)
+      : title_(title), name_(name), pipeline_(pipeline), type_(type) {
+    // write the topology and save the number to draw
+    write(vertices, topology);
 
     // generate a buffer for the field
     GL_CALL(glGenBuffers(1, &field_buffer_));
   }
+
+  void write(const std::vector<GLuint>& indices,
+             const std::vector<char>& visibility,
+             const std::vector<GLuint>& primitive2cell) {
+    GL_CALL(glGenBuffers(1, &index_buffer_));
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_));
+    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                         sizeof(GLuint) * indices.size(), indices.data(),
+                         GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+
+    GL_CALL(glGenBuffers(1, &visibility_buffer_));
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, visibility_buffer_));
+    GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(char) * visibility.size(),
+                         visibility.data(), GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
+
+    if (!primitive2cell.empty()) {
+      GL_CALL(glGenBuffers(1, &primitive2cell_buffer_));
+      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, primitive2cell_buffer_));
+      GL_CALL(glBufferData(GL_TEXTURE_BUFFER,
+                           sizeof(GLuint) * primitive2cell.size(),
+                           primitive2cell.data(), GL_STATIC_DRAW));
+      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
+    }
+  }
+
+  template <typename T>
+  void write(const Vertices& vertices, const Topology<T>& topology) {
+    // write the elements
+    std::vector<GLuint> indices(topology.data().begin(), topology.data().end());
+    std::vector<char> visibility(topology.data().size(), char(0));
+    write(indices, visibility, {});
+    n_draw_ = topology.data().size();
+  }
+
   void write_field(const Field& field, int rank) {
     int n_basis = -1;
     const array2d<coord_t>* data = nullptr;
@@ -160,48 +130,44 @@ class GLPrimitive {
   }
 
   void draw(const wings::ShaderProgram& shader, GLuint point_buffer,
-            GLuint field_texture, GLuint index_texture, GLuint first_texture,
-            GLuint length_texture) const {
+            GLuint field_texture, GLuint index_texture,
+            GLuint visibility_texture, GLuint primitive2cell_texture) const {
     shader.use();
 
     // bind the field buffer to the field texture
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + FIELD_TEXTURE));
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + kField));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, field_texture));
     GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, field_buffer_));
-    shader.set_uniform("field", int(FIELD_TEXTURE));
+    shader.set_uniform("field", int(kField));
 
-    if (option_ == JAGGED_TEXTURE) {
-      GL_CALL(glActiveTexture(GL_TEXTURE0 + INDEX_TEXTURE));
-      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, index_texture));
-      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, index_buffer_));
-      shader.set_uniform("index", int(INDEX_TEXTURE));
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + kIndex));
+    GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, index_texture));
+    GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, index_buffer_));
+    shader.set_uniform("index", int(kIndex));
 
-      GL_CALL(glActiveTexture(GL_TEXTURE0 + FIRST_TEXTURE));
-      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, first_texture));
-      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, first_buffer_));
-      shader.set_uniform("first", int(FIRST_TEXTURE));
+    if (type_ == GL_TRIANGLES) {
+      GL_CALL(glActiveTexture(GL_TEXTURE0 + kVisibility));
+      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, visibility_texture));
+      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R8, visibility_buffer_));
+      shader.set_uniform("visibility", int(kVisibility));
+    }
 
-      GL_CALL(glActiveTexture(GL_TEXTURE0 + LENGTH_TEXTURE));
-      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, length_texture));
-      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, length_buffer_));
-      shader.set_uniform("count", int(LENGTH_TEXTURE));
+    if (split_primitives_) {
+      GL_CALL(glActiveTexture(GL_TEXTURE0 + kPrimitive2Cell));
+      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, primitive2cell_texture));
+      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, primitive2cell_buffer_));
+      shader.set_uniform("primitive2cell", int(kPrimitive2Cell));
+    }
 
+    if (pipeline_ == kArrays) {
       GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer));
-      GL_CALL(glDrawArrays(GL_POINTS, 0, n_draw_));
-    } else if (option_ == RECTANGULAR_TEXTURE) {
-      GL_CALL(glActiveTexture(GL_TEXTURE0 + INDEX_TEXTURE));
-      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, index_texture));
-      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, index_buffer_));
-      shader.set_uniform("index", int(INDEX_TEXTURE));
-
-      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer));
-      GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, index_buffer_));
-      GL_CALL(glDrawArrays(GL_POINTS, 0, n_draw_));
-    } else {
+      GL_CALL(glDrawArrays(type_, 0, n_draw_));
+    } else if (pipeline_ == kElements) {
       GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_));
-      GL_CALL(glDrawElements(GL_TRIANGLES, n_draw_, GL_UNSIGNED_INT, 0));
+      GL_CALL(glDrawElements(type_, n_draw_, GL_UNSIGNED_INT, 0));
     }
   }
+
   const std::string& name() const { return name_; }
   const std::string& title() const { return title_; }
 
@@ -213,30 +179,103 @@ class GLPrimitive {
   std::vector<index_t> n_draw_group_;
   std::string title_;
   std::string name_;
-  BufferOption option_;
 
   GLuint index_buffer_;
-  GLuint first_buffer_;
-  GLuint length_buffer_;
   GLuint field_buffer_;
+  GLuint visibility_buffer_;
+  GLuint primitive2cell_buffer_;
+  bool split_primitives_{false};
 
   float umin_;
   float umax_;
 
   std::set<int> groups_;
+  RenderingPipeline pipeline_;
+  GLenum type_;
 };
+
+template <>
+void GLPrimitive::write(const Vertices& vertices,
+                        const Topology<Polygon>& polygons) {
+  // reserve enough space for the triangles
+  std::vector<GLuint> indices, primitive2cell;
+  std::vector<char> visibility;
+  indices.reserve(polygons.data().size() * 3);
+  visibility.reserve(indices.size());
+  primitive2cell.reserve(polygons.data().size());
+
+  // TODO(philip): for each polygon, first check if basic
+  // tessellation can be used, if not:
+  // project all points to the tangent plane of average point
+  // and perform ear clipping in the tangent plane
+  for (size_t k = 0; k < polygons.n(); k++) {
+    auto* pk = polygons[k];
+    auto nk = polygons.length(k);
+
+    for (int j = 2; j < nk; j++) {
+      indices.push_back(pk[0]);
+      indices.push_back(pk[j - 1]);
+      indices.push_back(pk[j]);
+
+      int e0 = 0;  // always visible
+      int e1 = (j + 1 == nk) ? 0 : 1;
+      int e2 = (j == 2) ? 0 : 1;
+      visibility.push_back(e0);
+      visibility.push_back(e1);
+      visibility.push_back(e2);
+
+      primitive2cell.push_back(k);
+    }
+  }
+  write(indices, visibility, primitive2cell);
+
+  n_draw_ = indices.size();
+  split_primitives_ = true;
+}
+
+template <>
+void GLPrimitive::write(const Vertices& vertices, const Topology<Quad>& quads) {
+  // reserve enough space for the triangles
+  std::vector<GLuint> indices(quads.n() * 6), primitive2cell(2 * quads.n());
+  std::vector<char> visibility(indices.size());
+
+  size_t t = 0;
+  for (size_t k = 0; k < quads.n(); k++) {
+    auto* qk = quads[k];
+
+    indices[3 * t + 0] = qk[0];
+    indices[3 * t + 1] = qk[1];
+    indices[3 * t + 2] = qk[2];
+    visibility[3 * t + 0] = 0;
+    visibility[3 * t + 1] = 1;
+    visibility[3 * t + 2] = 0;
+    primitive2cell[t] = k;
+    t++;
+
+    indices[3 * t + 0] = qk[0];
+    indices[3 * t + 1] = qk[2];
+    indices[3 * t + 2] = qk[3];
+    visibility[3 * t + 0] = 0;
+    visibility[3 * t + 1] = 0;
+    visibility[3 * t + 2] = 1;
+    primitive2cell[t] = k;
+    t++;
+  }
+  write(indices, visibility, primitive2cell);
+
+  n_draw_ = indices.size();
+  split_primitives_ = true;
+}
 
 class ShaderLibrary {
  public:
   void create();
 
   void add(const std::string& name, const std::string& prefix,
-           bool with_geometry, bool with_tessellation,
-           const std::vector<std::string>& macros = {}) {
+           const std::vector<std::string>& macros, bool with_gs = false) {
     shaders_.insert({name, wings::ShaderProgram()});
     std::string base = std::string(VORTEX_SOURCE_DIR) + "/shaders/";
-    shaders_[name].set_source(base, name, with_geometry, with_tessellation,
-                              macros);
+    shaders_[name].set_source(base, prefix, with_gs, false, macros);
   }
 
   const wings::ShaderProgram& operator[](const std::string& name) const {
@@ -252,19 +291,18 @@ class ShaderLibrary {
 void ShaderLibrary::create() {
   std::string version = "#version " + std::to_string(VORTEX_GL_VERSION_MAJOR) +
                         std::to_string(VORTEX_GL_VERSION_MINOR) + "0";
-  add("points", "points", false, false, {version, "#define WITH_GS 0"});
-  add("nodes", "points", true, false, {version, "#define WITH_GS 1"});
-  add("edges-q1-p0", "edges", true, false, {version, "#define ORDER 0"});
-  add("triangles-q1-p0", "triangles", true, false,
-      {version, "#define ORDER 0"});
-  add("triangles-q1-p1", "triangles", true, false,
-      {version, "#define ORDER 1"});
-  add("triangles-q1-pt", "triangles", true, false,
-      {version, "#define ORDER -1"});
-  add("quads-q1-p0", "quads", true, false, {version, "#define ORDER 0"});
-  add("quads-q1-p1", "quads", true, false, {version, "#define ORDER 1"});
-  add("quads-q1-pt", "quads", true, false, {version, "#define ORDER -1"});
-  add("polygons-q1-p0", "polygons", true, false, {version, "#define ORDER 0"});
+  add("points", "points", {version});
+  add("edges-q1-p0", "edges", {version, "#define ORDER 0"}, true);
+  add("triangles-q1-p0", "triangles", {version, "#define ORDER 0"});
+  add("triangles-q1-p1", "triangles", {version, "#define ORDER 1"});
+  add("quads-q1-p0", "triangles",
+      {version, "#define ORDER 0", "#define SPLIT_PRIMITIVES"});
+  add("quads-q1-p1", "triangles",
+      {version, "#define ORDER 1", "#define SPLIT_PRIMITIVES"});
+  add("polygons-q1-p0", "triangles",
+      {version, "#define ORDER 0", "#define SPLIT_PRIMITIVES"});
+  add("polygons-q1-p1", "triangles",
+      {version, "#define ORDER 1", "#define SPLIT_PRIMITIVES"});
 }
 
 struct PickableObject {
@@ -386,17 +424,13 @@ class MeshScene : public wings::Scene {
     wings::mat4f center_translation, inverse_center_translation;
     wings::mat4f translation_matrix;
     wings::vec3f center, eye;
-    int width{800};
-    int height{600};
     float size{1.0};
     float fov{45};
     double x{0}, y{0};
     GLuint vertex_array;
     std::unordered_map<std::string, bool> active = {
-        {"Points", false},     {"Nodes", false},  {"Lines", false},
-        {"Triangles", true},   {"Quads", true},   {"Polygons", true},
-        {"Tetrahedra", false}, {"Prisms", false}, {"Pyramids", false},
-        {"Polyhedra", false}};
+        {"Points", false},   {"Nodes", false}, {"Lines", false},
+        {"Triangles", true}, {"Quads", true},  {"Polygons", true}};
     int show_wireframe{1};
     float transparency{1.0};
     int lighting{1};
@@ -404,6 +438,7 @@ class MeshScene : public wings::Scene {
     const PickableObject* picked{nullptr};
     int field_mode{0};
     int field_index{0};
+    wings::glCanvas canvas{800, 600};
   };
 
  public:
@@ -449,7 +484,7 @@ class MeshScene : public wings::Scene {
     // can save some computation by not adding eye, but leaving it for now
     auto pixel2world = [&](double u, double v) {
       double d = length(view.center - view.eye);
-      double a = double(view.width) / double(view.height);
+      double a = double(view.canvas.width) / double(view.canvas.height);
       double h = 2.0 * d * tan(view.fov / 2.0);
       double w = a * h;
 
@@ -460,8 +495,10 @@ class MeshScene : public wings::Scene {
 
       return basis * q + view.eye;
     };
-    wings::vec3f ray = unit_vector(
-        pixel2world(x / view.width, /*1.0 - */ y / view.height) - view.eye);
+    wings::vec3f ray =
+        unit_vector(pixel2world(x / view.canvas.width,
+                                /*1.0 - */ y / view.canvas.height) -
+                    view.eye);
 
     // find the closest element
     double tmin = 1e20;
@@ -489,8 +526,8 @@ class MeshScene : public wings::Scene {
     // generate textures
     GL_CALL(glGenTextures(1, &point_texture_));
     GL_CALL(glGenTextures(1, &index_texture_));
-    GL_CALL(glGenTextures(1, &first_texture_));
-    GL_CALL(glGenTextures(1, &length_texture_));
+    GL_CALL(glGenTextures(1, &visibility_texture_));
+    GL_CALL(glGenTextures(1, &primitive2cell_texture_));
     GL_CALL(glGenTextures(1, &field_texture_));
     GL_CALL(glGenTextures(1, &image_texture_));
 
@@ -526,7 +563,7 @@ class MeshScene : public wings::Scene {
     }
 
     // generate a texture to hold the mesh coordinates
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + POINT_TEXTURE));
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + kPoint));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, point_texture_));
     GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, point_buffer_));
 
@@ -534,23 +571,23 @@ class MeshScene : public wings::Scene {
     primitives_.reserve(4);
 
     if (mesh_.triangles().n() > 0) {
-      primitives_.emplace_back("Triangles", mesh_.triangles(), "triangles-q1",
-                               RECTANGULAR_TEXTURE);
+      primitives_.emplace_back("Triangles", mesh_.vertices(), mesh_.triangles(),
+                               "triangles-q1", kElements, GL_TRIANGLES);
     }
 
     if (mesh_.quads().n() > 0) {
-      primitives_.emplace_back("Quads", mesh_.quads(), "quads-q1",
-                               RECTANGULAR_TEXTURE);
+      primitives_.emplace_back("Quads", mesh_.vertices(), mesh_.quads(),
+                               "quads-q1", kElements, GL_TRIANGLES);
     }
 
     if (mesh_.polygons().n() > 0) {
-      primitives_.emplace_back("Polygons", mesh_.polygons(), "polygons-q1",
-                               JAGGED_TEXTURE);
+      primitives_.emplace_back("Polygons", mesh_.vertices(), mesh_.polygons(),
+                               "polygons-q1", kElements, GL_TRIANGLES);
     }
 
     if (mesh_.lines().n() > 0) {
-      primitives_.emplace_back("Lines", mesh_.lines(), "edges-q1",
-                               RECTANGULAR_TEXTURE);
+      primitives_.emplace_back("Lines", mesh_.vertices(), mesh_.lines(),
+                               "edges-q1", kArrays, GL_POINTS);
     }
 
     if (fields != nullptr) {
@@ -581,7 +618,6 @@ class MeshScene : public wings::Scene {
     const float* colormap = nullptr;
     if (name == "giraffe") colormap = colormaps::color_giraffe;
     if (name == "viridis") colormap = colormaps::color_viridis;
-    if (name == "parula") colormap = colormaps::color_parula;
     if (name == "blue-white-red") colormap = colormaps::color_bwr;
     if (name == "blue-green-red") colormap = colormaps::color_bgr;
     if (name == "jet") colormap = colormaps::color_jet;
@@ -592,7 +628,7 @@ class MeshScene : public wings::Scene {
     GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, colormap_buffer_));
     GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLfloat) * n_color, colormap,
                          GL_STATIC_DRAW));
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + COLORMAP_TEXTURE));
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + kColormap));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, colormap_texture_));
     GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, colormap_buffer_));
   }
@@ -638,16 +674,16 @@ class MeshScene : public wings::Scene {
       case wings::InputType::MouseMotion: {
         if (input.dragging) {
           if (!input.modifier) {
-            double dx = (view.x - input.x) / view.width;
-            double dy = (view.y - input.y) / view.height;
+            double dx = (view.x - input.x) / view.canvas.width;
+            double dy = (view.y - input.y) / view.canvas.height;
             wings::mat4f R = view.center_translation * view.translation_matrix *
                              wings::glm::rotation(dx, dy) *
                              wings::glm::inverse(view.translation_matrix *
                                                  view.center_translation);
             view.model_matrix = R * view.model_matrix;
           } else {
-            double dx = -(view.x - input.x) / view.width;
-            double dy = -(view.y - input.y) / view.height;
+            double dx = -(view.x - input.x) / view.canvas.width;
+            double dy = -(view.y - input.y) / view.canvas.height;
             dx *= view.size;
             dy *= view.size;
             wings::mat4f T = wings::glm::translation(dx, dy);
@@ -691,16 +727,8 @@ class MeshScene : public wings::Scene {
           view.active["Lines"] = input.ivalue > 0;
         else if (input.key == 't')
           view.active["Triangles"] = input.ivalue > 0;
-        else if (input.key == 'T')
-          view.active["Tetrahedra"] = input.ivalue > 0;
         else if (input.key == 'p')
           view.active["Polygons"] = input.ivalue > 0;
-        else if (input.key == 'y')
-          view.active["Prisms"] = input.ivalue > 0;
-        else if (input.key == 'Y')
-          view.active["Pyramids"] = input.ivalue > 0;
-        else if (input.key == 'P')
-          view.active["Polyhedra"] = input.ivalue > 0;
         else if (input.key == 'a')
           view.transparency = 0.01 * input.ivalue;
         else if (input.key == 'w')
@@ -757,7 +785,7 @@ class MeshScene : public wings::Scene {
     if (!updated) return false;
 
     // write shader uniforms
-    GL_CALL(glViewport(0, 0, view.width, view.height));
+    GL_CALL(glViewport(0, 0, view.canvas.width, view.canvas.height));
     GL_CALL(glClearColor(1.0f, 1.0f, 1.0f, 1.0f));
     GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
     glEnable(GL_DEPTH_TEST);
@@ -821,7 +849,7 @@ class MeshScene : public wings::Scene {
     }
 
     // generate a texture to hold the mesh coordinates
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + POINT_TEXTURE));
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + kPoint));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, point_texture_));
     GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, point_buffer_));
 
@@ -829,19 +857,19 @@ class MeshScene : public wings::Scene {
       const GLPrimitive& primitive = primitives_[draw_order_[k]];
       if (!view.active[primitive.title()]) continue;
 
-      int order = 0;  // parameters["field order"];
+      int order = 0;
       const auto& shader = select_shader(primitive, order);
       shader.use();
 
       // bind the image texture (if any)
-      glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE);
+      glActiveTexture(GL_TEXTURE0 + kImage);
       GL_CALL(glBindTexture(GL_TEXTURE_2D, image_texture_));
-      shader.set_uniform("image", int(IMAGE_TEXTURE));
+      shader.set_uniform("image", int(kImage));
 
       // bind the desired colormap
-      glActiveTexture(GL_TEXTURE0 + COLORMAP_TEXTURE);
+      glActiveTexture(GL_TEXTURE0 + kColormap);
       GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, colormap_texture_));
-      shader.set_uniform("colormap", int(COLORMAP_TEXTURE));
+      shader.set_uniform("colormap", int(kColormap));
 
       // set the uniforms for the shader
       shader.set_uniform("u_edges", view.show_wireframe);
@@ -865,16 +893,16 @@ class MeshScene : public wings::Scene {
       }
 
       primitive.draw(shader, point_buffer_, field_texture_, index_texture_,
-                     first_texture_, length_texture_);
+                     visibility_texture_, primitive2cell_texture_);
     }
 
     // save the pixels in the wings::Scene
     GLsizei channels = 3;
-    GLsizei stride = channels * view.width;
+    GLsizei stride = channels * view.canvas.width;
     stride += (stride % 4) ? (4 - stride % 4) : 0;
-    pixels_.resize(stride * view.height);
+    pixels_.resize(stride * view.canvas.height);
     GL_CALL(glPixelStorei(GL_PACK_ALIGNMENT, 4));
-    GL_CALL(glReadPixels(0, 0, view.width, view.height, GL_RGB,
+    GL_CALL(glReadPixels(0, 0, view.canvas.width, view.canvas.height, GL_RGB,
                          GL_UNSIGNED_BYTE, pixels_.data()));
     glFinish();
 
@@ -916,12 +944,13 @@ class MeshScene : public wings::Scene {
     wings::vec3f up{0, 1, 0};
     view.view_matrix = wings::glm::lookat(view.eye, view.center, up);
     view.projection_matrix = wings::glm::perspective(
-        view.fov, float(view.width) / float(view.height), 0.1f, 10000.0f);
+        view.fov, float(view.canvas.width) / float(view.canvas.height), 0.1f,
+        10000.0f);
     view.translation_matrix.eye();
 
-    // vertex arrays are not shared between OpenGL contexts in different threads
-    // (buffers & textures are though). Each client runs in a separate thread
-    // so we need to create a vertex array upon each client connection.
+    // vertex arrays are not shared between OpenGL contexts in different
+    // threads (buffers & textures are though). Each client runs in a separate
+    // thread so we need to create a vertex array upon each client connection.
     GL_CALL(glGenVertexArrays(1, &view.vertex_array));
     view.field_mode = 0;
   }
@@ -946,8 +975,8 @@ class MeshScene : public wings::Scene {
   GLuint n_nodes_{0};
 
   GLuint index_texture_;
-  GLuint first_texture_;
-  GLuint length_texture_;
+  GLuint visibility_texture_;
+  GLuint primitive2cell_texture_;
 
   GLuint image_texture_;
   GLuint field_texture_;

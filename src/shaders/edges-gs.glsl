@@ -20,7 +20,7 @@ layout (triangle_strip, max_vertices = 6) out;
 
 float t = 0.025;
 
-uniform samplerBuffer coordinates;
+uniform samplerBuffer points;
 uniform usamplerBuffer index;
 
 flat in int v_id[];
@@ -30,64 +30,12 @@ void main() {
   uint i0 = texelFetch(index, 2 * v_id[0]    ).r;
   uint i1 = texelFetch(index, 2 * v_id[0] + 1).r;
 
-  vec3 x0 = texelFetch(coordinates, int(i0)).xyz;
-  vec3 x1 = texelFetch(coordinates, int(i1)).xyz;
+  vec3 x0 = texelFetch(points, int(i0)).xyz;
+  vec3 x1 = texelFetch(points, int(i1)).xyz;
 
   vec4 p0 = u_ModelViewProjectionMatrix * vec4(x0, 1.0);
   vec4 p1 = u_ModelViewProjectionMatrix * vec4(x1, 1.0);
 
-#if 0
-  gl_Position = p0;
-  id = v_id[0];//gl_PrimitiveIDIn;
-  EmitVertex();
-
-  gl_Position = p1;
-  id = v_id[0];//gl_PrimitiveIDIn;
-  EmitVertex();
-
-  EndPrimitive();
-#elif 0
-
-  float len = length(p1.xyz - p0.xyz);
-  vec3 dir = normalize(p1.xyz - p0.xyz);
-  vec3 n = vec3(dir[1], -dir[0], 0);
-
-  float w = 0.008 * max(abs(p0.w), abs(p1.w));
-
-  vec3 q0 = normalize(p0.xyz - 0.000 * len * dir - w * n);
-  vec3 q1 = normalize(p1.xyz + 0.000 * len * dir - w * n);
-  vec3 q2 = normalize(p1.xyz + 0.000 * len * dir + w * n);
-  vec3 q3 = normalize(p0.xyz - 0.000 * len * dir + w * n);
-
-  gl_Position = vec4(q0, p0.w);
-  id = v_id[0];
-  EmitVertex();
-
-  gl_Position = vec4(q1, p1.w);
-  id = v_id[0];
-  EmitVertex();
-
-  gl_Position = vec4(q2, p1.w);
-  id = v_id[0];
-  EmitVertex();
-
-  EndPrimitive();
-
-  gl_Position = vec4(q0, p0.w);
-  id = v_id[0];
-  EmitVertex();
-
-  gl_Position = vec4(q2, p1.w);
-  id = v_id[0];
-  EmitVertex();
-
-  gl_Position = vec4(q3, p0.w);
-  id = v_id[0];
-  EmitVertex();
-
-  EndPrimitive();
-
-#else
   float u_width        = u_ViewportSize[0];
   float u_height       = u_ViewportSize[1];
   float u_aspect_ratio = u_height / u_width;
@@ -149,5 +97,4 @@ void main() {
   EmitVertex();
   
   EndPrimitive();
-#endif
 }
