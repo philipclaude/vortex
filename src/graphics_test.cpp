@@ -17,7 +17,7 @@ UT_TEST_CASE(test1) {
   meshb::read("water.meshb", mesh);
   // Grid<Quad> mesh({10, 10}, 3);
   mesh.fields().set_defaults(mesh);
-  Viewer viewer(mesh, 7681);
+  Viewer viewer(mesh, 7681, true);
 }
 UT_TEST_CASE_END(test1)
 

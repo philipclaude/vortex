@@ -302,7 +302,7 @@ void ShaderLibrary::create() {
   std::string version = "#version " + std::to_string(VORTEX_GL_VERSION_MAJOR) +
                         std::to_string(VORTEX_GL_VERSION_MINOR) + "0";
   add("points", "points", {version});
-  add("edges-q1-p0", "edges", {version, "#define ORDER 0"}, true);
+  add("lines-q1-p0", "lines", {version, "#define ORDER 0"}, true);
   add("triangles-q1-p0", "triangles", {version, "#define ORDER 0"});
   add("triangles-q1-p1", "triangles", {version, "#define ORDER 1"});
   add("quads-q1-p0", "triangles",
@@ -451,10 +451,11 @@ class MeshScene : public wings::Scene {
     int field_mode{0};
     int field_index{0};
     wings::glCanvas canvas{800, 600};
+    bool earth{true};
   };
 
  public:
-  MeshScene(const Mesh& mesh) : mesh_(mesh) {
+  MeshScene(const Mesh& mesh, bool earth) : mesh_(mesh), earth_(earth) {
     context_ =
         wings::RenderingContext::create(wings::RenderingContextType::kOpenGL);
     context_->print();
@@ -621,7 +622,7 @@ class MeshScene : public wings::Scene {
 
     if (mesh_.lines().n() > 0) {
       primitives_.emplace_back("Lines", mesh_.vertices(), mesh_.lines(),
-                               "edges-q1", kArrays, GL_POINTS);
+                               "lines-q1", kArrays, GL_POINTS);
     }
 
     if (fields != nullptr) {
@@ -767,6 +768,8 @@ class MeshScene : public wings::Scene {
           view.transparency = 0.01 * input.ivalue;
         else if (input.key == 'w')
           view.show_wireframe = input.ivalue > 0;
+        else if (input.key == 'E')
+          view.earth = input.ivalue > 0;
         else {
           updated = false;
         }
@@ -867,38 +870,40 @@ class MeshScene : public wings::Scene {
     }
 
     // draw the background sphere
-    auto& shader = shaders_["earth"];
-    shader.use();
-    wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
-    auto im = wings::glm::inverse(view.model_matrix);
-    shader.set_uniform("u_InverseModel", im);
-    shader.set_uniform("u_Camera", wings::glm::inverse(view.view_matrix));
-    shader.set_uniform("u_eye", (im * eye_h).xyz());
-    shader.set_uniform("u_center", view.center);
-    shader.set_uniform("u_fov", view.fov);
-    shader.set_uniform("u_width", int(view.canvas.width));
-    shader.set_uniform("u_height", int(view.canvas.height));
-    glActiveTexture(GL_TEXTURE0 + kImage);
-    GL_CALL(glBindTexture(GL_TEXTURE_2D, image_texture_));
-    shader.set_uniform("image", int(kImage));
+    if (view.earth) {
+      auto& shader = shaders_["earth"];
+      shader.use();
+      wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
+      auto im = wings::glm::inverse(view.model_matrix);
+      shader.set_uniform("u_InverseModel", im);
+      shader.set_uniform("u_Camera", wings::glm::inverse(view.view_matrix));
+      shader.set_uniform("u_eye", (im * eye_h).xyz());
+      shader.set_uniform("u_center", view.center);
+      shader.set_uniform("u_fov", view.fov);
+      shader.set_uniform("u_width", int(view.canvas.width));
+      shader.set_uniform("u_height", int(view.canvas.height));
+      glActiveTexture(GL_TEXTURE0 + kImage);
+      GL_CALL(glBindTexture(GL_TEXTURE_2D, image_texture_));
+      shader.set_uniform("image", int(kImage));
 
-    glActiveTexture(GL_TEXTURE0 + kNormalMap);
-    GL_CALL(glBindTexture(GL_TEXTURE_2D, normalmap_texture_));
-    shader.set_uniform("normalmap", int(kNormalMap));
+      glActiveTexture(GL_TEXTURE0 + kNormalMap);
+      GL_CALL(glBindTexture(GL_TEXTURE_2D, normalmap_texture_));
+      shader.set_uniform("normalmap", int(kNormalMap));
 
-    GLfloat quad[18] = {-1, -1, 0, 1, -1, 0, 1,  1, 0,
-                        -1, -1, 0, 1, 1,  0, -1, 1, 0};
-    GL_CALL(glBindVertexArray(view.vertex_array));
-    GLuint land_buffer;
-    GL_CALL(glGenBuffers(1, &land_buffer));
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, land_buffer));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 18, quad,
-                         GL_STATIC_DRAW));
-    GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0));
-    GL_CALL(glEnableVertexAttribArray(0));
-    GL_CALL(glDisable(GL_DEPTH_TEST));
-    GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
-    GL_CALL(glEnable(GL_DEPTH_TEST));
+      GLfloat quad[18] = {-1, -1, 0, 1, -1, 0, 1,  1, 0,
+                          -1, -1, 0, 1, 1,  0, -1, 1, 0};
+      GL_CALL(glBindVertexArray(view.vertex_array));
+      GLuint land_buffer;
+      GL_CALL(glGenBuffers(1, &land_buffer));
+      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, land_buffer));
+      GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 18, quad,
+                           GL_STATIC_DRAW));
+      GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0));
+      GL_CALL(glEnableVertexAttribArray(0));
+      GL_CALL(glDisable(GL_DEPTH_TEST));
+      GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+      GL_CALL(glEnable(GL_DEPTH_TEST));
+    }
 
     // bind which attributes we want to draw
     GL_CALL(glBindVertexArray(view.vertex_array));
@@ -943,6 +948,7 @@ class MeshScene : public wings::Scene {
       shader.set_uniform("u_edges", view.show_wireframe);
       shader.set_uniform("u_lighting", u_lighting);
       shader.set_uniform("u_alpha", alpha);
+      shader.set_uniform("u_earth", int(earth_));
 
       shader.set_uniform("u_ModelViewProjectionMatrix", mvp_matrix);
       shader.set_uniform("u_ModelViewMatrix", model_view_matrix);
@@ -1031,6 +1037,7 @@ class MeshScene : public wings::Scene {
 
  private:
   const Mesh& mesh_;
+  bool earth_{false};
   const FieldLibrary* fields_{nullptr};
   std::vector<std::pair<std::string, int>> field_names_;
 
@@ -1058,8 +1065,8 @@ class MeshScene : public wings::Scene {
   std::vector<PickableObject> pickables_;
 };
 
-Viewer::Viewer(const Mesh& mesh, int port) {
-  scene_ = std::make_unique<MeshScene>(mesh);
+Viewer::Viewer(const Mesh& mesh, int port, bool earth) {
+  scene_ = std::make_unique<MeshScene>(mesh, earth);
   renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
 }
 
