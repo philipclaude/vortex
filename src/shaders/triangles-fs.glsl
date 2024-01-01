@@ -65,6 +65,7 @@ vec3 barycentric(in vec3 a, in vec3 b, in vec3 c, in vec3 p) {
 
 void main() {
 
+
   int id = gl_PrimitiveID; // triangle
 #ifdef SPLIT_PRIMITIVES
   uint cell = texelFetch(primitive2cell, id).r;

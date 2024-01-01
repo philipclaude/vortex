@@ -4,7 +4,9 @@
 #include <set>
 
 #include "mesh.h"
+#include "numerics.h"
 #include "shaders/colormaps.h"
+#include "texture.h"
 #include "wings.h"
 #include "wings/util/glm.h"
 #include "wings/util/shader.h"
@@ -36,7 +38,8 @@ enum TextureIndex {
   kVisibility = 3,
   kPrimitive2Cell = 4,
   kField = 5,
-  kImage = 6
+  kImage = 6,
+  kNormalMap = 7,
 };
 
 enum RenderingPipeline {
@@ -108,6 +111,10 @@ class GLPrimitive {
     if (title_ == "Quads") data = &(field.quads()), n_basis = field.quads().m();
     if (title_ == "Polygons")
       data = &(field.polygons()), n_basis = field.polygons().m();
+    if (data == nullptr) {
+      has_fields_ = false;
+      return;
+    }
     ASSERT(data != nullptr);
 
     // extract the appropriate rank and buffer the data
@@ -135,10 +142,12 @@ class GLPrimitive {
     shader.use();
 
     // bind the field buffer to the field texture
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + kField));
-    GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, field_texture));
-    GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, field_buffer_));
-    shader.set_uniform("field", int(kField));
+    if (has_fields_) {
+      GL_CALL(glActiveTexture(GL_TEXTURE0 + kField));
+      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, field_texture));
+      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, field_buffer_));
+      shader.set_uniform("field", int(kField));
+    }
 
     GL_CALL(glActiveTexture(GL_TEXTURE0 + kIndex));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, index_texture));
@@ -192,6 +201,7 @@ class GLPrimitive {
   std::set<int> groups_;
   RenderingPipeline pipeline_;
   GLenum type_;
+  bool has_fields_{true};
 };
 
 template <>
@@ -303,6 +313,7 @@ void ShaderLibrary::create() {
       {version, "#define ORDER 0", "#define SPLIT_PRIMITIVES"});
   add("polygons-q1-p1", "triangles",
       {version, "#define ORDER 1", "#define SPLIT_PRIMITIVES"});
+  add("earth", "earth", {version});
 }
 
 struct PickableObject {
@@ -430,7 +441,8 @@ class MeshScene : public wings::Scene {
     GLuint vertex_array;
     std::unordered_map<std::string, bool> active = {
         {"Points", false},   {"Nodes", false}, {"Lines", false},
-        {"Triangles", true}, {"Quads", true},  {"Polygons", true}};
+        {"Triangles", true}, {"Quads", true},  {"Polygons", true},
+        {"Land", false}};
     int show_wireframe{1};
     float transparency{1.0};
     int lighting{1};
@@ -530,6 +542,28 @@ class MeshScene : public wings::Scene {
     GL_CALL(glGenTextures(1, &primitive2cell_texture_));
     GL_CALL(glGenTextures(1, &field_texture_));
     GL_CALL(glGenTextures(1, &image_texture_));
+    GL_CALL(glGenTextures(1, &normalmap_texture_));
+
+    // write image texture
+    std::string f = std::string(VORTEX_SOURCE_DIR) + "/../data/earth.jpg";
+    TextureOptions tex_opts;
+    Texture texture(f, tex_opts);
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, image_texture_));
+    GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture.width(),
+                         texture.height(), 0, GL_RGB, GL_UNSIGNED_BYTE,
+                         texture.data()));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    // write normal map texture
+    f = std::string(VORTEX_SOURCE_DIR) + "/../data/normalmap.ppm";
+    Texture normalmap(f, tex_opts);
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, normalmap_texture_));
+    GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, normalmap.width(),
+                         normalmap.height(), 0, GL_RGB, GL_UNSIGNED_BYTE,
+                         normalmap.data()));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     // write the point data
     std::vector<GLfloat> coordinates(3 * mesh_.vertices().n());
@@ -789,7 +823,7 @@ class MeshScene : public wings::Scene {
     GL_CALL(glClearColor(1.0f, 1.0f, 1.0f, 1.0f));
     GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
     glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
     glEnable(GL_PROGRAM_POINT_SIZE);
     glEnable(GL_POLYGON_SMOOTH);
     glDepthMask(GL_TRUE);
@@ -831,6 +865,40 @@ class MeshScene : public wings::Scene {
       GL_CALL(glDrawArrays(GL_POINTS, 0, n_nodes_));
       GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     }
+
+    // draw the background sphere
+    auto& shader = shaders_["earth"];
+    shader.use();
+    wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
+    auto im = wings::glm::inverse(view.model_matrix);
+    shader.set_uniform("u_InverseModel", im);
+    shader.set_uniform("u_Camera", wings::glm::inverse(view.view_matrix));
+    shader.set_uniform("u_eye", (im * eye_h).xyz());
+    shader.set_uniform("u_center", view.center);
+    shader.set_uniform("u_fov", view.fov);
+    shader.set_uniform("u_width", int(view.canvas.width));
+    shader.set_uniform("u_height", int(view.canvas.height));
+    glActiveTexture(GL_TEXTURE0 + kImage);
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, image_texture_));
+    shader.set_uniform("image", int(kImage));
+
+    glActiveTexture(GL_TEXTURE0 + kNormalMap);
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, normalmap_texture_));
+    shader.set_uniform("normalmap", int(kNormalMap));
+
+    GLfloat quad[18] = {-1, -1, 0, 1, -1, 0, 1,  1, 0,
+                        -1, -1, 0, 1, 1,  0, -1, 1, 0};
+    GL_CALL(glBindVertexArray(view.vertex_array));
+    GLuint land_buffer;
+    GL_CALL(glGenBuffers(1, &land_buffer));
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, land_buffer));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 18, quad,
+                         GL_STATIC_DRAW));
+    GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0));
+    GL_CALL(glEnableVertexAttribArray(0));
+    GL_CALL(glDisable(GL_DEPTH_TEST));
+    GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+    GL_CALL(glEnable(GL_DEPTH_TEST));
 
     // bind which attributes we want to draw
     GL_CALL(glBindVertexArray(view.vertex_array));
@@ -924,7 +992,7 @@ class MeshScene : public wings::Scene {
         if (x < xmin[d]) xmin[d] = x;
       }
     }
-    view.center = view.center / (1.0f * mesh_.vertices().n());
+    view.center = {0, 0, 0};  // view.center / (1.0f * mesh_.vertices().n());
     view.center_translation.eye();
     view.inverse_center_translation.eye();
     for (int d = 0; d < 3; d++) {
@@ -938,14 +1006,14 @@ class MeshScene : public wings::Scene {
 
     wings::vec3f dir{0, 0, 1};
     view.eye = view.center + 1.05f * d * dir;
-    view.center = view.eye - 2.1f * d * dir;
+    // view.center = view.eye - 2.1f * d * dir;
 
     view.model_matrix.eye();
     wings::vec3f up{0, 1, 0};
     view.view_matrix = wings::glm::lookat(view.eye, view.center, up);
     view.projection_matrix = wings::glm::perspective(
-        view.fov, float(view.canvas.width) / float(view.canvas.height), 0.1f,
-        10000.0f);
+        view.fov, float(view.canvas.width) / float(view.canvas.height), 1e-3f,
+        1000.0f);
     view.translation_matrix.eye();
 
     // vertex arrays are not shared between OpenGL contexts in different
@@ -979,6 +1047,7 @@ class MeshScene : public wings::Scene {
   GLuint primitive2cell_texture_;
 
   GLuint image_texture_;
+  GLuint normalmap_texture_;
   GLuint field_texture_;
   GLuint colormap_texture_;
   GLuint colormap_buffer_;
