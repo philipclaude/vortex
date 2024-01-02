@@ -17,7 +17,9 @@ UT_TEST_CASE(test1) {
   //  meshb::read("water.meshb", mesh);
   Grid<Quad> mesh({10, 10}, 3);
   mesh.fields().set_defaults(mesh);
+#if VORTEX_FULL_UNIT_TEST == 0
   Viewer viewer(mesh, 7681, false);
+#endif
 }
 UT_TEST_CASE_END(test1)
 

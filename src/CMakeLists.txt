@@ -85,7 +85,7 @@ foreach(test_src ${TEST_FILES})
   # the actual executable: target for simply building
   add_executable(${test_exe} ${test_src})
   target_link_libraries(${test_exe} vortex_shared ${VORTEX_EXTERNAL_LIBRARIES})
-  target_compile_definitions(${test_exe} PUBLIC -DSTANDALONE -DVORTEX_FULL_UNIT_TEST=false)
+  target_compile_definitions(${test_exe} PUBLIC -DSTANDALONE -DVORTEX_FULL_UNIT_TEST=0)
 
   # create the target
   add_custom_target(${test_bin} command $<TARGET_FILE:${test_exe}> 1 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/data)
@@ -98,7 +98,7 @@ endforeach()
 # create the full unit executable
 add_executable(unit_exe tester.cpp ${TEST_FILES})
 target_link_libraries(unit_exe vortex_shared)
-target_compile_definitions(unit_exe PUBLIC -DSTDOUT_REDIRECT="${CMAKE_BINARY_DIR}/unit_tests_output.txt" -DVORTEX_FULL_UNIT_TEST=true)
+target_compile_definitions(unit_exe PUBLIC -DSTDOUT_REDIRECT="${CMAKE_BINARY_DIR}/unit_tests_output.txt" -DVORTEX_FULL_UNIT_TEST=1)
 
 # target for running all unit tests from a single executable
 add_custom_target(unit command $<TARGET_FILE:unit_exe> WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/data)
