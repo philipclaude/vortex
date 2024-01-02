@@ -2,6 +2,9 @@
 
 layout(location = 0) out vec4 fragColor;
 
+uniform int u_lighting;
+uniform int u_image;
+
 uniform vec3 u_eye;
 uniform float u_fov;
 uniform int u_width;
@@ -46,8 +49,7 @@ vec3 get_color(in vec3 r, in vec3 eye) {
   vec3 dp_du = vec3(-p.y, p.x, 0);
   vec3 dp_dv = cross(n, dp_du);
 
-  vec3 km = vec3(0.5);
-  //km = texture(image, vec2(u, v)).rgb;
+  vec3 km = vec3(0.5) * (1 - u_image) + u_image * texture(image, vec2(u, v)).rgb;
 
   // normal in tangent space
   vec3 nt = texture(normalmap, vec2(u, v)).xyz * 2.0 - 1.0;
@@ -57,7 +59,7 @@ vec3 get_color(in vec3 r, in vec3 eye) {
 
   vec3 ca = vec3(0.4); // ambient light color
   vec3 l = normalize(eye - p); // direction to light (eye) in object space
-  return km * (ca + abs(dot(l, n)));
+  return km * (ca + u_lighting * abs(dot(l, n)) + (1 - u_lighting) * 0.8);
 }
 
 void main() {

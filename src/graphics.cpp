@@ -40,6 +40,7 @@ enum TextureIndex {
   kField = 5,
   kImage = 6,
   kNormalMap = 7,
+  kFont = 8
 };
 
 enum RenderingPipeline {
@@ -314,6 +315,7 @@ void ShaderLibrary::create() {
   add("polygons-q1-p1", "triangles",
       {version, "#define ORDER 1", "#define SPLIT_PRIMITIVES"});
   add("earth", "earth", {version});
+  add("text", "text", {version}, true);
 }
 
 struct PickableObject {
@@ -445,13 +447,15 @@ class MeshScene : public wings::Scene {
         {"Land", false}};
     int show_wireframe{1};
     float transparency{1.0};
-    int lighting{1};
+    bool lighting{true};
     bool culling{false};
     const PickableObject* picked{nullptr};
     int field_mode{0};
     int field_index{0};
     wings::glCanvas canvas{800, 600};
     bool earth{true};
+    bool image{false};
+    bool numbers{false};
   };
 
  public:
@@ -493,25 +497,21 @@ class MeshScene : public wings::Scene {
       basis(d, 2) = w[d];
     }
 
+    double a = double(view.canvas.width) / double(view.canvas.height);
+    double height = 2.0 * tan(view.fov / 2.0);
+    double width = a * height;
+
     // computes the 3d world coordinates of a pixel
     // can save some computation by not adding eye, but leaving it for now
     auto pixel2world = [&](double u, double v) {
-      double d = length(view.center - view.eye);
-      double a = double(view.canvas.width) / double(view.canvas.height);
-      double h = 2.0 * d * tan(view.fov / 2.0);
-      double w = a * h;
-
-      float pu = -0.5 * w + w * u;
-      float pv = -0.5 * h + h * v;
-      float pw = -d;
+      float pu = (u - 0.5) * width;
+      float pv = (v - 0.5) * height;
+      float pw = -1;
       wings::vec3f q = {pu, pv, pw};
-
-      return basis * q + view.eye;
+      return unit_vector(basis * q);
     };
     wings::vec3f ray =
-        unit_vector(pixel2world(x / view.canvas.width,
-                                /*1.0 - */ y / view.canvas.height) -
-                    view.eye);
+        pixel2world(x / view.canvas.width, y / view.canvas.height);
 
     // find the closest element
     double tmin = 1e20;
@@ -544,6 +544,7 @@ class MeshScene : public wings::Scene {
     GL_CALL(glGenTextures(1, &field_texture_));
     GL_CALL(glGenTextures(1, &image_texture_));
     GL_CALL(glGenTextures(1, &normalmap_texture_));
+    GL_CALL(glGenTextures(1, &font_texture_));
 
     // write image texture
     std::string f = std::string(VORTEX_SOURCE_DIR) + "/../data/earth.jpg";
@@ -553,8 +554,8 @@ class MeshScene : public wings::Scene {
     GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture.width(),
                          texture.height(), 0, GL_RGB, GL_UNSIGNED_BYTE,
                          texture.data()));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     // write normal map texture
     f = std::string(VORTEX_SOURCE_DIR) + "/../data/normalmap.ppm";
@@ -565,6 +566,16 @@ class MeshScene : public wings::Scene {
                          normalmap.data()));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    // write font texture
+    f = std::string(VORTEX_SOURCE_DIR) + "/../data/monaco-numbers.png";
+    tex_opts.format = TextureFormat::kRGBA;
+    Texture font(f, tex_opts);
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, font_texture_));
+    GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font.width(), font.height(),
+                         0, GL_RGBA, GL_UNSIGNED_BYTE, font.data()));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
     // write the point data
     std::vector<GLfloat> coordinates(3 * mesh_.vertices().n());
@@ -682,7 +693,7 @@ class MeshScene : public wings::Scene {
     float len = length(view.center - view.eye);
     wings::vec3f dir = unit_vector(view.center - view.eye);
     view.center = q;
-    view.eye = view.center - len * dir;
+    view.eye = view.center - 1e-1f * len * dir;
 
     const wings::vec3f up = {0, 1, 0};
     view.view_matrix = wings::glm::lookat(view.eye, view.center, up);
@@ -770,6 +781,12 @@ class MeshScene : public wings::Scene {
           view.show_wireframe = input.ivalue > 0;
         else if (input.key == 'E')
           view.earth = input.ivalue > 0;
+        else if (input.key == 'I')
+          view.image = input.ivalue > 0;
+        else if (input.key == 'L')
+          view.lighting = input.ivalue > 0;
+        else if (input.key == '#')
+          view.numbers = input.ivalue > 0;
         else {
           updated = false;
         }
@@ -832,18 +849,18 @@ class MeshScene : public wings::Scene {
     glDepthMask(GL_TRUE);
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1, 1);
-    glEnable(GL_BLEND);
-    // glEnable(GL_STENCIL_TEST);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // glEnable(GL_BLEND);
+    //  glEnable(GL_STENCIL_TEST);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_CLAMP);
     float alpha = view.transparency;
-    int u_lighting = view.lighting;
+    bool u_lighting = view.lighting;
     // glDepthRange(0.1, 0.9);
     if (alpha < 1.0) {
       glDisable(GL_CULL_FACE);
       // glDepthMask(GL_FALSE);
       // glDepthFunc(GL_LEQUAL);
-      u_lighting = 0;
+      u_lighting = false;
     }
 
     // compute the matrices
@@ -875,6 +892,8 @@ class MeshScene : public wings::Scene {
       shader.use();
       wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
       auto im = wings::glm::inverse(view.model_matrix);
+      shader.set_uniform("u_lighting", int(u_lighting));
+      shader.set_uniform("u_image", int(view.image));
       shader.set_uniform("u_InverseModel", im);
       shader.set_uniform("u_Camera", wings::glm::inverse(view.view_matrix));
       shader.set_uniform("u_eye", (im * eye_h).xyz());
@@ -946,7 +965,8 @@ class MeshScene : public wings::Scene {
 
       // set the uniforms for the shader
       shader.set_uniform("u_edges", view.show_wireframe);
-      shader.set_uniform("u_lighting", u_lighting);
+      shader.set_uniform("u_lighting", int(u_lighting));
+      shader.set_uniform("u_image", int(view.image));
       shader.set_uniform("u_alpha", alpha);
       shader.set_uniform("u_earth", int(earth_));
 
@@ -968,6 +988,24 @@ class MeshScene : public wings::Scene {
 
       primitive.draw(shader, point_buffer_, field_texture_, index_texture_,
                      visibility_texture_, primitive2cell_texture_);
+    }
+
+    // draw the text
+    if (view.numbers) {
+      const auto& shader = shaders_["text"];
+      shader.use();
+      glActiveTexture(GL_TEXTURE0 + kPoint);
+      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, point_texture_));
+      shader.set_uniform("points", int(kPoint));
+
+      glActiveTexture(GL_TEXTURE0 + kFont);
+      GL_CALL(glBindTexture(GL_TEXTURE_2D, font_texture_));
+      shader.set_uniform("font", int(kFont));
+
+      shader.set_uniform("u_ModelViewProjectionMatrix", mvp_matrix);
+      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_));
+      GL_CALL(glDrawArrays(GL_POINTS, 0, mesh_.vertices().n()));
+      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     }
 
     // save the pixels in the wings::Scene
@@ -998,7 +1036,7 @@ class MeshScene : public wings::Scene {
         if (x < xmin[d]) xmin[d] = x;
       }
     }
-    view.center = {0, 0, 0};  // view.center / (1.0f * mesh_.vertices().n());
+    view.center = view.center / (1.0f * mesh_.vertices().n());
     view.center_translation.eye();
     view.inverse_center_translation.eye();
     for (int d = 0; d < 3; d++) {
@@ -1058,6 +1096,7 @@ class MeshScene : public wings::Scene {
   GLuint field_texture_;
   GLuint colormap_texture_;
   GLuint colormap_buffer_;
+  GLuint font_texture_;
 
   std::vector<GLPrimitive> primitives_;
   std::vector<int> draw_order_;

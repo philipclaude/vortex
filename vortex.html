@@ -16,7 +16,6 @@
     <link rel=icon
     href=https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4/svgs/solid/hurricane.svg>
 
-    <!--<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>-->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
@@ -158,7 +157,6 @@
               <option>[colormap]</option>
               <option>blue-white-red</option>
               <option>blue-green-red</option>
-              <option>parula</option>
               <option>jet</option>
               <option>hsv</option>
               <option>hot</option>
@@ -261,6 +259,26 @@
               onchange="toggleEarth();"
             />
             <label class="form-check-label" for="checkbox-earth">earth</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-image"
+              type="checkbox"
+              onchange="toggleImage();"
+            />
+            <label class="form-check-label" for="checkbox-earth">image</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-numbers"
+              type="checkbox"
+              onchange="toggleNumbers();"
+            />
+            <label class="form-check-label" for="checkbox-numbers"
+              >vertex #'s</label
+            >
           </div>
           <div class="form-check" style="display: inline-block">
             <label class="form-check-label" id="size-label"></label>
@@ -408,7 +426,7 @@
 
   <script>
     let n_views = 1;
-    let newView = function () {
+    const newView = function () {
       let tabs = document.getElementById("views-tab-content");
       let tab = document.createElement("div", {
         class: "tab-pane fade",
@@ -557,11 +575,11 @@
       if (e.key == "c") centerView();
     });
 
-    setQuality = function () {
+    const setQuality = function () {
       ws.send("KIQ" + document.getElementById("qualitys").value);
     };
 
-    setTransparency = function () {
+    const setTransparency = function () {
       ws.send("KIa" + document.getElementById("transparency").value);
     };
 
@@ -569,42 +587,60 @@
       // TODO
     };
 
-    function checkboxResult(id) {
+    const checkboxResult = (id) => {
       if (document.getElementById(id).checked) return 1;
       return 0;
-    }
+    };
 
-    function togglePrimitive(id, c) {
+    const togglePrimitive = (id, c) => {
       ws.send("KI" + c + checkboxResult(id));
-    }
+    };
 
-    function selectColormap() {
+    const selectColormap = () => {
       const dropdown = document.getElementById("colormap-dropdown");
       let idx = dropdown.selectedIndex;
       if (idx == 0) idx = 8; // default to giraffe colormap
       ws.send("KSC" + dropdown.options[idx].value);
-    }
+    };
 
-    function clip() {
+    const clip = () => {
       const dropdown = document.getElementById("clip-dropdown");
       const distance = document.getElementById("clip-distance").value;
       const visible = checkboxResult("checkbox-plane");
       let idx = dropdown.selectedIndex;
       ws.send("KSc" + idx + visible + distance);
-    }
+    };
 
-    function centerView() {
+    const centerView = () => {
       ws.send("KSp");
-    }
+    };
 
-    function toggleField() {
+    const toggleField = () => {
       ws.send("KSf");
-    }
+    };
+
+    const toggleLighting = () => {
+      const checkbox = document.getElementById("checkbox-lighting");
+      let result = checkbox.checked ? 1 : 0;
+      ws.send("KIL" + result);
+    };
 
     const toggleEarth = () => {
       const checkbox = document.getElementById("checkbox-earth");
       let result = checkbox.checked ? 1 : 0;
       ws.send("KIE" + result);
+    };
+
+    const toggleImage = () => {
+      const checkbox = document.getElementById("checkbox-image");
+      let result = checkbox.checked ? 1 : 0;
+      ws.send("KII" + result);
+    };
+
+    toggleNumbers = () => {
+      const checkbox = document.getElementById("checkbox-numbers");
+      let result = checkbox.checked ? 1 : 0;
+      ws.send("KI#" + result);
     };
   </script>
 </html>
