@@ -5,6 +5,7 @@
 #include <queue>
 #include <unordered_set>
 
+#include "graphics.h"
 #include "halfedges.h"
 #include "io.h"
 #include "library.h"
@@ -18,6 +19,15 @@
 namespace vortex {
 
 namespace {
+
+void run_visualizer(argparse::ArgumentParser& program) {
+  std::string filename = program.get<std::string>("input");
+
+  Mesh mesh(3);
+  read_mesh(filename, mesh);
+  mesh.fields().set_defaults(mesh);
+  Viewer viewer(mesh, 7681, true);
+}
 
 void apply_mask(const std::string& input, double tmin, double tmax,
                 Mesh& mesh) {
@@ -348,6 +358,11 @@ void run_voronoi(argparse::ArgumentParser& program) {
 int main(int argc, char** argv) {
   argparse::ArgumentParser program("vortex", "1.0");
 
+  argparse::ArgumentParser cmd_viz("viz");
+  cmd_viz.add_description("visualize a mesh");
+  cmd_viz.add_argument("input").help("input file");
+  program.add_subparser(cmd_viz);
+
   argparse::ArgumentParser cmd_mesh("mesh");
   cmd_mesh.add_description("generate mesh on the unit sphere");
   cmd_mesh.add_argument("metric").help("input metric image (.png, .jpg)");
@@ -427,7 +442,9 @@ int main(int argc, char** argv) {
     std::exit(1);
   }
 
-  if (program.is_subcommand_used("mesh")) {
+  if (program.is_subcommand_used("viz")) {
+    vortex::run_visualizer(program.at<argparse::ArgumentParser>("viz"));
+  } else if (program.is_subcommand_used("mesh")) {
     vortex::run_mesher(program.at<argparse::ArgumentParser>("mesh"));
   } else if (program.is_subcommand_used("extract")) {
     vortex::run_extract(program.at<argparse::ArgumentParser>("extract"));

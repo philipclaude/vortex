@@ -186,6 +186,7 @@ class VoronoiPolygon {
       mesh.triangles().add(t.data());
     }
     size_t id = mesh.polygons().n();
+    std::reverse(polygon.begin(), polygon.end());
     mesh.polygons().add(polygon.data(), polygon.size());
     mesh.polygons().set_group(id, site);
     return true;

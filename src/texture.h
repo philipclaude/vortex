@@ -35,6 +35,7 @@ class Texture {
   void make_periodic();
   void smooth(int n_iter);
   void write(const std::string& filename) const;
+  const auto* data() const { return data_.data(); }
 
  private:
   void read(const std::string& filename);

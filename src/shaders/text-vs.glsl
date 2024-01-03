@@ -1,5 +1,5 @@
 #version 330
-layout (location = 0) in vec3 a_Position;
+layout(location = 0) in vec3 a_Position;
 
 flat out int v_id;
 
