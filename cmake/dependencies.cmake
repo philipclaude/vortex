@@ -37,11 +37,11 @@ add_extern_repository(stb GIT_REPOSITORY "https://github.com/nothings/stb" SKIP_
 add_extern_repository(tinyobjloader GIT_REPOSITORY "https://github.com/tinyobjloader/tinyobjloader")
 add_extern_repository(argparse GIT_REPOSITORY "https://github.com/p-ranav/argparse")
 add_extern_repository(morton GIT_REPOSITORY "https://github.com/morton-nd/morton-nd")
-add_extern_repository(wings GIT_REPOSITORY "https://github.com/middpolymer/wings" SKIP_CONFIG TRUE)
-add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middpolymer/geogram.psm.OpenNL" SKIP_CONFIG TRUE)
-add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middpolymer/geogram.psm.Predicates" SKIP_CONFIG TRUE)
-add_extern_repository(trees GIT_REPOSITORY "https://github.com/middpolymer/trees.git" SKIP_CONFIG TRUE)
-add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middpolymer/stlext.git" SKIP_CONFIG TRUE)
+add_extern_repository(wings GIT_REPOSITORY "https://github.com/middleburygcl/wings" SKIP_CONFIG TRUE)
+add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middleburygcl/geogram.psm.OpenNL" SKIP_CONFIG TRUE)
+add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middleburygcl/geogram.psm.Predicates" SKIP_CONFIG TRUE)
+add_extern_repository(trees GIT_REPOSITORY "https://github.com/middleburygcl/trees.git" SKIP_CONFIG TRUE)
+add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middleburygcl/stlext.git" SKIP_CONFIG TRUE)
 
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
@@ -96,6 +96,7 @@ set(VORTEX_EXTERNAL_LIBRARIES ${external_libraries} ${GL_LIBRARIES})
 # set all include directories
 set(VORTEX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/extern
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/libmeshb/sources
+  ${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenNL/OpenNL_psm
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/PCK
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/wings
@@ -107,7 +108,7 @@ set(VORTEX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_D
 
 
 set(EXTERN_SOURCES
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenNL/OpenNL_psm.c
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenNL/OpenNL_psm/OpenNL_psm.c
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/PCK/Predicates_psm.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/tinyobjloader/tiny_obj_loader.cc
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/libmeshb/sources/libmeshb7.c

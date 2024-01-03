@@ -1,6 +1,6 @@
 #include "spmat.h"
 
-#include <OpenNL/OpenNL_psm.h>
+#include <OpenNL_psm.h>
 
 #include "vec.h"
 
