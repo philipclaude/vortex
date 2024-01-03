@@ -58,7 +58,8 @@ enum TextureIndex {
   kField = 5,
   kImage = 6,
   kNormalMap = 7,
-  kFont = 8
+  kFont = 8,
+  kPointVisibility = 9
 };
 
 enum RenderingPipeline {
@@ -551,6 +552,20 @@ class MeshScene : public wings::Scene {
     return picked;
   }
 
+  void write_point_visibility(const PickableObject* elem) {
+    std::vector<GLubyte> visibility(mesh_.vertices().n(), 0);
+    if (elem != nullptr) {
+      for (const auto& n : elem->nodes) visibility[n] = 1;
+    } else {
+      std::fill(visibility.begin(), visibility.end(), 1);
+    }
+    GL_CALL(glGenBuffers(1, &point_visibility_buffer_));
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_visibility_buffer_));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLubyte) * visibility.size(),
+                         visibility.data(), GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+  }
+
   void write(const FieldLibrary* fields = nullptr) {
     context_->make_context_current();
 
@@ -563,6 +578,7 @@ class MeshScene : public wings::Scene {
     GL_CALL(glGenTextures(1, &image_texture_));
     GL_CALL(glGenTextures(1, &normalmap_texture_));
     GL_CALL(glGenTextures(1, &font_texture_));
+    GL_CALL(glGenTextures(1, &point_visibility_texture_));
 
     // write image texture
     std::string f = std::string(VORTEX_SOURCE_DIR) + "/../data/earth.jpg";
@@ -609,6 +625,9 @@ class MeshScene : public wings::Scene {
     GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * coordinates.size(),
                          coordinates.data(), GL_STATIC_DRAW));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+
+    // write point visibility data
+    write_point_visibility(nullptr);
 
     coordinates.clear();
     n_nodes_ = 0;
@@ -763,6 +782,7 @@ class MeshScene : public wings::Scene {
       case wings::InputType::DoubleClick: {
         view.picked = pick(input.x, input.y, view);
         if (view.picked) {
+          write_point_visibility(view.picked);
           std::string info = fmt::format("*picked element {} ({}): (",
                                          view.picked->index, view.picked->name);
           size_t i = 0;
@@ -1020,6 +1040,11 @@ class MeshScene : public wings::Scene {
       GL_CALL(glBindTexture(GL_TEXTURE_2D, font_texture_));
       shader.set_uniform("font", int(kFont));
 
+      glActiveTexture(GL_TEXTURE0 + kPointVisibility);
+      GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, point_visibility_texture_));
+      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R8, point_visibility_buffer_));
+      shader.set_uniform("visibility", int(kPointVisibility));
+
       shader.set_uniform("u_ModelViewProjectionMatrix", mvp_matrix);
       GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_));
       GL_CALL(glDrawArrays(GL_POINTS, 0, mesh_.vertices().n()));
@@ -1107,6 +1132,8 @@ class MeshScene : public wings::Scene {
 
   GLuint index_texture_;
   GLuint visibility_texture_;
+  GLuint point_visibility_buffer_;
+  GLuint point_visibility_texture_;
   GLuint primitive2cell_texture_;
 
   GLuint image_texture_;
