@@ -8,6 +8,7 @@ uniform mat4 u_ModelViewProjectionMatrix;
 flat out int v_number;
 
 uniform samplerBuffer points;
+uniform usamplerBuffer visibility;
 
 // TODO pass uniforms
 float width = 800;
@@ -29,6 +30,8 @@ void main() {
 
   // retrieve point number and initial point coordinates
   int n = v_id[0];
+  int visible = int(texelFetch(visibility, n).r);
+  if (visible == 0) return;
   vec3 p = texelFetch(points, n).xyz;
   vec4 q = u_ModelViewProjectionMatrix * vec4(p * 1.001, 1);
 
