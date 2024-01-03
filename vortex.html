@@ -14,7 +14,7 @@
       rel="stylesheet"
     />
     <link rel=icon
-    href=https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4/svgs/solid/hurricane.svg>
+    href=https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4/svgs/solid/fan.svg>
 
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
@@ -270,15 +270,15 @@
             <label class="form-check-label" for="checkbox-earth">image</label>
           </div>
           <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-numbers"
-              type="checkbox"
+            <select
+              class="form-select"
+              id="dropdown-vertex-numbers"
               onchange="toggleNumbers();"
-            />
-            <label class="form-check-label" for="checkbox-numbers"
-              >vertex #'s</label
             >
+              <option>[vertex #]</option>
+              <option>all</option>
+              <option>picked</option>
+            </select>
           </div>
           <div class="form-check" style="display: inline-block">
             <label class="form-check-label" id="size-label"></label>
@@ -338,82 +338,14 @@
           </div>
           <hr />
           <div class="container">
-            <ul class="nav nav-tabs" id="views-tabs" role="tablist">
-              <li class="nav-item" role="presentation">
-                <button
-                  class="nav-link active"
-                  id="view0-tab"
-                  data-bs-toggle="tab"
-                  data-bs-target="#view0"
-                  type="button"
-                  role="tab"
-                  aria-controls="view0"
-                  aria-selected="true"
-                >
-                  View0
-                </button>
-              </li>
-              <li class="nav-item" role="presentation">
-                <button
-                  class="nav-link"
-                  id="view1-tab"
-                  data-bs-toggle="tab"
-                  data-bs-target="#view1"
-                  type="button"
-                  role="tab"
-                  aria-controls="view1"
-                  aria-selected="false"
-                >
-                  View1
-                </button>
-              </li>
-              <li class="nav-item" role="presentation">
-                <!--<button class="nav-link" id="new-view-tab" data-bs-toggle="tab" data-bs-target="#new-view" type="button" role="tab" aria-controls="new-view" aria-selected="false">+</button>-->
-                <button
-                  class="nav-link"
-                  id="new-view-tab"
-                  type="button"
-                  role="tab"
-                  onclick="newView()"
-                >
-                  +
-                </button>
-              </li>
-            </ul>
+            <img
+              class="center"
+              id="image"
+              width="500"
+              height="500"
+              style="border: 2px solid black; border-radius: 8px"
+            />
             <br />
-            <div class="tab-content" id="views-tab-content">
-              <div
-                class="tab-pane fade show active"
-                id="view0"
-                role="tabpanel"
-                aria-labelledby="view0-tab"
-              >
-                <img
-                  class="center"
-                  id="image"
-                  width="500"
-                  height="500"
-                  style="border: 4px solid black; border-radius: 8px"
-                />
-                <br />
-              </div>
-              <div
-                class="tab-pane fade"
-                id="view1"
-                role="tabpanel"
-                aria-labelledby="view1-tab"
-              >
-                ...
-              </div>
-              <div
-                class="tab-pane fade"
-                id="new-view"
-                role="tabpanel"
-                aria-labelledby="new-vew-tab"
-              >
-                ...
-              </div>
-            </div>
           </div>
           <hr />
         </div>
@@ -425,50 +357,6 @@
   </body>
 
   <script>
-    let n_views = 1;
-    const newView = function () {
-      let tabs = document.getElementById("views-tab-content");
-      let tab = document.createElement("div", {
-        class: "tab-pane fade",
-        id: "view" + n_views,
-        role: "tabpanel",
-        "aria-labelledby": "view" + n_views + "-tab",
-      });
-      let view = document.createElement("img");
-      view.className = "center";
-      view.id = "image" + n_views;
-      view.style = "border: 2px solid black";
-      view.width = 100;
-      view.height = 100;
-      console.log("new view");
-      tab.appendChild(view);
-      tabs.appendChild(tab);
-
-      let panel = document.getElementById("views-tabs");
-      let item = document.createElement("li", {
-        class: "nav-item",
-        role: "presentation",
-      });
-      let button = document.createElement("button");
-      button.setAttribute("class", "nav-link");
-      button.setAttribute("id", "view" + n_views + "-tab");
-      button.setAttribute("data-bs-toggle", "tab");
-      //   'data-bs-target': '#view' + n_views,
-      //   'type': 'button',
-      //   'role': 'tab',
-      //   'aria-controls': 'view' + n_views,
-      //   'aria-selected': true
-      // });
-      // class="nav-link" id="view1-tab" data-bs-toggle="tab" data-bs-target="#view1" type="button" role="tab" aria-controls="view1" aria-selected="false">View1</button>
-      button.innerHTML = "View" + n_views;
-      item.appendChild(button);
-      panel.appendChild(item);
-
-      n_views++;
-
-      // add client to websocket server
-    };
-
     let ws;
     let img = document.getElementById("image");
     let connect = function (url) {
@@ -637,10 +525,9 @@
       ws.send("KII" + result);
     };
 
-    toggleNumbers = () => {
-      const checkbox = document.getElementById("checkbox-numbers");
-      let result = checkbox.checked ? 1 : 0;
-      ws.send("KI#" + result);
+    const toggleNumbers = () => {
+      const dropdown = document.getElementById("dropdown-vertex-numbers");
+      ws.send("KI#" + dropdown.selectedIndex);
     };
   </script>
 </html>
