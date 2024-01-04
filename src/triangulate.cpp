@@ -529,4 +529,34 @@ void EarClipper::triangulate_sphere(const std::vector<vec3d>& points) {
   triangulate(points_, n);
 }
 
+PolygonTriangulationThread::PolygonTriangulationThread(
+    const Vertices& vertices, const Topology<Polygons>& polygons)
+    : vertices_(vertices), polygons_(polygons) {}
+
+void PolygonTriangulationThread::triangulate(TangentSpaceType type, size_t m,
+                                             size_t n) {
+  std::vector<vec3d> points;
+
+  auto average_normal = [&points]() -> vec3d {
+    vec3d a;
+    for (int i = 2; i < points.size(); i++)
+      a = a + cross(points[i - 1] - points[0], points[i] - points[0]);
+    return normalize(a);
+  };
+
+  int dim = 3;
+
+  for (size_t k = m; k < n; k++) {
+    for (int j = 0; j < polygons_.length(k); j++)
+      for (int d = 0; d < dim; d++) {
+        points[j][d] =
+      }
+
+    if (type == TangentSpaceType::kPlanar) {
+      // pick any three vertices to compute the normal
+      clipper.triangulate(points, normal);
+    }
+  }
+}
+
 }  // namespace vortex

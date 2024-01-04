@@ -25,6 +25,7 @@
 namespace vortex {
 
 class Mesh;
+class Vertices;
 template <typename T>
 class Topology;
 
@@ -73,11 +74,14 @@ enum class TangentSpaceType : uint8_t {
 
 class PolygonTriangulationThread {
  public:
-  PolygonTriangulationThread(const Topology<Polygon>& polygons);
+  PolygonTriangulationThread(const Vertices& vertices,
+                             const Topology<Polygon>& polygons);
 
   void triangulate(TangentSpaceType type, size_t m, size_t n);
 
  private:
+  const Vertices& vertices_;
+  const Topology<Polygon>& polygons_;
   EarClipper clipper_;
   std::vector<index_t> triangles_;
 };
