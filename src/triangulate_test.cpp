@@ -74,4 +74,26 @@ UT_TEST_CASE(test1) {
 }
 UT_TEST_CASE_END(test1)
 
+UT_TEST_CASE(ear_clipping_test) {
+  std::vector<vec3d> points;
+  points.push_back({0, 0, 0});
+  points.push_back({1, 0, 0});
+  points.push_back({0.75, 0.5, 0.0});
+  points.push_back({0.75, 0.6, 0.0});
+  points.push_back({1, 1, 0});
+  points.push_back({0, 1, 0});
+  points.push_back({0.74, 0.5, 0.0});
+  EarClipper clipper;
+  clipper.triangulate(points, {0, 0, 1});
+
+  Mesh mesh(3);
+  for (size_t k = 0; k < points.size(); k++) mesh.vertices().add(&points[k][0]);
+  for (size_t k = 0; k < clipper.n_triangles(); k++) {
+    mesh.triangles().add(clipper.triangle(k));
+  }
+
+  meshb::write(mesh, "clip.meshb");
+}
+UT_TEST_CASE_END(ear_clipping_test)
+
 UT_TEST_SUITE_END(triangulate_tests)

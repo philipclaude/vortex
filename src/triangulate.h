@@ -18,11 +18,15 @@
 //
 #pragma once
 
+#include <vector>
+
 #include "halfedges.h"
 
 namespace vortex {
 
 class Mesh;
+template <typename T>
+class Topology;
 
 class OceanTriangulator {
  public:
@@ -37,6 +41,45 @@ class OceanTriangulator {
   Mesh& mesh_;
   const Mesh& coast_;
   HalfMesh hmesh_;
+};
+
+class EarClipper {
+ private:
+  struct Node {
+    uint8_t next;
+    uint8_t prev;
+    uint8_t indx;
+  };
+
+ public:
+  void triangulate(const std::vector<vec3d>& points, const vec3d& normal);
+  void triangulate_surface(const std::vector<vec3d>& points);
+  void triangulate_sphere(const std::vector<vec3d>& points);
+
+  size_t n_triangles() const { return triangles_.size() / 3; }
+  index_t* triangle(size_t k) { return triangles_.data() + 3 * k; }
+
+ private:
+  std::vector<vec3d> points_;
+  std::vector<index_t> triangles_;
+  std::vector<Node> nodes_;
+};
+
+enum class TangentSpaceType : uint8_t {
+  kPlanar = 0,
+  kSphere = 1,
+  kGeneral = 2
+};
+
+class PolygonTriangulationThread {
+ public:
+  PolygonTriangulationThread(const Topology<Polygon>& polygons);
+
+  void triangulate(TangentSpaceType type, size_t m, size_t n);
+
+ private:
+  EarClipper clipper_;
+  std::vector<index_t> triangles_;
 };
 
 }  // namespace vortex

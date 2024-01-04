@@ -433,4 +433,100 @@ void OceanTriangulator::recover_edges() {
                      mesh_.lines().n());
 }
 
+void EarClipper::triangulate(const std::vector<vec3d>& points,
+                             const vec3d& normal) {
+  size_t n_points = points.size();
+
+  triangles_.reserve(n_points);
+  nodes_.resize(n_points);
+  size_t prev = n_points - 1;
+  for (size_t k = 0; k < n_points; k++) {
+    nodes_[k].prev = prev;
+    nodes_[k].next = (k + 1) == n_points ? 0 : k + 1;
+    nodes_[k].indx = k;
+    prev = k;
+  }
+
+  auto inside = [](const vec3d& a, const vec3d& b, const vec3d& c,
+                   const vec3d& d) {
+    vec3d n_abc = cross(b - a, c - a);
+    vec3d n_abd = cross(b - a, d - a);
+    vec3d n_bcd = cross(c - b, d - b);
+    vec3d n_cad = cross(a - c, d - c);
+    if (dot(n_abc, n_abd) > 0 && dot(n_abc, n_bcd) > 0 && dot(n_abc, n_cad) > 0)
+      return true;
+    return false;
+  };
+
+  size_t n_edges = n_points;
+  size_t root = 0;
+  while (n_edges >= 3) {
+    // find an ear
+    size_t n = root;
+    do {
+      auto prev = nodes_[n].prev;
+      auto indx = nodes_[n].indx;
+      auto next = nodes_[n].next;
+      const vec3d& a = points[prev];
+      const vec3d& b = points[indx];
+      const vec3d& c = points[next];
+
+      // check if this triangle is inverted
+      if (dot(cross(b - a, c - a), normal) < 0) {
+        n = nodes_[n].next;
+        continue;
+      }
+
+      // check if any other vertex is contained in the triangle
+      bool ear = true;
+      size_t m = nodes_[next].next;  // start with the next of next
+      do {
+        // check if we looped back to the prev of the current vertex
+        if (m == prev) break;
+
+        const vec3d& d = points[nodes_[m].indx];
+        if (inside(a, b, c, d)) {
+          ear = false;
+          break;
+        }
+        m = nodes_[m].next;
+      } while (m != root);
+      if (ear) break;
+
+      n = nodes_[n].next;
+    } while (n != root);
+
+    // found an ear
+    size_t prev = nodes_[n].prev;
+    size_t next = nodes_[n].next;
+    triangles_.push_back(prev);
+    triangles_.push_back(n);
+    triangles_.push_back(next);
+
+    // update the linked list
+    nodes_[prev].next = next;
+    nodes_[next].prev = prev;
+    root = next;
+
+    // we add one edge but remove two, so there is one less edge
+    n_edges -= 1;
+  }
+}
+
+void EarClipper::triangulate_sphere(const std::vector<vec3d>& points) {
+  // project all points to the tangent plane of some average point
+  size_t n_points = points.size();
+  vec3d center;
+  for (size_t k = 0; k < n_points; k++) center = center + points[k];
+  center = (1.0 / n_points) * center;
+  center = normalize(center);  // place on unit sphere centered at origin
+  vec3d n = center;            // normal for a sphere
+
+  // project all points to the tangent plane and set up data structures
+  points_.resize(n_points);
+  for (size_t k = 0; k < n_points; k++)
+    points_[k] = points[k] - dot(points[k], n);
+  triangulate(points_, n);
+}
+
 }  // namespace vortex
