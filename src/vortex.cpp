@@ -212,13 +212,14 @@ void run_extract(argparse::ArgumentParser& program) {
       queue.pop();
       HalfFace& face = hmesh.faces()[f];
       face.set_group(i);
-      mesh.triangles().set_group(f, i);
+      // mesh.polygons().set_group(f, i);
+      //  mesh.triangles().set_group(f, i);
       visited[f] = true;
       land_faces.insert(f);
 
       // loop through the neighbors
       e = face.edge();
-      for (int j = 0; j < 3; j++) {
+      for (int j = 0; j < face.n(); j++) {
         // check if this is an edge of the boundary
         half_t t = hmesh.edges()[e].twin();
         if (bnd.find(e) != bnd.end() || bnd.find(t) != bnd.end()) {
@@ -347,16 +348,19 @@ void run_voronoi(argparse::ArgumentParser& program) {
   }
   voronoi.merge();
 
-  // randomize the colors a bit, otherwise neighboring cells
-  // will have similar colors and won't visually stand out
-  size_t n_colors = 20;
+// randomize the colors a bit, otherwise neighboring cells
+// will have similar colors and won't visually stand out
+#if 1
+  int n_colors = program.get<int>("--n_group_bins");
+  if (n_colors <= 0) n_colors = n_points;
   std::vector<int> site2color(n_points);
   for (size_t k = 0; k < n_points; k++)
-    site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
+    site2color[k] = std::floor(n_colors * double(rand()) / double(RAND_MAX));
   for (size_t k = 0; k < voronoi.polygons().n(); k++) {
     int group = voronoi.polygons().group(k);  // the group is the site
     voronoi.polygons().set_group(k, site2color[group]);
   }
+#endif
 
   if (program.present<std::string>("--output")) {
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
@@ -449,6 +453,10 @@ int main(int argc, char** argv) {
       .help("output mesh file ([prefer] .meshb or .obj)");
   cmd_voronoi.add_argument("--output_points")
       .help("output points filename ([prefer] .meshb or .obj)");
+  cmd_voronoi.add_argument("--n_group_bins")
+      .help("number of bins to use for the cell groups")
+      .default_value(-1)
+      .scan<'i', int>();
   program.add_subparser(cmd_voronoi);
 
   try {

@@ -18,9 +18,13 @@
 //
 #include "mesh.h"
 
+#include <stlext.h>
+#include <trees/kdtree.h>
+
 #include <set>
 
 #include "elements.h"
+#include "math/vec.hpp"
 
 namespace vortex {
 
@@ -124,6 +128,80 @@ void Vertices::print() const {
     }
     std::cout << std::endl;
   }
+}
+
+void Mesh::merge(double tol) {
+  ASSERT(vertices_.dim() == 3) << "kdtree dim set to 3 for now";
+  trees::KdTree<3, coord_t, index_t> tree(vertices_[0], vertices_.n());
+
+  std::vector<bool> visited(vertices_.n(), false);
+  std::vector<index_t> vmap(vertices_.n());
+
+  struct MergeWorkspace {
+    std::vector<index_t> neighbors;
+    std::vector<coord_t> distance;
+    std::vector<index_t> mergelist;
+  };
+  size_t n_threads = std::thread::hardware_concurrency();
+  std::vector<MergeWorkspace> workspace(n_threads);
+
+  std::mutex lock;
+  std::parafor_i(
+      0, vertices_.n(),
+      [&workspace, this, tol, &visited, &vmap, &tree, &lock](int tid, int k) {
+        if (visited[k]) return;
+        const auto* pk = vertices_[k];
+        int n_neighbors = 2;
+        auto& neighbors = workspace[tid].neighbors;
+        auto& distance = workspace[tid].distance;
+        auto& mergelist = workspace[tid].mergelist;
+        while (true) {
+          neighbors.resize(n_neighbors);
+          distance.resize(n_neighbors);
+          trees::NearestNeighborSearch<index_t, coord_t> search(
+              n_neighbors, neighbors.data(), distance.data());
+          tree.knearest(pk, search);
+          mergelist.clear();
+          mergelist.push_back(k);
+          for (size_t j = 1; j < n_neighbors; j++) {
+            const auto* pj = vertices_[neighbors[j]];
+            double d_squared = 0;
+            for (int d = 0; d < vertices_.dim(); d++)
+              d_squared += (pj[d] - pk[d]) * (pj[d] - pk[d]);
+            if (std::sqrt(d_squared) > tol) break;
+            mergelist.push_back(neighbors[j]);
+          }
+          if (mergelist.size() < n_neighbors) break;
+          n_neighbors += 5;
+        }
+        ASSERT(mergelist.size() < n_neighbors)
+            << n_neighbors << ", " << mergelist.size();
+        if (mergelist.size() == 1) {
+          vmap[k] = k;
+          return;
+        }
+        std::sort(mergelist.begin(), mergelist.end());
+        lock.lock();
+        for (size_t i = 0; i < mergelist.size(); i++) {
+          vmap[mergelist[i]] = mergelist[0];
+          visited[mergelist[i]] = true;
+        }
+        lock.unlock();
+      });
+
+  // map the element indices
+  for (size_t k = 0; k < lines_.n(); k++)
+    for (int j = 0; j < 2; j++) lines_[k][j] = vmap[lines_[k][j]];
+
+  for (size_t k = 0; k < polygons_.n(); k++)
+    for (int j = 0; j < polygons_.length(k); j++)
+      polygons_[k][j] = vmap[polygons_[k][j]];
+
+  for (size_t k = 0; k < triangles_.n(); k++)
+    for (int j = 0; j < 3; j++) triangles_[k][j] = vmap[triangles_[k][j]];
+
+  for (size_t k = 0; k < quads_.n(); k++)
+    for (int j = 0; j < 4; j++) quads_[k][j] = vmap[quads_[k][j]];
 }
 
 }  // namespace vortex

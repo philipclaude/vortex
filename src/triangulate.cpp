@@ -436,9 +436,11 @@ void OceanTriangulator::recover_edges() {
 void EarClipper::triangulate(const std::vector<vec3d>& points,
                              const vec3d& normal) {
   size_t n_points = points.size();
-
+  triangles_.clear();
+  nodes_.clear();
   triangles_.reserve(n_points);
   nodes_.resize(n_points);
+
   size_t prev = n_points - 1;
   for (size_t k = 0; k < n_points; k++) {
     nodes_[k].prev = prev;
@@ -513,48 +515,53 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
   }
 }
 
-void EarClipper::triangulate_sphere(const std::vector<vec3d>& points) {
-  // project all points to the tangent plane of some average point
-  size_t n_points = points.size();
-  vec3d center;
-  for (size_t k = 0; k < n_points; k++) center = center + points[k];
-  center = (1.0 / n_points) * center;
-  center = normalize(center);  // place on unit sphere centered at origin
-  vec3d n = center;            // normal for a sphere
-
-  // project all points to the tangent plane and set up data structures
-  points_.resize(n_points);
-  for (size_t k = 0; k < n_points; k++)
-    points_[k] = points[k] - dot(points[k], n);
-  triangulate(points_, n);
-}
-
 PolygonTriangulationThread::PolygonTriangulationThread(
-    const Vertices& vertices, const Topology<Polygons>& polygons)
+    const Vertices& vertices, const Topology<Polygon>& polygons)
     : vertices_(vertices), polygons_(polygons) {}
 
 void PolygonTriangulationThread::triangulate(TangentSpaceType type, size_t m,
                                              size_t n) {
   std::vector<vec3d> points;
+  int dim = vertices_.dim();
 
-  auto average_normal = [&points]() -> vec3d {
-    vec3d a;
-    for (int i = 2; i < points.size(); i++)
-      a = a + cross(points[i - 1] - points[0], points[i] - points[0]);
-    return normalize(a);
-  };
+  triangles_.reserve((n - m) * 10 * 3);
+  group_.reserve(n - m);
 
-  int dim = 3;
-
+  EarClipper clipper;
   for (size_t k = m; k < n; k++) {
-    for (int j = 0; j < polygons_.length(k); j++)
-      for (int d = 0; d < dim; d++) {
-        points[j][d] =
-      }
+    // save the points and calculate average (center)
+    points.resize(polygons_.length(k));
+    vec3d normal;
+    vec3d center;
+    const auto* pk = polygons_[k];
+    for (int j = 0; j < polygons_.length(k); j++) {
+      for (int d = 0; d < dim; d++) points[j][d] = vertices_[pk[j]][d];
+      center = center + points[j];
+    }
+    center = (1.0 / points.size()) * center;
 
-    if (type == TangentSpaceType::kPlanar) {
-      // pick any three vertices to compute the normal
-      clipper.triangulate(points, normal);
+    // calculate plane normal
+    if (type == TangentSpaceType::kPlanar ||
+        type == TangentSpaceType::kGeneral) {
+      const auto& p0 = points[0];
+      for (size_t i = 2; i < points.size(); i++)
+        normal = normal + cross(points[i - 1] - p0, points[i] - p0);
+      normal = normalize(normal);
+    } else if (type == TangentSpaceType::kSphere) {
+      normal = normalize(center);
+    }
+
+    // project points to the tangent plane
+    for (size_t i = 0; i < points.size(); i++)
+      points[i] = points[i] - dot(points[i] - center, normal) * normal;
+
+    clipper.triangulate(points, normal);
+
+    for (size_t i = 0; i < clipper.n_triangles(); i++) {
+      for (int j = 0; j < 3; j++) {
+        triangles_.push_back(pk[clipper.triangle(i)[j]]);
+        group_.push_back(k);
+      }
     }
   }
 }

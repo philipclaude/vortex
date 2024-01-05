@@ -54,11 +54,9 @@ class EarClipper {
 
  public:
   void triangulate(const std::vector<vec3d>& points, const vec3d& normal);
-  void triangulate_surface(const std::vector<vec3d>& points);
-  void triangulate_sphere(const std::vector<vec3d>& points);
 
   size_t n_triangles() const { return triangles_.size() / 3; }
-  index_t* triangle(size_t k) { return triangles_.data() + 3 * k; }
+  const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
 
  private:
   std::vector<vec3d> points_;
@@ -78,12 +76,15 @@ class PolygonTriangulationThread {
                              const Topology<Polygon>& polygons);
 
   void triangulate(TangentSpaceType type, size_t m, size_t n);
+  size_t n() const { return triangles_.size() / 3; }
+  const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
+  int group(size_t k) const { return group_[k]; }
 
  private:
   const Vertices& vertices_;
   const Topology<Polygon>& polygons_;
-  EarClipper clipper_;
   std::vector<index_t> triangles_;
+  std::vector<int> group_;
 };
 
 }  // namespace vortex

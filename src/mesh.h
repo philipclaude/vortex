@@ -186,6 +186,7 @@ class Mesh {
   FieldLibrary& fields() { return fields_; }
 
   int get_surface_connected_components(std::vector<int>& components) const;
+  void merge(double tol = 1e-10);
 
  protected:
   Vertices vertices_;
