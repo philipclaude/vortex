@@ -185,8 +185,9 @@ class Mesh {
   const FieldLibrary& fields() const { return fields_; }
   FieldLibrary& fields() { return fields_; }
 
-  int get_surface_connected_components(std::vector<int>& components) const;
   void merge(double tol = 1e-10);
+  void separate_polygons_into_connected_components(
+      Topology<Polygon>& new_polygons);
 
  protected:
   Vertices vertices_;

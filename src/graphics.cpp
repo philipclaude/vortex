@@ -25,6 +25,7 @@
 #include "numerics.h"
 #include "shaders/colormaps.h"
 #include "texture.h"
+#include "triangulate.h"
 #include "wings.h"
 #include "wings/util/glm.h"
 #include "wings/util/shader.h"

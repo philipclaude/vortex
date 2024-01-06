@@ -373,6 +373,29 @@ void run_voronoi(argparse::ArgumentParser& program) {
     meshb::write(tmp, program.get<std::string>("--output_points"));
   }
 }
+
+void run_merge(argparse::ArgumentParser& program) {
+  auto arg_input = program.get<std::string>("input");
+  auto arg_output = program.get<std::string>("--output");
+  auto combine = program.get<bool>("--combine");
+
+  double tol = 1e-10;
+  Mesh input_mesh(3);
+  read_mesh(arg_input, input_mesh);
+  input_mesh.merge(tol);
+
+  if (!combine) {
+    meshb::write(input_mesh, arg_output);
+    return;
+  }
+
+  Mesh output_mesh(input_mesh.vertices().dim());
+  input_mesh.vertices().copy(output_mesh.vertices());
+  input_mesh.separate_polygons_into_connected_components(
+      output_mesh.polygons());
+  meshb::write(output_mesh, arg_output);
+}
+
 }  // namespace
 }  // namespace vortex
 
@@ -459,6 +482,19 @@ int main(int argc, char** argv) {
       .scan<'i', int>();
   program.add_subparser(cmd_voronoi);
 
+  argparse::ArgumentParser cmd_merge("merge");
+  cmd_merge.add_description(
+      "merge nearby vertices in the mesh, renumbering mesh elements");
+  cmd_merge.add_argument("input").help("path to input mesh file (.meshb)");
+  cmd_merge.add_argument("--combine")
+      .help(
+          "combine polygons with the same group and separate them into "
+          "connected components (useful for Voronoi diagrams restricted to a "
+          "triangulation)")
+      .flag();
+  cmd_merge.add_argument("--output").help("path to output mesh file (.meshb)");
+  program.add_subparser(cmd_merge);
+
   try {
     program.parse_args(argc, argv);
   } catch (const std::runtime_error& err) {
@@ -475,6 +511,8 @@ int main(int argc, char** argv) {
     vortex::run_extract(program.at<argparse::ArgumentParser>("extract"));
   } else if (program.is_subcommand_used("voronoi")) {
     vortex::run_voronoi(program.at<argparse::ArgumentParser>("voronoi"));
+  } else if (program.is_subcommand_used("merge")) {
+    vortex::run_merge(program.at<argparse::ArgumentParser>("merge"));
   } else {
     std::cout << program.help().str();
   }

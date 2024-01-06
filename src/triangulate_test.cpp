@@ -102,172 +102,33 @@ UT_TEST_CASE_END(ear_clipping_test)
 
 UT_TEST_CASE(polygon_triangulation_test) {
   Mesh oceans(3);
-  // meshb::read("water_voronoi.meshb", oceans);
-  meshb::read("test.meshb", oceans);
+  meshb::read("oceans_voronoi_coarse.meshb", oceans);
 
   // merge vertices
+  Timer timer;
+  timer.start();
   oceans.merge();
-  LOG << "done merging vertices";
+  timer.stop();
+  LOG << fmt::format("done merging vertices in {} seconds", timer.seconds());
 
+  // combine polygons with same group, then separate into connected components
   Mesh mesh(3);
   oceans.vertices().copy(mesh.vertices());
   LOG << "# of polygons = " << oceans.polygons().n();
+  timer.start();
+  oceans.separate_polygons_into_connected_components(mesh.polygons());
+  timer.stop();
+  LOG << fmt::format("found polygon connected components in {} seconds",
+                     timer.seconds());
 
-  // count number of groups
-  int n_groups = 0;
-  for (size_t k = 0; k < oceans.polygons().n(); k++)
-    n_groups = std::max(oceans.polygons().group(k), n_groups);
-  n_groups++;  // account for zero-indexing
-  LOG << "detected " << n_groups << " groups";
-
-  // combine polygons with the same group (Voronoi cell)
-  std::vector<std::vector<index_t>> cell2polygon(n_groups);
-  for (auto& cell : cell2polygon) cell.reserve(10);
-  for (size_t k = 0; k < oceans.polygons().n(); k++) {
-    int group = oceans.polygons().group(k);
-    // LOG << fmt::format("poly {} in group {}", k, group);
-    cell2polygon[group].push_back(k);
-  }
-
-  // merge polygons with the same group
-  int max_components = 1, n_multiple_components = 0;
-  using edge_t = std::array<index_t, 2>;
-  using face_pair_t = std::array<int64_t, 2>;
-  std::vector<index_t> polygon;
-  std::unordered_map<edge_t, face_pair_t> edges;
-  std::vector<int> components;
-  std::queue<index_t> queue;
-  for (size_t k = 0; k < cell2polygon.size(); k++) {
-    auto& polygons = cell2polygon[k];
-    if (polygons.empty()) continue;
-
-    // build a list of edges to left & right polygons
-    edges.clear();
-    for (int64_t j = 0; j < polygons.size(); j++) {
-      // loop through all vertices (edges) of this polygon
-      auto p = polygons[j];
-      auto n = oceans.polygons().length(p);
-      for (size_t i = 0; i < n; i++) {
-        index_t a = oceans.polygons()[p][i];
-        index_t b = oceans.polygons()[p][(i + 1) == n ? 0 : i + 1];
-        auto eit = edges.find({b, a});
-        if (eit != edges.end()) {
-          // edge has already been visited in opposite direction
-          eit->second[1] = j;
-        } else
-          edges.insert({{a, b}, {j, -1}});  // right polygon is null (-1)
-      }
-    }
-
-    // initialize component of each polygon to null (-1)
-    components.resize(polygons.size());
-    for (auto& c : components) c = -1;
-    int component = 0;
-
-    // identify connected components of this cell
-    while (true) {
-      // find an unset polygon (with a null component) to start with
-      int64_t root = -1;
-      for (size_t j = 0; j < polygons.size(); j++) {
-        if (components[j] < 0) {
-          root = j;
-          break;
-        }
-      }
-      if (root < 0) break;  // done, no more unset polygons
-
-      // BFS starting with the first polygon index (root)
-      queue.push(root);
-      while (!queue.empty()) {
-        // next polygon index in the queue
-        index_t j = queue.front();
-        queue.pop();
-        components[j] = component;
-
-        // loop through all the edges of this polygon
-        auto p = polygons[j];
-        auto n = oceans.polygons().length(p);
-        for (size_t i = 0; i < n; i++) {
-          index_t a = oceans.polygons()[p][i];
-          index_t b = oceans.polygons()[p][(i + 1) == n ? 0 : i + 1];
-          auto eit = edges.find({a, b});
-          int64_t neighbor;
-          if (eit == edges.end()) {
-            // look for the reversed edge
-            auto tie = edges.find({b, a});
-            ASSERT(tie != edges.end());
-            ASSERT(tie->second[1] == j);
-            neighbor = tie->second[0];
-          } else {
-            ASSERT(eit->second[0] == j);
-            neighbor = eit->second[1];
-          }
-
-          if (neighbor < 0) continue;  // boundary
-          if (components[neighbor] < 0) {
-            // assign the component and add this neighbor to the queue
-            components[neighbor] = component;
-            queue.push(neighbor);
-          }
-        }
-      }
-      component++;
-    }
-    ASSERT(component > 0);
-    max_components = std::max(component, max_components);
-    if (component > 1) n_multiple_components++;
-
-    // create polygons for each component
-    for (int c = 0; c < component; c++) {
-      // find an edge to start with that has this component on the left
-      // and is on the boundary
-      index_t p, q;
-      bool found = false;
-      for (const auto& [edge, faces] : edges) {
-        auto fl = faces[0];
-        auto fr = faces[1];
-        if (fr >= 0) continue;  // not on the boundary
-        auto cl = components[fl];
-        if (cl != c) continue;  // not in this component
-        p = edge[0];
-        q = edge[1];
-        found = true;
-      }
-      ASSERT(found);
-
-      polygon.clear();
-      polygon.push_back(p);
-
-      index_t root = p;
-      do {
-        found = false;
-        index_t next;
-        for (const auto& [edge, faces] : edges) {
-          auto fl = faces[0];
-          auto fr = faces[1];
-          if (fr >= 0) continue;  // not on the boundary
-          auto cl = components[fl];
-          if (cl != c) continue;  // not in this component
-          if (edge[0] == q) {
-            found = true;
-            next = edge[1];
-            break;
-          }
-        }
-        ASSERT(found);
-        polygon.push_back(q);
-        p = q;
-        q = next;
-      } while (q != root);
-      mesh.polygons().add(polygon.data(), polygon.size());
-    }
-  }
-  LOG << fmt::format("maximum # components = {}, # multiple components = {}",
-                     max_components, n_multiple_components);
-
+  // triangulate the polygons
+  timer.start();
   PolygonTriangulationThread triangulation(mesh.vertices(), mesh.polygons());
   triangulation.triangulate(TangentSpaceType::kSphere, 0, mesh.polygons().n());
+  timer.stop();
+  LOG << fmt::format("triangulated polygons in {} seconds", timer.seconds());
 
+  // save triangles
   for (size_t k = 0; k < triangulation.n(); k++) {
     mesh.triangles().add(triangulation.triangle(k));
     mesh.triangles().set_group(k, triangulation.group(k));
