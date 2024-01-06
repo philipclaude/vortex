@@ -130,9 +130,12 @@ UT_TEST_CASE(polygon_triangulation_test) {
   }
 
   // merge polygons with the same group
+  int max_components = 1, n_multiple_components = 0;
+  using edge_t = std::array<index_t, 2>;
+  using face_pair_t = std::array<int64_t, 2>;
   std::vector<index_t> polygon;
-  std::unordered_map<std::array<index_t, 2>, std::array<int64_t, 2>> edges;
-  std::vector<int64_t> components;
+  std::unordered_map<edge_t, face_pair_t> edges;
+  std::vector<int> components;
   std::queue<index_t> queue;
   for (size_t k = 0; k < cell2polygon.size(); k++) {
     auto& polygons = cell2polygon[k];
@@ -156,35 +159,32 @@ UT_TEST_CASE(polygon_triangulation_test) {
       }
     }
 
-// identify connected components of this cell
-#if 1
+    // initialize component of each polygon to null (-1)
     components.resize(polygons.size());
     for (auto& c : components) c = -1;
     int component = 0;
+
+    // identify connected components of this cell
     while (true) {
-      // find a polygon
-      // LOG << "building component " << component << " with " <<
-      // polygons.size();
-      int64_t p0 = -1;
+      // find an unset polygon (with a null component) to start with
+      int64_t root = -1;
       for (size_t j = 0; j < polygons.size(); j++) {
         if (components[j] < 0) {
-          p0 = j;
+          root = j;
           break;
         }
       }
-      if (p0 < 0) {
-        // LOG << "done";
-        break;  // done
-      }
+      if (root < 0) break;  // done, no more unset polygons
 
-      // BFS starting with p0
-      queue.push(p0);
+      // BFS starting with the first polygon index (root)
+      queue.push(root);
       while (!queue.empty()) {
+        // next polygon index in the queue
         index_t j = queue.front();
         queue.pop();
         components[j] = component;
 
-        // loop through all the edges
+        // loop through all the edges of this polygon
         auto p = polygons[j];
         auto n = oceans.polygons().length(p);
         for (size_t i = 0; i < n; i++) {
@@ -193,6 +193,7 @@ UT_TEST_CASE(polygon_triangulation_test) {
           auto eit = edges.find({a, b});
           int64_t neighbor;
           if (eit == edges.end()) {
+            // look for the reversed edge
             auto tie = edges.find({b, a});
             ASSERT(tie != edges.end());
             ASSERT(tie->second[1] == j);
@@ -202,7 +203,9 @@ UT_TEST_CASE(polygon_triangulation_test) {
             neighbor = eit->second[1];
           }
 
+          if (neighbor < 0) continue;  // boundary
           if (components[neighbor] < 0) {
+            // assign the component and add this neighbor to the queue
             components[neighbor] = component;
             queue.push(neighbor);
           }
@@ -211,48 +214,56 @@ UT_TEST_CASE(polygon_triangulation_test) {
       component++;
     }
     ASSERT(component > 0);
-    if (component > 1) LOG << fmt::format("detected {} components", component);
-#endif
+    max_components = std::max(component, max_components);
+    if (component > 1) n_multiple_components++;
 
-    // rebuild the polygon
-    polygon.clear();
-
-    // find an edge to start with
-    index_t p, q;
-    for (const auto& [edge, faces] : edges) {
-      if (faces[1] >= 0) continue;
-      p = edge[0];
-      q = edge[1];
-      break;
-    }
-
-    polygon.push_back(p);
-    index_t root = p;
-    size_t n_visited = 0;
-    do {
-      n_visited++;
+    // create polygons for each component
+    for (int c = 0; c < component; c++) {
+      // find an edge to start with that has this component on the left
+      // and is on the boundary
+      index_t p, q;
       bool found = false;
-      index_t next;
       for (const auto& [edge, faces] : edges) {
-        if (faces[1] >= 0) continue;
-        if (edge[0] == q) {
-          found = true;
-          next = edge[1];
-          break;
-        }
+        auto fl = faces[0];
+        auto fr = faces[1];
+        if (fr >= 0) continue;  // not on the boundary
+        auto cl = components[fl];
+        if (cl != c) continue;  // not in this component
+        p = edge[0];
+        q = edge[1];
+        found = true;
       }
       ASSERT(found);
-      polygon.push_back(q);
-      p = q;
-      q = next;
-      if (n_visited == edges.size()) break;
-    } while (q != root);
-    if (n_visited == edges.size()) {
-      LOG << "skip";
+
+      polygon.clear();
+      polygon.push_back(p);
+
+      index_t root = p;
+      do {
+        found = false;
+        index_t next;
+        for (const auto& [edge, faces] : edges) {
+          auto fl = faces[0];
+          auto fr = faces[1];
+          if (fr >= 0) continue;  // not on the boundary
+          auto cl = components[fl];
+          if (cl != c) continue;  // not in this component
+          if (edge[0] == q) {
+            found = true;
+            next = edge[1];
+            break;
+          }
+        }
+        ASSERT(found);
+        polygon.push_back(q);
+        p = q;
+        q = next;
+      } while (q != root);
+      mesh.polygons().add(polygon.data(), polygon.size());
     }
-    // std::reverse(polygon.begin(), polygon.end());
-    mesh.polygons().add(polygon.data(), polygon.size());
   }
+  LOG << fmt::format("maximum # components = {}, # multiple components = {}",
+                     max_components, n_multiple_components);
 
   PolygonTriangulationThread triangulation(mesh.vertices(), mesh.polygons());
   triangulation.triangulate(TangentSpaceType::kSphere, 0, mesh.polygons().n());
@@ -262,11 +273,8 @@ UT_TEST_CASE(polygon_triangulation_test) {
     mesh.triangles().set_group(k, triangulation.group(k));
   }
 
-  // mesh.polygons().clear();
-
   oceans.triangles().clear();
   meshb::write(oceans, "test2.meshb");
-
   meshb::write(mesh, "earclip.meshb");
 }
 UT_TEST_CASE_END(polygon_triangulation_test)
