@@ -235,27 +235,6 @@ void GLPrimitive::write(const Vertices& vertices,
   visibility.reserve(indices.size());
   primitive2cell.reserve(polygons.data().size());
 
-#if 0
-  for (size_t k = 0; k < polygons.n(); k++) {
-    auto* pk = polygons[k];
-    auto nk = polygons.length(k);
-
-    for (int j = 2; j < nk; j++) {
-      indices.push_back(pk[0]);
-      indices.push_back(pk[j - 1]);
-      indices.push_back(pk[j]);
-
-      int e0 = 0;  // always visible
-      int e1 = (j + 1 == nk) ? 0 : 1;
-      int e2 = (j == 2) ? 0 : 1;
-      visibility.push_back(e0);
-      visibility.push_back(e1);
-      visibility.push_back(e2);
-
-      primitive2cell.push_back(k);
-    }
-  }
-#else
   PolygonTriangulation triangulator(vertices, polygons);
   triangulator.triangulate(TangentSpaceType::kGeneral, 0, polygons.n());
   for (size_t k = 0; k < triangulator.n(); k++) {
@@ -266,7 +245,6 @@ void GLPrimitive::write(const Vertices& vertices,
     }
     primitive2cell.push_back(triangulator.group(k));
   }
-#endif
   write(indices, visibility, primitive2cell);
 
   n_draw_ = indices.size();

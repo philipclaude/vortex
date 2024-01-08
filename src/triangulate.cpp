@@ -433,7 +433,7 @@ void OceanTriangulator::recover_edges() {
                      mesh_.lines().n());
 }
 
-void EarClipper::triangulate(const std::vector<vec3d>& points,
+bool EarClipper::triangulate(const std::vector<vec3d>& points,
                              const vec3d& normal) {
   size_t n_points = points.size();
   triangles_.clear();
@@ -443,12 +443,37 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
   boundary_.reserve(triangles_.size());
   nodes_.resize(n_points);
 
+  // first check if the polygon is convex while building the nodes
+  bool convex = true;
   size_t prev = n_points - 1;
   for (size_t k = 0; k < n_points; k++) {
     nodes_[k].prev = prev;
     nodes_[k].next = (k + 1) == n_points ? 0 : k + 1;
     nodes_[k].indx = k;
+
+    // calculate the normal
+    const vec3d& a = points[prev];
+    const vec3d& b = points[k];
+    const vec3d& c = points[nodes_[k].next];
+    vec3d nk = cross(b - a, c - a);
+    if (dot(nk, normal) < 0) convex = false;
+
     prev = k;
+  }
+
+  if (convex) {
+    for (int k = 2; k < n_points; k++) {
+      triangles_.push_back(0);
+      triangles_.push_back(k - 1);
+      triangles_.push_back(k);
+
+      bool e1 = (k + 1 == n_points);
+      bool e2 = (k == 2);
+      boundary_.push_back(true);
+      boundary_.push_back(e1);
+      boundary_.push_back(e2);
+    }
+    return true;
   }
 
   auto is_boundary = [n_points](uint8_t i, uint8_t j) {
@@ -525,6 +550,7 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
     // we add one edge but remove two, so there is one less edge
     n_edges -= 1;
   }
+  return false;
 }
 
 PolygonTriangulation::PolygonTriangulation(const Vertices& vertices,
@@ -540,6 +566,7 @@ void PolygonTriangulation::triangulate(TangentSpaceType type, size_t m,
   group_.reserve(n - m);
 
   EarClipper clipper;
+  size_t n_convex = 0;
   for (size_t k = m; k < n; k++) {
     // save the points and calculate average (center)
     points.resize(polygons_.length(k));
@@ -568,7 +595,8 @@ void PolygonTriangulation::triangulate(TangentSpaceType type, size_t m,
       points[i] = points[i] - dot(points[i] - center, normal) * normal;
 
     // triangulate the polygon
-    clipper.triangulate(points, normal);
+    bool convex = clipper.triangulate(points, normal);
+    if (convex) n_convex++;
 
     // save the result
     for (size_t i = 0; i < clipper.n_triangles(); i++) {
@@ -579,6 +607,7 @@ void PolygonTriangulation::triangulate(TangentSpaceType type, size_t m,
       group_.push_back(k);
     }
   }
+  LOG << fmt::format("detected {} convex cells out of {}", n_convex, n - m);
 }
 
 }  // namespace vortex

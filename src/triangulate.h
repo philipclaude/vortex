@@ -53,7 +53,7 @@ class EarClipper {
   };
 
  public:
-  void triangulate(const std::vector<vec3d>& points, const vec3d& normal);
+  bool triangulate(const std::vector<vec3d>& points, const vec3d& normal);
 
   size_t n_triangles() const { return triangles_.size() / 3; }
   const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
