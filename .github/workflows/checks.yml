@@ -39,7 +39,11 @@ jobs:
 
     - name: create test files
       working-directory: ${{github.workspace}}
-      run: dev/examples.sh ${{github.workspace}}/build/debug/bin/vortex
+      run: |
+        cmake -B ${{github.workspace}}/build/release -DCMAKE_BUILD_TYPE=Release
+        cd ${{github.workspace}}/build/release && make -j
+        cd ${{github.workspace}}
+        dev/examples.sh ${{github.workspace}}/build/release/bin/vortex 0.02
 
     - name: test
       id: tester
