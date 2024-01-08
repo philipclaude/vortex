@@ -38,7 +38,7 @@ UT_TEST_CASE(test1) {
   // input mesh written by mesher_test
   // TODO(philip) ensure mesher_test is always run first
   Mesh input_mesh(3);
-  read_mesh("water.meshb", input_mesh);
+  read_mesh("oceans_coarse.meshb", input_mesh);
 
   // extract the lines
   std::unordered_set<std::array<index_t, 2>> edges;
@@ -74,7 +74,7 @@ UT_TEST_CASE(test1) {
   OceanTriangulator triangulator(oceans, coast);
   triangulator.triangulate();
 
-  meshb::write(oceans, "oceans.meshb");
+  meshb::write(oceans, "inserted_coast.meshb");
 }
 UT_TEST_CASE_END(test1)
 
@@ -96,13 +96,18 @@ UT_TEST_CASE(ear_clipping_test) {
     mesh.triangles().add(clipper.triangle(k));
   }
 
+  std::vector<index_t> polygon(points.size());
+  for (size_t k = 0; k < polygon.size(); k++) polygon[k] = k;
+  mesh.polygons().add(polygon.data(), polygon.size());
+
   meshb::write(mesh, "clip.meshb");
 }
 UT_TEST_CASE_END(ear_clipping_test)
 
 UT_TEST_CASE(polygon_triangulation_test) {
   Mesh oceans(3);
-  meshb::read("oceans_voronoi_coarse.meshb", oceans);
+  // meshb::read("oceans_voronoi_coarse.meshb", oceans);
+  meshb::read("voronoi_oceans_coarse.meshb", oceans);
 
   // merge vertices
   Timer timer;
@@ -123,7 +128,7 @@ UT_TEST_CASE(polygon_triangulation_test) {
 
   // triangulate the polygons
   timer.start();
-  PolygonTriangulationThread triangulation(mesh.vertices(), mesh.polygons());
+  PolygonTriangulation triangulation(mesh.vertices(), mesh.polygons());
   triangulation.triangulate(TangentSpaceType::kSphere, 0, mesh.polygons().n());
   timer.stop();
   LOG << fmt::format("triangulated polygons in {} seconds", timer.seconds());
@@ -134,8 +139,6 @@ UT_TEST_CASE(polygon_triangulation_test) {
     mesh.triangles().set_group(k, triangulation.group(k));
   }
 
-  oceans.triangles().clear();
-  meshb::write(oceans, "test2.meshb");
   meshb::write(mesh, "earclip.meshb");
 }
 UT_TEST_CASE_END(polygon_triangulation_test)

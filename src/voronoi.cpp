@@ -671,6 +671,8 @@ void lift_sites(Vertices& sites, const std::vector<double>& weights) {
 void VoronoiDiagram::smooth(Vertices& sites) const {
   vec3 x;
   for (size_t k = 0; k < n_sites_; k++) {
+    if (properties_[k].mass == 0) continue;
+    ASSERT(properties_[k].mass > 0);
     x = static_cast<float>(1.0 / properties_[k].mass) * properties_[k].moment;
     // x = unit_vector(x);  // TODO(philip): move this elsewhere
     for (int d = 0; d < 3; d++) sites[k][d] = x[d];

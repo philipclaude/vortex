@@ -147,5 +147,5 @@ void main() {
   // u_picking = -1 if not picking, u_picking = element id if picking
   if (u_picking == int(cell))
     fragColor = intensity * vec4(0, 0, 0, 1.0) +
-                (1.0 - intensity) * vec4(0.2, 0.5, 1.0, 1.0);
+                (1.0 - intensity) * vec4(0.2, 0.5, 1.0, alpha);
 }

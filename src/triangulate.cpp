@@ -437,8 +437,10 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
                              const vec3d& normal) {
   size_t n_points = points.size();
   triangles_.clear();
+  boundary_.clear();
   nodes_.clear();
-  triangles_.reserve(n_points);
+  triangles_.reserve(3 * n_points);
+  boundary_.reserve(triangles_.size());
   nodes_.resize(n_points);
 
   size_t prev = n_points - 1;
@@ -448,6 +450,12 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
     nodes_[k].indx = k;
     prev = k;
   }
+
+  auto is_boundary = [n_points](uint8_t i, uint8_t j) {
+    if (i + 1 == j) return true;
+    if (i + 1 == n_points && j == 0) return true;
+    return false;
+  };
 
   auto inside = [](const vec3d& a, const vec3d& b, const vec3d& c,
                    const vec3d& d) {
@@ -505,6 +513,10 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
     triangles_.push_back(n);
     triangles_.push_back(next);
 
+    boundary_.push_back(is_boundary(n, next));
+    boundary_.push_back(false);
+    boundary_.push_back(is_boundary(prev, n));
+
     // update the linked list
     nodes_[prev].next = next;
     nodes_[next].prev = prev;
@@ -515,12 +527,12 @@ void EarClipper::triangulate(const std::vector<vec3d>& points,
   }
 }
 
-PolygonTriangulationThread::PolygonTriangulationThread(
-    const Vertices& vertices, const Topology<Polygon>& polygons)
+PolygonTriangulation::PolygonTriangulation(const Vertices& vertices,
+                                           const Topology<Polygon>& polygons)
     : vertices_(vertices), polygons_(polygons) {}
 
-void PolygonTriangulationThread::triangulate(TangentSpaceType type, size_t m,
-                                             size_t n) {
+void PolygonTriangulation::triangulate(TangentSpaceType type, size_t m,
+                                       size_t n) {
   std::vector<vec3d> points;
   int dim = vertices_.dim();
 
@@ -555,13 +567,16 @@ void PolygonTriangulationThread::triangulate(TangentSpaceType type, size_t m,
     for (size_t i = 0; i < points.size(); i++)
       points[i] = points[i] - dot(points[i] - center, normal) * normal;
 
+    // triangulate the polygon
     clipper.triangulate(points, normal);
 
+    // save the result
     for (size_t i = 0; i < clipper.n_triangles(); i++) {
       for (int j = 0; j < 3; j++) {
         triangles_.push_back(pk[clipper.triangle(i)[j]]);
-        group_.push_back(k);
+        edge_.push_back(clipper.boundary(i, j));
       }
+      group_.push_back(k);
     }
   }
 }

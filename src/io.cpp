@@ -163,7 +163,6 @@ void read_polydata(int64_t fid, GmfKwdCod header_type, GmfKwdCod entity_type,
                      GmfLong, &entities.front(), &entities.back()));
 
   // add the entities to the topology using the add_entity callback
-  LOG << "creating entities";
   std::vector<long> entity(32);
   for (int64_t k = 0; k < n_poly; k++) {
     index_t u = header[k][0] - 1;
@@ -187,7 +186,6 @@ void read_polygons(int64_t fid, Mesh& mesh) {
   // read the boundary polygon data
   read_polydata(fid, GmfBoundaryPolygonHeaders, GmfBoundaryPolygonVertices,
                 [&mesh](std::vector<long>& polygon, int group) {
-                  std::reverse(polygon.begin(), polygon.end());
                   int64_t k = mesh.polygons().n();
                   mesh.polygons().add(polygon.data(), polygon.size());
                   if (group >= 0) mesh.polygons().set_group(k, group);

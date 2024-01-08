@@ -235,10 +235,7 @@ void GLPrimitive::write(const Vertices& vertices,
   visibility.reserve(indices.size());
   primitive2cell.reserve(polygons.data().size());
 
-  // TODO(philip): for each polygon, first check if basic
-  // tessellation can be used, if not:
-  // project all points to the tangent plane of average point
-  // and perform ear clipping in the tangent plane
+#if 0
   for (size_t k = 0; k < polygons.n(); k++) {
     auto* pk = polygons[k];
     auto nk = polygons.length(k);
@@ -258,6 +255,18 @@ void GLPrimitive::write(const Vertices& vertices,
       primitive2cell.push_back(k);
     }
   }
+#else
+  PolygonTriangulation triangulator(vertices, polygons);
+  triangulator.triangulate(TangentSpaceType::kGeneral, 0, polygons.n());
+  for (size_t k = 0; k < triangulator.n(); k++) {
+    for (int j = 0; j < 3; j++) {
+      indices.push_back(triangulator.triangle(k)[j]);
+      bool e = triangulator.edge(k, j);
+      visibility.push_back(e ? 0 : 1);
+    }
+    primitive2cell.push_back(triangulator.group(k));
+  }
+#endif
   write(indices, visibility, primitive2cell);
 
   n_draw_ = indices.size();

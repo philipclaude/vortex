@@ -57,10 +57,12 @@ class EarClipper {
 
   size_t n_triangles() const { return triangles_.size() / 3; }
   const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
+  bool boundary(size_t k, int j) const { return boundary_[3 * k + j]; }
 
  private:
   std::vector<vec3d> points_;
   std::vector<index_t> triangles_;
+  std::vector<bool> boundary_;
   std::vector<Node> nodes_;
 };
 
@@ -70,20 +72,22 @@ enum class TangentSpaceType : uint8_t {
   kGeneral = 2
 };
 
-class PolygonTriangulationThread {
+class PolygonTriangulation {
  public:
-  PolygonTriangulationThread(const Vertices& vertices,
-                             const Topology<Polygon>& polygons);
+  PolygonTriangulation(const Vertices& vertices,
+                       const Topology<Polygon>& polygons);
 
   void triangulate(TangentSpaceType type, size_t m, size_t n);
   size_t n() const { return triangles_.size() / 3; }
   const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
   int group(size_t k) const { return group_[k]; }
+  bool edge(size_t k, int j) const { return edge_[3 * k + j]; }
 
  private:
   const Vertices& vertices_;
   const Topology<Polygon>& polygons_;
   std::vector<index_t> triangles_;
+  std::vector<bool> edge_;
   std::vector<int> group_;
 };
 

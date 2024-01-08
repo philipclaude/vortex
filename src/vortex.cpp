@@ -241,13 +241,15 @@ void run_extract(argparse::ArgumentParser& program) {
     return land_faces.find(k) == land_faces.end();
   });
   hmesh.extract(water);
-  meshb::write(water, "water.meshb");
+  auto arg_water = program.get<std::string>("--oceans");
+  meshb::write(water, arg_water);
 
   hmesh.activate_faces_by([&land_faces](half_t k) {
     return land_faces.find(k) != land_faces.end();
   });
   hmesh.extract(land);
-  meshb::write(land, "land.meshb");
+  auto arg_land = program.get<std::string>("--continents");
+  meshb::write(land, arg_land);
 }
 
 void run_voronoi(argparse::ArgumentParser& program) {
@@ -325,6 +327,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.vertices().clear();
       voronoi.vertices().set_dim(3);
       voronoi.polygons().clear();
+      voronoi.triangles().clear();
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
@@ -346,21 +349,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
     TriangulationDomain domain(p, np, t, nt);
     calculate_voronoi_diagram(domain);
   }
-  voronoi.merge();
-
-// randomize the colors a bit, otherwise neighboring cells
-// will have similar colors and won't visually stand out
-#if 1
-  int n_colors = program.get<int>("--n_group_bins");
-  if (n_colors <= 0) n_colors = n_points;
-  std::vector<int> site2color(n_points);
-  for (size_t k = 0; k < n_points; k++)
-    site2color[k] = std::floor(n_colors * double(rand()) / double(RAND_MAX));
-  for (size_t k = 0; k < voronoi.polygons().n(); k++) {
-    int group = voronoi.polygons().group(k);  // the group is the site
-    voronoi.polygons().set_group(k, site2color[group]);
-  }
-#endif
 
   if (program.present<std::string>("--output")) {
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());

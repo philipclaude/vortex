@@ -164,6 +164,7 @@ void Mesh::merge(double tol) {
           mergelist.clear();
           mergelist.push_back(k);
           for (size_t j = 1; j < n_neighbors; j++) {
+            ASSERT(neighbors[j] < vertices_.n());
             const auto* pj = vertices_[neighbors[j]];
             double d_squared = 0;
             for (int d = 0; d < vertices_.dim(); d++)
@@ -232,6 +233,7 @@ void Mesh::separate_polygons_into_connected_components(
   std::unordered_map<edge_t, face_pair_t> edges;
   std::vector<int> components;
   std::queue<index_t> queue;
+  size_t n_failed = 0;
   for (size_t k = 0; k < cell2polygon.size(); k++) {
     auto& polygons = cell2polygon[k];
     if (polygons.empty()) continue;
@@ -333,6 +335,7 @@ void Mesh::separate_polygons_into_connected_components(
       polygon.clear();
       polygon.push_back(p);
 
+      size_t n_edges = 0;
       index_t root = p;
       do {
         found = false;
@@ -353,10 +356,18 @@ void Mesh::separate_polygons_into_connected_components(
         polygon.push_back(q);
         p = q;
         q = next;
+        if (n_edges > edges.size()) break;
+        n_edges++;
       } while (q != root);
+      if (n_edges > edges.size()) {
+        n_failed++;
+        continue;
+      }
+      // ASSERT(n_edges <= edges.size());
       new_polygons.add(polygon.data(), polygon.size());
     }
   }
+  if (n_failed > 0) LOG << fmt::format("failed to combine {} cells", n_failed);
   LOG << fmt::format("maximum # components = {}, # multiple components = {}",
                      max_components, n_multiple_components);
 }
