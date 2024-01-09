@@ -722,7 +722,7 @@ void VoronoiDiagram::merge() {
   LOG << fmt::format("found {} unique vertices", tmap.size());
 
   for (size_t k = 0; k < polygons_.n(); k++) {
-    for (size_t j = 0; j < polygons_.length(k); j++) {
+    for (int j = 0; j < polygons_.length(k); j++) {
       polygons_[k][j] = vmap.at(polygons_[k][j]);
     }
   }

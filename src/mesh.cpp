@@ -151,7 +151,7 @@ void Mesh::merge(double tol) {
       [&workspace, this, tol, &visited, &vmap, &tree, &lock](int tid, int k) {
         if (visited[k]) return;
         const auto* pk = vertices_[k];
-        int n_neighbors = 2;
+        size_t n_neighbors = 2;
         auto& neighbors = workspace[tid].neighbors;
         auto& distance = workspace[tid].distance;
         auto& mergelist = workspace[tid].mergelist;
@@ -240,11 +240,11 @@ void Mesh::separate_polygons_into_connected_components(
 
     // build a list of edges to left & right polygons
     edges.clear();
-    for (int64_t j = 0; j < polygons.size(); j++) {
+    for (size_t j = 0; j < polygons.size(); j++) {
       // loop through all vertices (edges) of this polygon
       auto p = polygons[j];
       auto n = polygons_.length(p);
-      for (size_t i = 0; i < n; i++) {
+      for (int i = 0; i < n; i++) {
         index_t a = polygons_[p][i];
         index_t b = polygons_[p][(i + 1) == n ? 0 : i + 1];
         auto eit = edges.find({b, a});
@@ -252,7 +252,8 @@ void Mesh::separate_polygons_into_connected_components(
           // edge has already been visited in opposite direction
           eit->second[1] = j;
         } else
-          edges.insert({{a, b}, {j, -1}});  // right polygon is null (-1)
+          edges.insert(
+              {{a, b}, {int64_t(j), -1}});  // right polygon is null (-1)
       }
     }
 
@@ -284,7 +285,7 @@ void Mesh::separate_polygons_into_connected_components(
         // loop through all the edges of this polygon
         auto p = polygons[j];
         auto n = polygons_.length(p);
-        for (size_t i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
           index_t a = polygons_[p][i];
           index_t b = polygons_[p][(i + 1) == n ? 0 : i + 1];
           auto eit = edges.find({a, b});

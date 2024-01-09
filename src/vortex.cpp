@@ -260,9 +260,8 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
   // set up the mesh if using a triangle mesh
   Mesh background_mesh(3);
-  bool using_mesh = true;
   if (arg_domain == "sphere") {
-    using_mesh = false;
+    // nothing to prepare
   } else if (arg_domain == "icosahedron") {
     Sphere sphere(program.get<int>("--n_subdiv"));
     sphere.vertices().copy(background_mesh.vertices());

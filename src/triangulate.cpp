@@ -462,7 +462,7 @@ bool EarClipper::triangulate(const std::vector<vec3d>& points,
   }
 
   if (convex) {
-    for (int k = 2; k < n_points; k++) {
+    for (size_t k = 2; k < n_points; k++) {
       triangles_.push_back(0);
       triangles_.push_back(k - 1);
       triangles_.push_back(k);
@@ -476,7 +476,7 @@ bool EarClipper::triangulate(const std::vector<vec3d>& points,
     return true;
   }
 
-  auto is_boundary = [n_points](uint8_t i, uint8_t j) {
+  auto is_boundary = [n_points](size_t i, size_t j) {
     if (i + 1 == j) return true;
     if (i + 1 == n_points && j == 0) return true;
     return false;
