@@ -28,7 +28,7 @@ using namespace vortex;
 UT_TEST_SUITE(io_tests)
 
 UT_TEST_CASE(obj_test) {
-  Sphere sphere(4);
+  SubdividedIcosahedron sphere(4);
   obj::write(sphere, "sphere.obj");
 
   Mesh mesh(3);
@@ -40,7 +40,7 @@ UT_TEST_CASE(obj_test) {
 UT_TEST_CASE_END(obj_test)
 
 UT_TEST_CASE(meshb_test) {
-  Sphere sphere(4);
+  SubdividedIcosahedron sphere(4);
   meshb::write(sphere, "sphere.meshb");
 
   Mesh mesh(3);

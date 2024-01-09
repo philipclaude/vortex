@@ -36,7 +36,6 @@ void HalfMesh::build(const Mesh& mesh) {
   vertices_.reserve(mesh.vertices().n());
   for (index_t k = 0; k < mesh.vertices().n(); k++) {
     (void)create_node(mesh.vertices()[k]);
-    vertices_.set_entity(k, mesh.vertices().entity(k));
   }
 
   // create faces and edges

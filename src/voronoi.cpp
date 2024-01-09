@@ -78,18 +78,6 @@ void SphereDomain::initialize(vec4 site,
   vertices[3].br = 0;
 }
 
-vec4 SphericalVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj,
-                                             const coord_t& wi,
-                                             const coord_t& wj) {
-  // https://en.wikipedia.org/wiki/Radical_axis
-  // the weight is the radius squared, M1 = ui.xyz() and M2 = uj.xyz()
-  coord_t d = length((uj - ui).xyz());
-  coord_t d1 = (d * d + wi - wj) / (2.0 * d);
-  vec4 m = ui + d1 * (uj - ui) / d;  // (uj - ui) / d is unit_vector(M2 - M1)
-  vec3 n = unit_vector((ui - uj).xyz());  // normal points *into* cell i
-  return {n.x, n.y, n.z, -dot(n, m.xyz())};
-}
-
 vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
   // 1. compute the line of intersection of two planes: x(t) = p + r * t
   // robust version described here:
@@ -172,6 +160,9 @@ void PlanarVoronoiPolygon::initialize(const vec3* points, const size_t n_points,
 
 uint8_t PlanarVoronoiPolygon::side(const vec4& pi, const vec4& pj,
                                    const vec4& p) const {
+  // The implementation for this function was inspired by voronoi.cu in the
+  // Supplemental Material for "Meshless voronoi on the GPU":
+  // (https://dl.acm.org/doi/10.1145/3272127.3275092)
   const vec4& pk = base;
   bool exact = true;
   double det = det4x4(pi.x, pj.x, pk.z, p.x, pi.y, pj.y, pk.y, p.y, pi.z, pj.z,
@@ -196,20 +187,12 @@ uint8_t PlanarVoronoiPolygon::side(const vec4& pi, const vec4& pj,
   return plane_side(compute(pi, pj), p);
 }
 
-vec4 PlanarVoronoiPolygon::plane_equation(const vec4& ui, const vec4& uj,
-                                          const coord_t& wi,
-                                          const coord_t& wj) {
-  // bisector (plane) normal and midpoint
-  coord_t d = length((uj - ui).xyz());
-  coord_t d1 = (d * d + wi - wj) / (2.0 * d);
-  vec4 m = ui + d1 * (uj - ui) / d;  // (uj - ui) / d is unit_vector(M2 - M1)
-  vec3 n = unit_vector((ui - uj).xyz());  // normal points *into* cell i
-  return {n.x, n.y, n.z, -dot(n, m.xyz())};
-}
-
 vec4 PlanarVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
-  // find the intersection of the three planes using Cramer's formula.
-  // system of equations to be solved:
+  // The implementation of this function was inspired by the
+  // "ConvexCell::compute_triangle_point" function in
+  // https://github.com/BrunoLevy/geogram/blob/main/src/lib/geogram/voronoi/convex_cell.cpp
+  // Here, we need to find the intersection of the three planes using Cramer's
+  // formula. The system of equations to be solved is:
   // pi.x * x + pi.y * y + pi.z * z = -pi.w
   // pj.x * x + pj.y * y + pj.z * z = -pj.w
   // pk.x * x + pk.y * y + pk.z * z = -pk.w

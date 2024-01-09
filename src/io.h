@@ -26,15 +26,37 @@ namespace vortex {
 class Mesh;
 
 namespace meshb {
+
+/// @brief Reads a .meshb file and stores it in a Mesh object.
+/// @param filename Path to the .meshb file.
+/// @param mesh Destination of the mesh.
 void read(const std::string& filename, Mesh& mesh);
+
+/// @brief Writes a .meshb file.
+/// @param mesh Mesh object to write.
+/// @param filename Path to the output .meshb file.
+/// @param twod whether we are writing vertices in 2d.
 void write(const Mesh& mesh, const std::string& filename, bool twod = false);
+
 }  // namespace meshb
 
 namespace obj {
+
+/// @brief Reads a .obj file and stores it in a Mesh object.
+/// @param filename Path to the .obj file.
+/// @param mesh Destination of the mesh.
 void read(const std::string& filename, Mesh& mesh);
+
+/// @brief Writes a .obj file.
+/// @param mesh Mesh object to write.
+/// @param filename Path to the output .obj file.
 void write(const Mesh& mesh, const std::string& filename);
+
 }  // namespace obj
 
+/// @brief Retrieves the extension of the file.
+/// @param filename
+/// @return string containing the characeters after the last '.'
 inline std::string get_file_ext(const std::string& filename) {
   std::string::size_type idx;
   idx = filename.rfind('.');  // find the '.' in reverse order
@@ -42,6 +64,9 @@ inline std::string get_file_ext(const std::string& filename) {
   return "";
 }
 
+/// @brief Reads a .meshb or .obj file and stores it in a Mesh object.
+/// @param filename Path to the mesh file.
+/// @param mesh Destination of the mesh.
 inline void read_mesh(const std::string& filename, Mesh& mesh) {
   std::string ext = get_file_ext(filename);
   std::transform(ext.begin(), ext.end(), ext.begin(),

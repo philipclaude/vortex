@@ -27,7 +27,7 @@ using namespace vortex;
 UT_TEST_SUITE(graphics_test_suite)
 
 UT_TEST_CASE(test1) {
-  // Sphere mesh(0);
+  // SubdividedIcosahedron mesh(0);
   //    mesh.vertices().print();
   //    mesh.triangles().print();
   //  Grid<Triangle> mesh({10, 10}, 3);
@@ -36,7 +36,7 @@ UT_TEST_CASE(test1) {
   Grid<Quad> mesh({10, 10}, 3);
   mesh.fields().set_defaults(mesh);
 #if VORTEX_FULL_UNIT_TEST == 0
-  Viewer viewer(mesh, 7681, false);
+  Viewer viewer(mesh, 7681);
 #endif
 }
 UT_TEST_CASE_END(test1)

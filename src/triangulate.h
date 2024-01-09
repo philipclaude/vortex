@@ -29,6 +29,9 @@ class Vertices;
 template <typename T>
 class Topology;
 
+/// @brief Triangulates the oceans by inserting points from the coast and
+/// recovering the edges stored in the coast.lines(). [WARNING] This is a
+/// work-in-progress and should not be used yet.
 class OceanTriangulator {
  public:
   struct Options {};
@@ -44,8 +47,11 @@ class OceanTriangulator {
   HalfMesh hmesh_;
 };
 
+/// @brief Triangulates a general polygon using ear clipping.
 class EarClipper {
  private:
+  /// @brief Helper structure to represent a node in the linked list defining
+  /// the current polygon.
   struct Node {
     uint8_t next;
     uint8_t prev;
@@ -53,10 +59,27 @@ class EarClipper {
   };
 
  public:
+  /// @brief Triangulates the polygon.
+  /// @param points array of points to triangulate.
+  /// @param normal Normal vector to use to determine the orientation of
+  /// triangles.
+  /// @return Whether the polygon was determine to be convex (true) or concave
+  /// (false) during the triangulation procedure.
   bool triangulate(const std::vector<vec3d>& points, const vec3d& normal);
 
+  /// @brief Returns the number of triangles in the triangulation of the
+  /// polygon.
   size_t n_triangles() const { return triangles_.size() / 3; }
+
+  /// @brief Returns a pointer to the first index of triangle k in the
+  /// triangulation.
+  /// @param k triangle index.
   const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
+
+  /// @brief Returns whether the edge opposite vertex j of triangle k is on the
+  /// boundary of the polygon.
+  /// @param k triangle index
+  /// @param j vertex index (edge is opposite the vertex).
   bool boundary(size_t k, int j) const { return boundary_[3 * k + j]; }
 
  private:
@@ -77,10 +100,27 @@ class PolygonTriangulation {
   PolygonTriangulation(const Vertices& vertices,
                        const Topology<Polygon>& polygons);
 
+  /// @brief Triangulates polygons m through n (not including n).
+  /// @param type How the tangent space should be computed (see enum above).
   void triangulate(TangentSpaceType type, size_t m, size_t n);
+
+  /// @brief Returns the total number of triangles in the triangulation of all
+  /// polygons.
   size_t n() const { return triangles_.size() / 3; }
+
+  /// @brief Returns a pointer to the first index of triangle k in the
+  /// triangulation.
+  /// @param k triangle index.
   const index_t* triangle(size_t k) const { return triangles_.data() + 3 * k; }
+
+  /// @brief Returns the index of the polygon for triangle k.
+  /// @param k triangle index.
   int group(size_t k) const { return group_[k]; }
+
+  /// @brief Returns whether the edge opposite vertex j of triangle k is on the
+  /// boundary of the polygon.
+  /// @param k triangle index
+  /// @param j vertex index (edge is opposite the vertex).
   bool edge(size_t k, int j) const { return edge_[3 * k + j]; }
 
  private:

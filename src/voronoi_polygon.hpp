@@ -94,7 +94,7 @@ class VoronoiPolygon {
       const vec4 uj(zj, dim);
 
       // create the plane and clip
-      const vec4 eqn = cell_.plane_equation(ui, uj, wi, wj);
+      const vec4 eqn = plane_equation(ui, uj, wi, wj);
       const uint8_t b = new_plane(eqn, n);
       clip_by_plane(b);
 
@@ -262,7 +262,7 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       const coord_t wj = 0.0;
 
       // create the plane and clip
-      const vec4 eqn = cell_.plane_equation(ui, uj, wi, wj);
+      const vec4 eqn = plane_equation(ui, uj, wi, wj);
       const uint8_t b = new_plane(eqn, n);
       clip_by_plane(b);
 

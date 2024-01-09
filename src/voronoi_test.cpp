@@ -225,7 +225,7 @@ UT_TEST_CASE(test_sphere) {
     vertices.add(x);
   }
 
-  SphereDomain domain(1.0);
+  SphereDomain domain;
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
@@ -304,7 +304,7 @@ UT_TEST_CASE(test_sphere) {
 UT_TEST_CASE_END(test_sphere)
 
 UT_TEST_CASE(test_sphere_triangulation) {
-  Sphere sphere(2);
+  SubdividedIcosahedron sphere(2);
   static const int dim = 3;
   size_t n_sites = 1e4;
   Vertices data(3);

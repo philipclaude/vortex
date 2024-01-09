@@ -29,6 +29,10 @@ namespace vortex {
 using mat3 = vortex::mats<3, 3, double>;
 using vec2d = vortex::vecs<2, double>;
 
+/// @brief Determines the parameter space coordinates (u, v) from a point on the
+/// sphere centered at the origin with a radius of 1.
+/// @param xyz Coordinates of the point on the sphere.
+/// @param uv Parameter space coordinates (theta, phi) divided by (2\pi, \pi).
 inline void sphere_params(const vec3d& xyz, vec3d& uv) {
   uv[0] = 0.5 * (atan2(xyz[1], xyz[0]) + M_PI) / M_PI;
   uv[1] = (M_PI - acos(xyz[2])) / M_PI;

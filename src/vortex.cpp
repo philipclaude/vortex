@@ -43,7 +43,7 @@ void run_visualizer(argparse::ArgumentParser& program) {
   Mesh mesh(3);
   read_mesh(filename, mesh);
   mesh.fields().set_defaults(mesh);
-  Viewer viewer(mesh, 7681, true);
+  Viewer viewer(mesh, 7681);
 }
 
 void apply_mask(const std::string& input, double tmin, double tmax,
@@ -263,7 +263,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
   if (arg_domain == "sphere") {
     // nothing to prepare
   } else if (arg_domain == "icosahedron") {
-    Sphere sphere(program.get<int>("--n_subdiv"));
+    SubdividedIcosahedron sphere(program.get<int>("--n_subdiv"));
     sphere.vertices().copy(background_mesh.vertices());
     sphere.triangles().copy(background_mesh.triangles());
   } else {  // TODO implement "square" domain
@@ -317,12 +317,13 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.allow_reattempt = false;
   options.parallel = true;
 
-  auto calculate_voronoi_diagram = [&voronoi, &options, &points,
-                                    &n_smooth](auto& domain) {
+  auto save = program.present<std::string>("--output");
+  auto calculate_voronoi_diagram = [&voronoi, &options, &points, &n_smooth,
+                                    &save](auto& domain) {
     int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
-      options.store_mesh = iter == n_iter;
-      options.verbose = (iter == 1 || iter == n_iter - 1);
+      options.store_mesh = iter == n_iter && save;
+      options.verbose = (iter == 1 || iter == n_iter);
       voronoi.vertices().clear();
       voronoi.vertices().set_dim(3);
       voronoi.polygons().clear();
@@ -338,7 +339,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
   // calculate!
   if (arg_domain == "sphere") {
-    SphereDomain domain(1);  // assume unit radius
+    SphereDomain domain;
     calculate_voronoi_diagram(domain);
   } else {
     const auto* p = background_mesh.vertices()[0];
@@ -348,6 +349,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
     TriangulationDomain domain(p, np, t, nt);
     calculate_voronoi_diagram(domain);
   }
+  if (save) voronoi.merge();
 
   if (program.present<std::string>("--output")) {
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
