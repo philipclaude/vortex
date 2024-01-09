@@ -50,9 +50,10 @@ class HalfNode {
   void get_onering(std::vector<T*>& ring) const;
 
  private:
-  HalfMesh& mesh_;
-  int64_t index_{halfnull_t};
-  half_t edge_{halfnull_t};
+  HalfMesh& mesh_;             // reference to the HalfMesh container
+  int64_t index_{halfnull_t};  // index of this node in the HalfMesh::nodes_ as
+                               // well as the coordinates in HalfMesh::vertices_
+  half_t edge_{halfnull_t};    // index of an edge in HalfMesh::edges_
 };
 
 class HalfFace;
@@ -98,13 +99,15 @@ class HalfEdge {
   half_t next() const { return next_; }
 
  private:
-  HalfMesh& mesh_;
-  half_t index_{halfnull_t};
-  half_t twin_{halfnull_t};
-  half_t node_{halfnull_t};
-  half_t face_{halfnull_t};
-  half_t prev_{halfnull_t};
-  half_t next_{halfnull_t};
+  HalfMesh& mesh_;            // reference to the HalfMesh container
+  half_t index_{halfnull_t};  // index of this edge in HalfMesh::edges_
+  half_t twin_{halfnull_t};   // index of the twin in HalfMesh::edges_
+  half_t node_{halfnull_t};   // index of the origin node in HalfMesh::nodes_
+  half_t face_{halfnull_t};   // index of the left face in HalfMesh::faces_
+  half_t prev_{halfnull_t};  // index of the previous edge (in CCW order) around
+                             // the face in HalfMesh::edges_
+  half_t next_{halfnull_t};  // index of the next edge (in CCW order) around the
+                             // face in HalfMesh::edges_
 };
 
 class HalfFace {
@@ -125,13 +128,18 @@ class HalfFace {
   const HalfEdge& get_edge() const;
 
  private:
-  HalfMesh& mesh_;
-  half_t edge_{halfnull_t};
-  half_t index_{halfnull_t};
-  int32_t group_{-1};
-  uint8_t n_{0};
+  HalfMesh& mesh_;            // reference to the HalfMesh container
+  half_t edge_{halfnull_t};   // index of one of the edges on this face in
+                              // HalfMesh::edges_
+  half_t index_{halfnull_t};  // index of this face in HalfMesh::faces_
+  int32_t group_{-1};         // group index
+  uint8_t n_{0};              // number of vertices in this face
 };
 
+/// @brief Represents a mesh using half-edges.
+/// Entities (HalfNode, HalfEdge, HalfFace) reference each other using indices
+/// into the arrays stored in this HalfMesh container. The type of these indices
+/// is specified by the definition of half_t above.
 class HalfMesh {
  public:
   HalfMesh(const Mesh& mesh) : vertices_(mesh.vertices().dim()) { build(mesh); }
