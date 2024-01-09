@@ -212,13 +212,14 @@ void run_extract(argparse::ArgumentParser& program) {
       queue.pop();
       HalfFace& face = hmesh.faces()[f];
       face.set_group(i);
-      mesh.triangles().set_group(f, i);
+      // mesh.polygons().set_group(f, i);
+      //  mesh.triangles().set_group(f, i);
       visited[f] = true;
       land_faces.insert(f);
 
       // loop through the neighbors
       e = face.edge();
-      for (int j = 0; j < 3; j++) {
+      for (int j = 0; j < face.n(); j++) {
         // check if this is an edge of the boundary
         half_t t = hmesh.edges()[e].twin();
         if (bnd.find(e) != bnd.end() || bnd.find(t) != bnd.end()) {
@@ -240,13 +241,15 @@ void run_extract(argparse::ArgumentParser& program) {
     return land_faces.find(k) == land_faces.end();
   });
   hmesh.extract(water);
-  meshb::write(water, "water.meshb");
+  auto arg_water = program.get<std::string>("--oceans");
+  meshb::write(water, arg_water);
 
   hmesh.activate_faces_by([&land_faces](half_t k) {
     return land_faces.find(k) != land_faces.end();
   });
   hmesh.extract(land);
-  meshb::write(land, "land.meshb");
+  auto arg_land = program.get<std::string>("--continents");
+  meshb::write(land, arg_land);
 }
 
 void run_voronoi(argparse::ArgumentParser& program) {
@@ -257,9 +260,8 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
   // set up the mesh if using a triangle mesh
   Mesh background_mesh(3);
-  bool using_mesh = true;
   if (arg_domain == "sphere") {
-    using_mesh = false;
+    // nothing to prepare
   } else if (arg_domain == "icosahedron") {
     Sphere sphere(program.get<int>("--n_subdiv"));
     sphere.vertices().copy(background_mesh.vertices());
@@ -324,6 +326,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.vertices().clear();
       voronoi.vertices().set_dim(3);
       voronoi.polygons().clear();
+      voronoi.triangles().clear();
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
@@ -345,18 +348,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
     TriangulationDomain domain(p, np, t, nt);
     calculate_voronoi_diagram(domain);
   }
-  voronoi.merge();
-
-  // randomize the colors a bit, otherwise neighboring cells
-  // will have similar colors and won't visually stand out
-  size_t n_colors = 20;
-  std::vector<int> site2color(n_points);
-  for (size_t k = 0; k < n_points; k++)
-    site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
-  for (size_t k = 0; k < voronoi.polygons().n(); k++) {
-    int group = voronoi.polygons().group(k);  // the group is the site
-    voronoi.polygons().set_group(k, site2color[group]);
-  }
 
   if (program.present<std::string>("--output")) {
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
@@ -369,6 +360,29 @@ void run_voronoi(argparse::ArgumentParser& program) {
     meshb::write(tmp, program.get<std::string>("--output_points"));
   }
 }
+
+void run_merge(argparse::ArgumentParser& program) {
+  auto arg_input = program.get<std::string>("input");
+  auto arg_output = program.get<std::string>("--output");
+  auto combine = program.get<bool>("--combine");
+
+  double tol = 1e-10;
+  Mesh input_mesh(3);
+  read_mesh(arg_input, input_mesh);
+  input_mesh.merge(tol);
+
+  if (!combine) {
+    meshb::write(input_mesh, arg_output);
+    return;
+  }
+
+  Mesh output_mesh(input_mesh.vertices().dim());
+  input_mesh.vertices().copy(output_mesh.vertices());
+  input_mesh.separate_polygons_into_connected_components(
+      output_mesh.polygons());
+  meshb::write(output_mesh, arg_output);
+}
+
 }  // namespace
 }  // namespace vortex
 
@@ -449,7 +463,24 @@ int main(int argc, char** argv) {
       .help("output mesh file ([prefer] .meshb or .obj)");
   cmd_voronoi.add_argument("--output_points")
       .help("output points filename ([prefer] .meshb or .obj)");
+  cmd_voronoi.add_argument("--n_group_bins")
+      .help("number of bins to use for the cell groups")
+      .default_value(-1)
+      .scan<'i', int>();
   program.add_subparser(cmd_voronoi);
+
+  argparse::ArgumentParser cmd_merge("merge");
+  cmd_merge.add_description(
+      "merge nearby vertices in the mesh, renumbering mesh elements");
+  cmd_merge.add_argument("input").help("path to input mesh file (.meshb)");
+  cmd_merge.add_argument("--combine")
+      .help(
+          "combine polygons with the same group and separate them into "
+          "connected components (useful for Voronoi diagrams restricted to a "
+          "triangulation)")
+      .flag();
+  cmd_merge.add_argument("--output").help("path to output mesh file (.meshb)");
+  program.add_subparser(cmd_merge);
 
   try {
     program.parse_args(argc, argv);
@@ -467,6 +498,8 @@ int main(int argc, char** argv) {
     vortex::run_extract(program.at<argparse::ArgumentParser>("extract"));
   } else if (program.is_subcommand_used("voronoi")) {
     vortex::run_voronoi(program.at<argparse::ArgumentParser>("voronoi"));
+  } else if (program.is_subcommand_used("merge")) {
+    vortex::run_merge(program.at<argparse::ArgumentParser>("merge"));
   } else {
     std::cout << program.help().str();
   }

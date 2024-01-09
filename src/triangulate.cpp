@@ -433,4 +433,182 @@ void OceanTriangulator::recover_edges() {
                      mesh_.lines().n());
 }
 
+bool EarClipper::triangulate(const std::vector<vec3d>& points,
+                             const vec3d& normal) {
+  size_t n_points = points.size();
+  triangles_.clear();
+  boundary_.clear();
+  nodes_.clear();
+  triangles_.reserve(3 * n_points);
+  boundary_.reserve(triangles_.size());
+  nodes_.resize(n_points);
+
+  // first check if the polygon is convex while building the nodes
+  bool convex = true;
+  size_t prev = n_points - 1;
+  for (size_t k = 0; k < n_points; k++) {
+    nodes_[k].prev = prev;
+    nodes_[k].next = (k + 1) == n_points ? 0 : k + 1;
+    nodes_[k].indx = k;
+
+    // calculate the normal
+    const vec3d& a = points[prev];
+    const vec3d& b = points[k];
+    const vec3d& c = points[nodes_[k].next];
+    vec3d nk = cross(b - a, c - a);
+    if (dot(nk, normal) < 0) convex = false;
+
+    prev = k;
+  }
+
+  if (convex) {
+    for (size_t k = 2; k < n_points; k++) {
+      triangles_.push_back(0);
+      triangles_.push_back(k - 1);
+      triangles_.push_back(k);
+
+      bool e1 = (k + 1 == n_points);
+      bool e2 = (k == 2);
+      boundary_.push_back(true);
+      boundary_.push_back(e1);
+      boundary_.push_back(e2);
+    }
+    return true;
+  }
+
+  auto is_boundary = [n_points](size_t i, size_t j) {
+    if (i + 1 == j) return true;
+    if (i + 1 == n_points && j == 0) return true;
+    return false;
+  };
+
+  auto inside = [](const vec3d& a, const vec3d& b, const vec3d& c,
+                   const vec3d& d) {
+    vec3d n_abc = cross(b - a, c - a);
+    vec3d n_abd = cross(b - a, d - a);
+    vec3d n_bcd = cross(c - b, d - b);
+    vec3d n_cad = cross(a - c, d - c);
+    if (dot(n_abc, n_abd) > 0 && dot(n_abc, n_bcd) > 0 && dot(n_abc, n_cad) > 0)
+      return true;
+    return false;
+  };
+
+  size_t n_edges = n_points;
+  size_t root = 0;
+  while (n_edges >= 3) {
+    // find an ear
+    size_t n = root;
+    do {
+      auto prev = nodes_[n].prev;
+      auto indx = nodes_[n].indx;
+      auto next = nodes_[n].next;
+      const vec3d& a = points[prev];
+      const vec3d& b = points[indx];
+      const vec3d& c = points[next];
+
+      // check if this triangle is inverted
+      if (dot(cross(b - a, c - a), normal) < 0) {
+        n = nodes_[n].next;
+        continue;
+      }
+
+      // check if any other vertex is contained in the triangle
+      bool ear = true;
+      size_t m = nodes_[next].next;  // start with the next of next
+      do {
+        // check if we looped back to the prev of the current vertex
+        if (m == prev) break;
+
+        const vec3d& d = points[nodes_[m].indx];
+        if (inside(a, b, c, d)) {
+          ear = false;
+          break;
+        }
+        m = nodes_[m].next;
+      } while (m != root);
+      if (ear) break;
+
+      n = nodes_[n].next;
+    } while (n != root);
+
+    // found an ear
+    size_t prev = nodes_[n].prev;
+    size_t next = nodes_[n].next;
+    triangles_.push_back(prev);
+    triangles_.push_back(n);
+    triangles_.push_back(next);
+
+    boundary_.push_back(is_boundary(n, next));
+    boundary_.push_back(false);
+    boundary_.push_back(is_boundary(prev, n));
+
+    // update the linked list
+    nodes_[prev].next = next;
+    nodes_[next].prev = prev;
+    root = next;
+
+    // we add one edge but remove two, so there is one less edge
+    n_edges -= 1;
+  }
+  return false;
+}
+
+PolygonTriangulation::PolygonTriangulation(const Vertices& vertices,
+                                           const Topology<Polygon>& polygons)
+    : vertices_(vertices), polygons_(polygons) {}
+
+void PolygonTriangulation::triangulate(TangentSpaceType type, size_t m,
+                                       size_t n) {
+  std::vector<vec3d> points;
+  int dim = vertices_.dim();
+
+  triangles_.reserve((n - m) * 10 * 3);
+  group_.reserve(n - m);
+  edge_.reserve(triangles_.capacity());
+
+  EarClipper clipper;
+  size_t n_convex = 0;
+  for (size_t k = m; k < n; k++) {
+    // save the points and calculate average (center)
+    points.resize(polygons_.length(k));
+    vec3d normal;
+    vec3d center;
+    const auto* pk = polygons_[k];
+    for (int j = 0; j < polygons_.length(k); j++) {
+      for (int d = 0; d < dim; d++) points[j][d] = vertices_[pk[j]][d];
+      center = center + points[j];
+    }
+    center = (1.0 / points.size()) * center;
+
+    // calculate plane normal
+    if (type == TangentSpaceType::kPlanar ||
+        type == TangentSpaceType::kGeneral) {
+      const auto& p0 = points[0];
+      for (size_t i = 2; i < points.size(); i++)
+        normal = normal + cross(points[i - 1] - p0, points[i] - p0);
+      normal = normalize(normal);
+    } else if (type == TangentSpaceType::kSphere) {
+      normal = normalize(center);
+    }
+
+    // project points to the tangent plane
+    for (size_t i = 0; i < points.size(); i++)
+      points[i] = points[i] - dot(points[i] - center, normal) * normal;
+
+    // triangulate the polygon
+    bool convex = clipper.triangulate(points, normal);
+    if (convex) n_convex++;
+
+    // save the result
+    for (size_t i = 0; i < clipper.n_triangles(); i++) {
+      for (int j = 0; j < 3; j++) {
+        triangles_.push_back(pk[clipper.triangle(i)[j]]);
+        edge_.push_back(clipper.boundary(i, j));
+      }
+      group_.push_back(k);
+    }
+  }
+  LOG << fmt::format("detected {} convex cells out of {}", n_convex, n - m);
+}
+
 }  // namespace vortex

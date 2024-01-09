@@ -4,19 +4,18 @@ layout (points) in;
 uniform mat4 u_ModelViewProjectionMatrix;
 uniform mat4 u_NormalMatrix;
 uniform mat4 u_ModelViewMatrix;
-uniform mat4 u_ViewportMatrix;
 
 uniform int u_clip;
 uniform vec3 u_clip_point;
 uniform vec3 u_clip_normal;
 uniform int u_earth;
 
-uniform vec2 u_ViewportSize = vec2(800,600);
 uniform vec2 u_aa_radius;
+uniform int u_width;
+uniform int u_height;
 
 flat out int id;
 
-//layout (line_strip , max_vertices = 3) out;
 layout (triangle_strip, max_vertices = 6) out;
 
 float t = 0.025;
@@ -27,6 +26,8 @@ uniform usamplerBuffer index;
 flat in int v_id[];
 
 void main() {
+
+  vec2 ViewportSize = vec2(u_width, u_height);
 
   uint i0 = texelFetch(index, 2 * v_id[0]    ).r;
   uint i1 = texelFetch(index, 2 * v_id[0] + 1).r;
@@ -40,8 +41,8 @@ void main() {
   vec4 p0 = u_ModelViewProjectionMatrix * vec4(x0, 1.0);
   vec4 p1 = u_ModelViewProjectionMatrix * vec4(x1, 1.0);
 
-  float u_width = u_ViewportSize[0];
-  float u_height = u_ViewportSize[1];
+  float u_width = ViewportSize[0];
+  float u_height = ViewportSize[1];
   float u_aspect_ratio = u_height / u_width;
 
   vec2 v_line_width;
@@ -52,7 +53,7 @@ void main() {
   vec2 ndc_b = p1.xy / p1.w;
 
   vec2 line_vector = ndc_b - ndc_a;
-  vec2 viewport_line_vector = line_vector * u_ViewportSize;
+  vec2 viewport_line_vector = line_vector * ViewportSize;
   vec2 dir = normalize(vec2(line_vector.x, line_vector.y * u_aspect_ratio));
   
   float line_width_a = max(1.0, v_line_width[0]) + u_aa_radius[0];

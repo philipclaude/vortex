@@ -54,19 +54,14 @@
     </style>
   </head>
 
-  <body
-    style="background-color: lightgray"
-    onload='connect("ws://localhost:7681");'
-  >
-    <!-- wrapper -->
+  <body style="background-color: lightgray">
     <div id="wrapper">
-      <!-- page content -->
       <div class="avoid-nav" id="page-content-wrapper">
         <div
           class="btn btn-primary"
           style="
             width: 100%;
-            height: 50px;
+            height: 40px;
             background-color: black;
             color: white;
             border-color: black;
@@ -98,9 +93,10 @@
               id="input-height"
               type="number"
               step="100"
+              value="600"
             />
             &nbsp;&nbsp;
-            <label class="form-check-label" for="height-input">height</label>
+            <label class="form-check-label" for="input-height">height</label>
             &nbsp;&nbsp;
           </div>
           <div style="display: inline-block">
@@ -337,23 +333,30 @@
             <textarea id="message-area" style="width: 500px"> </textarea>
           </div>
           <hr />
-          <div class="container">
+          <div style="width: 100%; position: relative">
             <img
               class="center"
               id="image"
-              width="500"
-              height="500"
-              style="border: 2px solid black; border-radius: 8px"
+              width="600"
+              height="600"
+              style="width: inherit; border-radius: 4px"
             />
-            <br />
           </div>
           <hr />
+          <b>Instructions:</b>
+          <ul>
+            <li>Click and drag the mouse to rotate.</li>
+            <li>
+              Hold <code>shift</code>, click and drag the mouse to translate.
+            </li>
+            <li>Scroll to zoom in or out.</li>
+            <li>Double-click an element to highlight it.</li>
+            <li>Press the <code>f</code> key to cycle through the fields.</li>
+            <li>Not currently implemented: transparency, export, clipping.</li>
+          </ul>
         </div>
-        <!-- container-fluid -->
       </div>
-      <!-- page-content-wrapper -->
     </div>
-    <!-- wrapper -->
   </body>
 
   <script>
@@ -373,7 +376,7 @@
       ws = new websocket(url);
       ws.onopen = function (e) {
         console.log("opened websocket connection");
-        setQuality();
+        window.onresize();
       };
       ws.onclose = function (evt) {
         console.log("connection closed");
@@ -384,10 +387,6 @@
             evt.data.substring(1);
           return;
         }
-        const w = 800;
-        const h = 600;
-        if (w != img.width) img.width = w;
-        if (h != img.height) img.height = h;
         const data = evt.data;
         img.src = "data:image/jpg;base64," + data;
         document.getElementById("size-label").innerHTML =
@@ -426,7 +425,7 @@
     });
 
     img.addEventListener(
-      "mousewheel",
+      "wheel",
       function (e) {
         e.preventDefault();
         if (!scrolling) {
@@ -471,8 +470,16 @@
       ws.send("KIa" + document.getElementById("transparency").value);
     };
 
+    let timeout;
     window.onresize = function () {
-      // TODO
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const w = 4 * Math.floor(window.innerWidth / 4);
+        img.width = w;
+        img.setAttribute("width", w);
+        ws.send("KIW" + w);
+        setQuality(); // request an image update
+      }, 100);
     };
 
     const checkboxResult = (id) => {
@@ -528,6 +535,17 @@
     const toggleNumbers = () => {
       const dropdown = document.getElementById("dropdown-vertex-numbers");
       ws.send("KI#" + dropdown.selectedIndex);
+    };
+
+    const setHeight = () => {
+      const h = document.getElementById("input-height").value;
+      img.setAttribute("height", h);
+      ws.send("KIH" + h);
+      setQuality(); // request an image update
+    };
+
+    window.onload = () => {
+      connect("ws://localhost:7681");
     };
   </script>
 </html>

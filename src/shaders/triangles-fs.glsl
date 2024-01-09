@@ -30,7 +30,8 @@ uniform int u_picking = -1;
 uniform mat4 u_ModelViewProjectionMatrix;
 uniform mat4 u_ModelViewMatrix;
 uniform mat4 u_NormalMatrix;
-uniform vec2 u_ViewportSize = vec2(800, 600);
+uniform int u_width;
+uniform int u_height;
 
 #define LARGE_DISTANCE 1000000
 
@@ -89,9 +90,10 @@ void main() {
   vec2 q1 = p1.xy / p1.w;
   vec2 q2 = p2.xy / p2.w;
 
-  vec2 v1 = u_ViewportSize * (q1 - q0);
-  vec2 v2 = u_ViewportSize * (q2 - q0);
-  vec2 v3 = u_ViewportSize * (q2 - q1);
+  vec2 ViewportSize = vec2(u_width, u_height);
+  vec2 v1 = ViewportSize * (q1 - q0);
+  vec2 v2 = ViewportSize * (q2 - q0);
+  vec2 v3 = ViewportSize * (q2 - q1);
 
   int vis1 = int(texelFetch(visibility, 3 * id).r);
   int vis2 = int(texelFetch(visibility, 3 * id + 1).r);
@@ -147,5 +149,5 @@ void main() {
   // u_picking = -1 if not picking, u_picking = element id if picking
   if (u_picking == int(cell))
     fragColor = intensity * vec4(0, 0, 0, 1.0) +
-                (1.0 - intensity) * vec4(0.2, 0.5, 1.0, 1.0);
+                (1.0 - intensity) * vec4(0.2, 0.5, 1.0, alpha);
 }

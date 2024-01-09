@@ -204,6 +204,8 @@ void HalfMesh::extract(Mesh& mesh) const {
     elem.clear();
     elem.resize(face.n());
     for (int j = 0; j < face.n(); j++) {
+      ASSERT(node_map.find(edges_[e].node()) != node_map.end())
+          << edges_[e].node();
       elem[j] = node_map.at(edges_[e].node());
       e = edges_[e].next();
     }
@@ -219,6 +221,8 @@ void HalfMesh::extract(Mesh& mesh) const {
   // map lines
   for (size_t k = 0; k < mesh.lines().n(); k++) {
     auto* e = mesh.lines()[k];
+    ASSERT(node_map.find(e[0]) != node_map.end()) << e[0];
+    ASSERT(node_map.find(e[1]) != node_map.end()) << e[1];
     e[0] = node_map.at(e[0]);
     e[1] = node_map.at(e[1]);
   }

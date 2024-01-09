@@ -33,7 +33,7 @@ void main() {
   int visible = int(texelFetch(visibility, n).r);
   if (visible == 0) return;
   vec3 p = texelFetch(points, n).xyz;
-  vec4 q = u_ModelViewProjectionMatrix * vec4(p * 1.001, 1);
+  vec4 q = u_ModelViewProjectionMatrix * vec4(p * 1.00001, 1);
 
   float w = q.w; // depth
   float px = ((q.x + 1) * width / 2) / w; // pixel x-coordinate
