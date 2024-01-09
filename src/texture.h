@@ -37,22 +37,53 @@ static const std::map<TextureFormat, int> kFormat2Channels = {
 
 struct TextureOptions {
   TextureFormat format{TextureFormat::kRGB};
-  bool flipy{false};
+  bool flipy{false};  // should the y-component be flipped?
 };
 
+/// @brief Represents an image that can be sampled to determine properties of a
+/// point on a surface. For example, determining the color or height at a point
+/// on a surface mesh.
 class Texture {
  public:
+  /// @brief Reads an image file
+  /// @param filename Path to the image
+  /// @param options (see above)
   Texture(const std::string& filename, TextureOptions options);
 
+  /// @brief Sample the texture at a point in [0, 1] x [0, 1]
+  /// @param s horizontal parameter coordinate (in [0, 1])
+  /// @param t vertical parameter coordinate (in [0, 1])
+  /// @param value sampled value
   void sample(double s, double t, double* value) const;
+
+  /// @brief Returns the number of pixels in the horizontal direction.
   int width() const { return width_; }
+
+  /// @brief Returns the number of pixels in the vertical direction.
   int height() const { return height_; }
+
+  /// @brief Returns the number of channels (components) for each pixel: 1 for
+  /// grayscale and 3 for RGB.
   int channels() const { return channels_; }
+
+  /// @brief Caps the grayscale pixel values to be either min or max.
+  /// Any value below threshold will be set to min, and above will be max.
   void make_binary(double threshold, double min, double max);
+
+  /// @brief Force grayscale values to be in the [min, max] range.
+  /// @param reverse option to flip the pixel values (255 - value).
   void limit(double min, double max, bool reverse = false);
+
+  /// @brief Forces the pixel values at u = 0 and u = 1 to be the same.
   void make_periodic();
+
+  /// @brief Applies n_iter iterations of Laplacian smoothing to the image.
   void smooth(int n_iter);
+
+  /// @brief Writes the image to filename.
   void write(const std::string& filename) const;
+
+  /// @brief Returns a pointer to the pixel data.
   const auto* data() const { return data_.data(); }
 
  private:
