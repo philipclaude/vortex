@@ -564,6 +564,7 @@ void PolygonTriangulation::triangulate(TangentSpaceType type, size_t m,
 
   triangles_.reserve((n - m) * 10 * 3);
   group_.reserve(n - m);
+  edge_.reserve(triangles_.capacity());
 
   EarClipper clipper;
   size_t n_convex = 0;

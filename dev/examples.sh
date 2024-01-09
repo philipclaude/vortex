@@ -11,6 +11,7 @@ fi
 
 # extract oceans and land
 $vortex extract data/earth.meshb --oceans data/oceans.meshb --continents data/land.meshb
+$vortex extract data/earth_coarse.meshb --oceans data/oceans_coarse.meshb --continents data/land_coarse.meshb
 
 # voronoi diagrams
 $vortex voronoi --domain sphere --points random --n_points 100000 --n_smooth 10 --output data/voronoi_sphere.meshb
