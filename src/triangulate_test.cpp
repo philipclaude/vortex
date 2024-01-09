@@ -37,7 +37,7 @@ UT_TEST_SUITE(triangulate_tests)
 UT_TEST_CASE(test1) {
   // input mesh written by dev/examples.sh
   Mesh input_mesh(3);
-  read_mesh("oceans.meshb", input_mesh);
+  read_mesh("oceans_coarse.meshb", input_mesh);
 
   // extract the lines
   std::unordered_set<std::array<index_t, 2>> edges;

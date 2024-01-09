@@ -3,6 +3,7 @@
 vortex=$1
 
 # create adapted triangle mesh of oceans and continents
+$vortex mesh data/oceans_2048.png --hmin 0.02 --output data/earth_coarse.meshb
 if [ ! -f data/earth.meshb ]; then
   # pass 0.02 in workflow, but 0.005 for better resolution
   $vortex mesh data/oceans_2048.png --hmin $2 --output data/earth.meshb

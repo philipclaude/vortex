@@ -463,6 +463,8 @@ class MeshScene : public wings::Scene {
     bool earth{true};
     bool image{false};
     bool numbers{false};
+    float near{1e-3f};
+    float far{1e3f};
   };
 
  public:
@@ -789,9 +791,9 @@ class MeshScene : public wings::Scene {
       }
       case wings::InputType::KeyValueInt: {
         updated = true;
-        if (input.key == 'Q')
+        if (input.key == 'Q') {
           quality_ = input.ivalue;
-        else if (input.key == 'n')
+        } else if (input.key == 'n')
           view.active["Nodes"] = input.ivalue > 0;
         else if (input.key == 'v')
           view.active["Points"] = input.ivalue > 0;
@@ -813,7 +815,26 @@ class MeshScene : public wings::Scene {
           view.lighting = input.ivalue > 0;
         else if (input.key == '#')
           view.numbers = input.ivalue > 0;
-        else {
+        else if (input.key == 'W') {
+          int w = input.ivalue;
+          view.canvas.resize(w, view.canvas.height);
+          view.projection_matrix = wings::glm::perspective(
+              view.fov, float(w) / float(view.canvas.height), view.near,
+              view.far);
+          // save the width for the scene to write the image
+          view.canvas.width = w;
+          width_ = w;
+        } else if (input.key == 'H') {
+          int h = input.ivalue;
+          view.canvas.resize(view.canvas.width, h);
+          view.projection_matrix = wings::glm::perspective(
+              view.fov, float(view.canvas.width) / float(h), view.near,
+              view.far);
+          // save the height for the scene to write the image
+          view.canvas.height = h;
+          height_ = h;
+          // updated = false;
+        } else {
           updated = false;
         }
         break;
@@ -999,7 +1020,8 @@ class MeshScene : public wings::Scene {
       shader.set_uniform("u_ModelViewProjectionMatrix", mvp_matrix);
       shader.set_uniform("u_ModelViewMatrix", model_view_matrix);
       shader.set_uniform("u_NormalMatrix", normal_matrix);
-      // shader.set_uniform("u_ViewportSize", screen_size_);
+      shader.set_uniform("u_width", view.canvas.width);
+      shader.set_uniform("u_height", view.canvas.height);
 
       shader.set_uniform("u_umin", primitive.umin());
       shader.set_uniform("u_umax", primitive.umax());
@@ -1040,9 +1062,13 @@ class MeshScene : public wings::Scene {
     }
 
     // save the pixels in the wings::Scene
+    // width_ = view.canvas.width;
+    // height_ = view.canvas.height;
+    view.canvas.bind();
+    channels_ = 3;
     GLsizei channels = 3;
     GLsizei stride = channels * view.canvas.width;
-    stride += (stride % 4) ? (4 - stride % 4) : 0;
+    // stride += (stride % 4) ? (4 - stride % 4) : 0;
     pixels_.resize(stride * view.canvas.height);
     GL_CALL(glPixelStorei(GL_PACK_ALIGNMENT, 4));
     GL_CALL(glReadPixels(0, 0, view.canvas.width, view.canvas.height, GL_RGB,
@@ -1087,8 +1113,8 @@ class MeshScene : public wings::Scene {
     wings::vec3f up{0, 1, 0};
     view.view_matrix = wings::glm::lookat(view.eye, view.center, up);
     view.projection_matrix = wings::glm::perspective(
-        view.fov, float(view.canvas.width) / float(view.canvas.height), 1e-3f,
-        1000.0f);
+        view.fov, float(view.canvas.width) / float(view.canvas.height),
+        view.near, view.far);
     view.translation_matrix.eye();
 
     // vertex arrays are not shared between OpenGL contexts in different
