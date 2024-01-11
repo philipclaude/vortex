@@ -1,14 +1,247 @@
 ### About
 
-`vortex` is a Voronoi mesher and fluid simulator for the Earth's oceans and atmosphere.
+`vortex` is a Voronoi mesher, visualizer and fluid simulator for the Earth's oceans and atmosphere. Currently, `vortex` is focused on providing meshing and visualization tools for ocean and atmospheric modeling - the fluid simulations will be implemented in the future. In `vortex`, the distinction between land and water is usually made using an image "texture", similar to how textures are used in computer graphics for normal mapping and for looking up the reflection coefficient on a surface.
+
+**Note:** `vortex` currently contains new unpublished research which is why it is a private repository - please do not share the code with anyone. It could be released publicly after the ideas are published.
 
 ### Installation
 
-#### Dependencies
+To get started, `vortex` only requires `git`, `CMake` and a `C++` compiler that supports `C++17`. The `CMake` configuration will automatically download all required dependencies to the `extern` directory (which will be ignored by `git`). If you need to update a dependency (e.g. `wings`), delete the `extern/wings` directory and re-run the `CMake` configuration in your build directory.
 
-### Usage
+Since `vortex` includes a visualizer built upon `wings`, it also requires `OpenGL` libraries (and `EGL` for Linux or `CGL` for macOS). `CGL` (Core `OpenGL`) should already be included in `macOS` - for Linux, the `dev/setup.sh` script will download `OpenGL`, including `EGL`. See the steps below for getting started.
+
+#### Quickstart
+
+To get started building `vortex`, please use the following steps:
+
+```sh
+git clone git@github.com:middleburygcl/vortex.git
+cd vortex
+dev/setup.sh
+mkdir build
+mkdir build/release
+cd build/release
+cmake ../../
+make
+```
+
+Note that `dev/setup.sh` only needs to be run **once** on your system. Pass `-j` to the `make` command to build with multiple threads.
+
+The steps above will build the `vortex` library in `build/release/lib/`, unit tests (in `build/release/test`), as well as the main vortex executable (`build/release/bin/vortex`).
+
+You can also compile `vortex` in "debug" mode (which will be slower). If you configure `vortex` from `build/debug`, the `CMake` configuration will detect that you wish to build in debug mode, and will add debugging symbols when compiling. The address sanitizer can be useful for catching memory leaks.
+
+#### Running tests
+
+Before running the tests, you'll need to create some sample files. From the root of the repository, run the `dev/examples.sh` script by providing the location of the main `vortex` executable, as well as a mesh size for some of the sample files (here 0.02):
+
+```sh
+dev/examples.sh build/release/bin/vortex 0.02
+```
+
+Then you can navigate back to the build directory and run all the unit tests:
+
+```sh
+cd build/release
+make unit
+```
+
+All unit test output (including details about possible failures) will be written to `unit_tests_output.txt`. The steps above are the same steps used in the workflow that runs on every pull request to ensure unit tests always pass.
+
+To run a single suite of unit tests (for example the suite of Voronoi diagram tests):
+
+```sh
+make voronoi_test
+```
+
+### Examples
+
+Many of the examples below are run by the `dev/examples.sh` script and elaborated upon in this section. All of these examples assume you are currently in the `build/release` directory.
+
+All `vortex` functionality is accessed through the `vortex` executable (in the `bin` directory). It provides "subprograms" to run specific functions. The subprogram should be the first argument passed to `vortex`. Current subprograms include `mesh`, `extract`, `voronoi`, `merge` and `viz`. Each of these subprograms will have it's own set of required and optional arguments. For more information, type:
+
+```sh
+bin/vortex --help
+```
+
+Details about a specific subprogram can be printed using (e.g. for the `voronoi` subprogram):
+
+```sh
+bin/vortex voronoi --help
+```
+
+#### 1. Creating an adapted mesh of the Earth.
+
+Some of the algorithms below rely on being able to distinguish between land and water, as well as resolve and extract the coastlines. This can be done by creating a mesh which adapts an initial icosahedron mesh to the size defined by [this image](data/oceans_2048.png). Triangles in darker regions (land) will have a target size of `hmin` and lighter regions (water) will have a target size of `hmax` (the default is `hmax = 2 * hmin`). To create the adapted mesh using the `data/oceans_2048.png` image for sizing information:
+
+```sh
+bin/vortex mesh ../../data/oceans_2048.png --hmin 0.005 --hmax 0.01 --output earth.meshb
+```
+
+You can also pass `--n_iter X` to use `X` adaptation iterations (the default is 5). Then visualize the mesh using:
+
+```sh
+bin/vortex viz earth.meshb
+```
+
+and open `vortex.html`.
+
+At the end of the `mesh` subprogram, the background image (to determine triangle sizes) is used to assign "group" numbers to each triangle. There are two groups in the final mesh: one for water and one for land. Press the `f` key in the user interface to cycle between the fields and note that the message box will display which field is currently active.
+
+#### 2. Extracting the coast lines and separating the mesh from Example 1 into land and water meshes.
+
+We can directly use the group numbers in the output mesh from Example 1 to find the edges along the coast (i.e. edges whose left and right triangle groups differ). These edges can then be chained together to form closed loops which represent the coasts. This can be done with the `extract` subprogram, which also accepts arguments for where the continents and oceans mesh files should be written after the extraction:
+
+```sh
+bin/vortex extract earth.meshb --oceans water.meshb --continents land.meshb
+```
+
+#### 3. Voronoi diagram in a square.
+
+All Voronoi diagram functionality can be accessed through the `voronoi` subprogram. The main inputs are `--domain` and `--points`. The `--domain` specifies how the domain on which the Voronoi diagram will be restricted and can be an analytic domain ("square" or "sphere" or a triangulation). The `--points` input defines how points should be initialized. For example,
+
+```sh
+bin/vortex voronoi --domain square --points random --n_points 100000 --output example3.meshb
+```
+
+This will create a Voronoi diagram in a square with 100k points and write the final mesh to `example3.meshb`.
+
+You can also perform `X` iterations of Lloyd relaxation using the `--n_smooth` option (here, 10 iterations):
+
+```sh
+bin/vortex voronoi --domain square --points random --n_points 100000 --n_smooth 10 --output example3.meshb
+```
+
+#### 4. Voronoi diagram on a sphere.
+
+The Voronoi diagram of a sphere is calculated in a similar way to Example 3:
+
+```sh
+bin/vortex voronoi --domain sphere --points random --n_points 100000 --n_smooth 10 --output example4.meshb
+```
+
+#### 5. Voronoi diagram on the triangulation of a sphere.
+
+Instead of representing a surface analytically (e.g. for a sphere), we can represent it as a triangulation and calculate the Voronoi diagram restricted to this triangulation.
+
+**Using the vertices of the triangulation for the sites:**
+
+In this example we will use a subdivided icosahedron as the triangulation and will pass `--n_subdiv` to specify the number of subdivisions. It's also possible to pass a mesh file, and the triangles in this mesh will be used for the domain (see Example 6).
+
+The `--points` can be initialized to the vertices of the triangulation:
+
+```sh
+bin/vortex voronoi --domain icosahedron --n_subdiv 3 --points vertices --output example5a.meshb
+```
+
+In this case, we don't specify `--n_points` since it is controlled by the vertices of the triangulation.
+
+**Using a sampling of the triangulation for the sites:**
+
+Alternatively, we can randomly sample points on the triangulation:
+
+```sh
+bin/vortex voronoi --domain icosahedron --n_subdiv 3 --points random --n_points 100000 --output example5b.meshb
+```
+
+When visualizing `example5b.meshb`, press `f` until the the message box shows that the "group" is plotted. Voronoi polygons that are associated with a particular site are assigned the same group.
+
+#### 6. Voronoi diagram of the oceans using a triangulation.
+
+The output `water.meshb` mesh of Example 2 can be used to calculate the Voronoi diagram of the oceans. Voronoi sites will be sampled along the triangulation:
+
+```sh
+bin/vortex voronoi --domain water.meshb --points random --n_points 100000 --output example6.meshb
+```
+
+#### 7. Voronoi diagram of the oceans without a triangulation.
+
+Another idea for creating a Voronoi diagram of the oceans is to initially sample the oceans (using a texture) and then smooth the vertices. This will move some of the points into the continents and eventually converges to covering the entire sphere (this is a recent idea, so I have no theortical guarantees of this). The number of smoothing iterations needed to cover the sphere seems to depend on how many points are used:
+
+```sh
+bin/vortex voronoi --domain sphere.meshb --points random_oceans --n_points 1000000 --n_smooth 10 --output example7.meshb
+```
+
+#### 8. Merging vertices geometrically.
+
+One limitation in `vortex` is that exact predicates are not used when calculating Voronoi diagrams. This is possible for the square and triangulation domains, but I haven't figured out a way yet for spherical domains. As such, it's possible that two Voronoi vertices have the exact same coordinates but different symbolic information (i.e. represent different Delaunay triangles). To overcome this, we can merge nearby Voronoi vertices. This is done somewhat efficiently by constructing a kd-tree and checking the nearest neighbors to the vertices - if the vertices are too close, then they are considered duplicates and element references to the duplicate will be updated.
+
+This is all achieved using the `merge` subprogram, which can also combine polygons based on their group number. The latter (using the `--combine` option) is useful when postprocessing Voronoi diagrams of triangulations since a single Voronoi cell might be split across several triangles and, hence, produces several polygons for a single Voronoi site.
+
+For example, using the output mesh of Example 7:
+
+```sh
+bin/vortex merge example6.meshb --combine --output example8.meshb
+```
+
+In contrast to visualizing the output meshes from Examples 5 or 6, now the "cell" field should display a single color for the Voronoi cell.
 
 ### Developing
+
+The `main` branch of `vortex` is protected, so every contribution must be made in the form of a pull request (PR). Please create a branch (`git checkout -b [branchname]`) when developing a new feature.
+
+Upon every PR, `vortex` will check (using a GitHub workflow) that the unit tests pass, and will also check that the format is in the correct style - this project uses the `Google` style for `C++`. The `clang-format` tool (downloaded by `dev/setup.sh` mentioned above) is used to check the style, which can also be used to update files to conform to the style. I strongly recommend using VS Code and in the Settings, set the **C_Cpp: Clang_format_fallback Style** to **Google** and set the **C_Cpp: Formatting** to **clangFormat**. In the **Text Editor -> Formatting** section, I would also recommend enabling the **Format On Save** option.
+
+#### Programming with `vortex`
+
+The first thing to note is the use of `index_t` and `coord_t` (defined in `src/defs.h`) for defining the integer type to use for element indices, and the floating-point type to use for vertex coordinates, respectively.
+
+The main container for elements and vertices is the `Mesh` structure, which stores all the possible mesh topologies. Each topology is of type `Topology<T>` where the template parameter `T` can be `Line`, `Triangle`, `Quad` or `Polygon`. These topologies inherit from `array2d<index_t>`, thus representing how vertices are connected to form elements. The number of entities in a topology is accessed using `.n()` and the `[]` operator will return a pointer to the first item stored in an entity. For example,
+
+```c++
+Mesh mesh(3); // initialize a mesh with 3d vertices
+
+// create 20 random vertices
+size_t n_vertices = 20;
+coord_t x[3];
+for (size_t k = 0; k < n_vertices; k++) {
+   for (int d = 0; d < 3; d++)
+      x[d] = coord_t(rand()) / coord_t(RAND_MAX);
+   mesh.vertices().add(x);
+}
+ASSERT(mesh.vertices().n() == n_vertices); // use of ASSERT
+LOG << fmt::format("mesh has {} vertices", mesh.vertices().n()); // use of LOG and fmt::format
+
+// retrieve y-coordinate of vertex 5
+LOG << fmt::format("y[5] = {}", mesh.vertices()[5][1]);
+
+auto& polygons = mesh.polygons(); // retrieve a reference to the polygons
+ASSERT(polygons.n() == 0);
+
+index_t polygon[5] = {0, 4, 12, 7, 2}; // some polygon
+polygons.add(polygon, 5);
+
+ASSERT(polygons.n() == 1);
+ASSERT(polygons.length(0) == 5); // there are 5 items in the first element (polygon)
+ASSERT(polygons[0][3] == 7); // see the polygon indices above
+```
+
+A half-edge representation of the mesh can be created using:
+
+```c++
+HalfMesh hmesh(mesh);
+
+for (auto& node : hmesh.nodes()) {} // loop through the HalfNode objects
+for (auto& edge : hmesh.edges()) {} // loop through the HalfEdge objects
+for (auto& face : hmesh.faces()) {} // loop through the HalfFace objects
+```
+
+Note that the half-edge mesh will be created using **all** polygons, triangles and quads. If you are using an output mesh from the Voronoi diagram calculation, you should either (1) clear the triangles with `mesh.triangles().clear()` (if you wish to work with the polygons) or (2) copy the polygons to a new mesh (using `mesh.polygons().copy(mesh2.polygons())`). Remember to copy the vertices as well if you choose to do the latter (`mesh.vertices().copy(mesh2.vertices())`).
+
+Please see the member functions and variables for `HalfNode`, `HalfEdge` and `HalfFace` in `src/halfedges.h`. One way to become familiar with this data structure is to study the `HalfMesh::flip`, `HalfMesh::split` or `HalfMesh::collapse` functions, in addition to how they are used in `mesher.cpp`. It may also be useful to look at the `run_extract` function in `src/vortex.cpp`.
+
+### Acknowledgements
+
+Many thanks to the following projects which `vortex` depends on:
+
+- `argparse`: https://github.com/p-ranav/argparse
+- `fmtlib`: https://github.com/fmtlib/fmt
+- `libMeshb`: https://github.com/LoicMarechal/libMeshb
+- `morton-nd`: https://github.com/morton-nd/morton-nd
+- `OpenNL`: https://github.com/morton-nd/morton-nd
+- `PCK`: https://github.com/middleburygcl/geogram.psm.Predicates
+- `tinyobjloader`: https://github.com/tinyobjloader/tinyobjloader
+- `stb` (via `wings`): https://github.com/nothings/stb
 
 ### License
 

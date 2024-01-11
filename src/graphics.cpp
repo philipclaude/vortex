@@ -532,7 +532,7 @@ class MeshScene : public wings::Scene {
       return unit_vector(basis * q);
     };
     wings::vec3f ray =
-        pixel2world(x / view.canvas.width, y / view.canvas.height);
+        pixel2world(x / view.canvas.width, 1.0 - y / view.canvas.height);
 
     // find the closest element
     double tmin = 1e20;
@@ -760,7 +760,7 @@ class MeshScene : public wings::Scene {
         if (input.dragging) {
           if (!input.modifier) {
             double dx = (view.x - input.x) / view.canvas.width;
-            double dy = (view.y - input.y) / view.canvas.height;
+            double dy = (input.y - view.y) / view.canvas.height;
             wings::mat4f R = view.center_translation * view.translation_matrix *
                              wings::glm::rotation(dx, dy) *
                              wings::glm::inverse(view.translation_matrix *
@@ -768,7 +768,7 @@ class MeshScene : public wings::Scene {
             view.model_matrix = R * view.model_matrix;
           } else {
             double dx = -(view.x - input.x) / view.canvas.width;
-            double dy = -(view.y - input.y) / view.canvas.height;
+            double dy = (view.y - input.y) / view.canvas.height;
             dx *= view.size;
             dy *= view.size;
             wings::mat4f T = wings::glm::translation(dx, dy);

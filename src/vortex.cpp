@@ -33,6 +33,10 @@
 #include "util.h"
 #include "voronoi.h"
 
+#ifndef VORTEX_SOURCE_DIR
+#define VORTEX_SOURCE_DIR "./"
+#endif
+
 namespace vortex {
 
 namespace {
@@ -260,7 +264,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
   // set up the mesh if using a triangle mesh
   Mesh background_mesh(3);
-  if (arg_domain == "sphere") {
+  if (arg_domain == "sphere" || arg_domain == "square") {
     // nothing to prepare
   } else if (arg_domain == "icosahedron") {
     SubdividedIcosahedron sphere(program.get<int>("--n_subdiv"));
@@ -270,6 +274,10 @@ void run_voronoi(argparse::ArgumentParser& program) {
     read_mesh(arg_domain, background_mesh);
   }
 
+  auto irand = [](int min, int max) {
+    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
+  };
+
   // TODO, should this program also accept weights for SDOT?
   int dim = 3;
   Vertices sample(3);
@@ -278,9 +286,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
   } else if (arg_points == "random") {
     sample.reserve(n_points);
     if (arg_domain == "sphere") {
-      auto irand = [](int min, int max) {
-        return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
-      };
       double x[3];
       for (size_t k = 0; k < n_points; k++) {
         coord_t theta = 2.0 * M_PI * irand(0, 1);
@@ -290,8 +295,38 @@ void run_voronoi(argparse::ArgumentParser& program) {
         x[2] = cos(phi);
         sample.add(x);
       }
+    } else if (arg_domain == "square") {
+      double x[3] = {0, 0, 0};
+      for (size_t k = 0; k < n_points; k++) {
+        for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
+        sample.add(x);
+      }
     } else
       sample_surface(background_mesh, sample, n_points);
+  } else if (arg_points == "random_oceans") {
+    sample.reserve(n_points);
+    std::string tex_file =
+        std::string(VORTEX_SOURCE_DIR) + "/../data/oceans_2048.png";
+    TextureOptions tex_opts;
+    tex_opts.format = TextureFormat::kGrayscale;
+    Texture texture(tex_file, tex_opts);
+    texture.make_binary(10, 10, 255);
+
+    double x[3];
+    while (sample.n() < n_points) {
+      coord_t theta = 2.0 * M_PI * irand(0, 1);
+      coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
+      double u = theta / (2.0 * M_PI);
+      double v = phi / (M_PI);
+      double t;
+      texture.sample(u, v, &t);
+      if (t < 50) continue;
+
+      x[0] = cos(theta) * sin(phi);
+      x[1] = sin(theta) * sin(phi);
+      x[2] = cos(phi);
+      sample.add(x);
+    }
   } else {
     Mesh tmp(dim);
     read_mesh(arg_points, tmp);
@@ -313,7 +348,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
   VoronoiDiagram voronoi(dim, points[0], n_points);
   VoronoiDiagramOptions options;
-  options.n_neighbors = 75;
+  options.n_neighbors = program.get<int>("--n_neighbors");
   options.allow_reattempt = false;
   options.parallel = true;
 
@@ -340,6 +375,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
   // calculate!
   if (arg_domain == "sphere") {
     SphereDomain domain;
+    calculate_voronoi_diagram(domain);
+  } else if (arg_domain == "square") {
+    SquareDomain domain;
     calculate_voronoi_diagram(domain);
   } else {
     const auto* p = background_mesh.vertices()[0];
@@ -468,6 +506,12 @@ int main(int argc, char** argv) {
   cmd_voronoi.add_argument("--n_group_bins")
       .help("number of bins to use for the cell groups")
       .default_value(-1)
+      .scan<'i', int>();
+  cmd_voronoi.add_argument("--n_neighbors")
+      .help(
+          "number of nearest neighbors to use when calculating the Voronoi "
+          "diagram")
+      .default_value(50)
       .scan<'i', int>();
   program.add_subparser(cmd_voronoi);
 
