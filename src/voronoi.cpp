@@ -46,7 +46,7 @@ void SphereDomain::initialize(vec4 site,
   auto& vertices = polygon.vertices();
   auto& planes = polygon.planes();
   vec3 center = unit_vector(site.xyz());
-  const double r = 0.1 * radius;  // sqrt(2)/2 would graze the sphere
+  const double r = initialization_fraction * radius;
   polygon.cell().center = center;
 
   // compute the normal and tangent to the sphere
@@ -89,7 +89,6 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 
   vec3 r = cross(n1, n2);
   coord_t det = dot(r, r);
-  // if (det == 0.0) return {0, 0, 0, 1};
   ASSERT(det != 0.0) << "planes are parallel";
   vec3 p = (1.0 / det) * (h1 * cross(r, n2) + h2 * cross(n1, r));
   r = (1.0 / sqrt(det)) * r;
@@ -99,7 +98,7 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
   coord_t c = dot(p, p) - 1.0;
 
   coord_t discriminant = b * b - c;
-  // if (discriminant < 0) return {0, 0, 0, 1};
+  if (discriminant < 0) return {1e10, 1e10, 1e10, 1};
   ASSERT(discriminant >= 0.0) << fmt::format("sqrt({})", discriminant);
 
   coord_t t1 = -b + sqrt(discriminant);

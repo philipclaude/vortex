@@ -398,7 +398,13 @@ struct SphereDomain {
   SphereDomain() {}
 
   /// @brief Copies a sphere domain.
-  SphereDomain(const SphereDomain& domain) : radius(domain.radius) {}
+  SphereDomain(const SphereDomain& domain)
+      : radius(domain.radius),
+        initialization_fraction(domain.initialization_fraction) {}
+
+  /// @brief Sets the fraction of the radius used to initialize the square
+  /// around the site
+  void set_initialization_fraction(double x) { initialization_fraction = x; }
 
   /// @brief Initializes the Voronoi polygon (cell) to a square centered around
   /// a point (z)
@@ -406,6 +412,7 @@ struct SphereDomain {
   /// @param cell polygon to initialize in the calculation.
   void initialize(vec4 z, VoronoiPolygon<SphereDomain>& cell) const;
   const double radius{1.0};
+  double initialization_fraction{0.1};  // use 0.7 for power diagrams
 };
 
 struct PlanarVoronoiPolygon {
