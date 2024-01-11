@@ -27,17 +27,31 @@ class Mesh;
 class HalfMesh;
 
 struct MeshingParameters {
-  double h_min{0.025};
-  double h_max{0.05};
-  int max_iter{5};
+  double h_min{0.025};  // minimum size in the mesh
+  double h_max{0.05};   // maximum size in the mesh
+  int max_iter{5};      // number of adaptation iterations
 };
 
+/// @brief Build a mesh of a sphere from an image (texture) to determine the
+/// sizes that drive the mesh adaptation.
 class EarthMesher {
  public:
+  /// @brief Initializes the mesher, saving the texture image.
+  /// @param texture image that determines the sizes used for the continents and
+  /// oceans.
   EarthMesher(const Texture& texture);
   ~EarthMesher();
+
+  /// @brief Generates a mesh of the Earth.
+  /// @param params See the MeshingParameters above.
   void generate(MeshingParameters params);
+
+  /// @brief Accesses a reference to the working half-edge mesh data structure.
   auto& mesh() { return *mesh_; }
+
+  /// @brief Extracts the mesh from the working half-edge mesh data structure to
+  /// an array-based mesh structure.
+  /// @param mesh Destination of the mesh.
   void extract(Mesh& mesh) const;
 
  private:

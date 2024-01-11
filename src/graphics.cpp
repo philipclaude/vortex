@@ -468,11 +468,23 @@ class MeshScene : public wings::Scene {
   };
 
  public:
-  MeshScene(const Mesh& mesh, bool earth) : mesh_(mesh), earth_(earth) {
+  MeshScene(const Mesh& mesh) : mesh_(mesh), earth_(false) {
     context_ =
         wings::RenderingContext::create(wings::RenderingContextType::kOpenGL);
     context_->print();
     shaders_.create();
+
+    // if all the points are close to the unit sphere centered at the origin,
+    // assume we are rendering the earth
+    earth_ = true;
+    for (size_t k = 0; k < mesh_.vertices().n(); k++) {
+      vec3d p(mesh_.vertices()[k], mesh_.vertices().dim());
+      if (std::fabs(length(p) - 1.0) > 1e-4) {
+        earth_ = false;
+        break;
+      }
+    }
+
     write(&mesh_.fields());
     build_pickables();
   }
@@ -520,7 +532,7 @@ class MeshScene : public wings::Scene {
       return unit_vector(basis * q);
     };
     wings::vec3f ray =
-        pixel2world(x / view.canvas.width, y / view.canvas.height);
+        pixel2world(x / view.canvas.width, 1.0 - y / view.canvas.height);
 
     // find the closest element
     double tmin = 1e20;
@@ -748,7 +760,7 @@ class MeshScene : public wings::Scene {
         if (input.dragging) {
           if (!input.modifier) {
             double dx = (view.x - input.x) / view.canvas.width;
-            double dy = (view.y - input.y) / view.canvas.height;
+            double dy = (input.y - view.y) / view.canvas.height;
             wings::mat4f R = view.center_translation * view.translation_matrix *
                              wings::glm::rotation(dx, dy) *
                              wings::glm::inverse(view.translation_matrix *
@@ -756,7 +768,7 @@ class MeshScene : public wings::Scene {
             view.model_matrix = R * view.model_matrix;
           } else {
             double dx = -(view.x - input.x) / view.canvas.width;
-            double dy = -(view.y - input.y) / view.canvas.height;
+            double dy = (view.y - input.y) / view.canvas.height;
             dx *= view.size;
             dy *= view.size;
             wings::mat4f T = wings::glm::translation(dx, dy);
@@ -934,7 +946,7 @@ class MeshScene : public wings::Scene {
     }
 
     // draw the background sphere
-    if (view.earth) {
+    if (view.earth && earth_) {
       auto& shader = shaders_["earth"];
       shader.use();
       wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
@@ -1163,8 +1175,8 @@ class MeshScene : public wings::Scene {
   std::vector<PickableObject> pickables_;
 };
 
-Viewer::Viewer(const Mesh& mesh, int port, bool earth) {
-  scene_ = std::make_unique<MeshScene>(mesh, earth);
+Viewer::Viewer(const Mesh& mesh, int port) {
+  scene_ = std::make_unique<MeshScene>(mesh);
   renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
 }
 

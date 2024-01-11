@@ -31,7 +31,7 @@ class MeshScene;
 class ShaderLibrary;
 class Viewer {
  public:
-  Viewer(const Mesh& mesh, int port, bool earth);
+  Viewer(const Mesh& mesh, int port);
   ~Viewer();
 
  private:

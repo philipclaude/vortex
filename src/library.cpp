@@ -152,7 +152,7 @@ void Grid<Polygon>::build() {
   }
 }
 
-void Sphere::build(int n) {
+void SubdividedIcosahedron::build(int n) {
   // icosahedron vertices
   coord_t t = (1.0 + std::sqrt(5.0)) / 2.0;
 
@@ -196,7 +196,7 @@ void Sphere::build(int n) {
   for (int i = 0; i < n; i++) subdivide();
 }
 
-void Sphere::subdivide() {
+void SubdividedIcosahedron::subdivide() {
   std::map<Edge, index_t> edges;
 
   Topology<Triangle> triangles;

@@ -69,7 +69,7 @@ UT_TEST_CASE(test1) {
     }
   }
 
-  Sphere oceans(4);
+  SubdividedIcosahedron oceans(4);
   OceanTriangulator triangulator(oceans, coast);
   triangulator.triangulate();
 

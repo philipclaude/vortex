@@ -28,7 +28,7 @@ using namespace vortex;
 UT_TEST_SUITE(halfedges_test_suite)
 
 UT_TEST_CASE(test_closed) {
-  Sphere mesh(3);
+  SubdividedIcosahedron mesh(3);
   HalfMesh hmesh(mesh);
   UT_ASSERT(hmesh.check());
 }
@@ -46,7 +46,7 @@ UT_TEST_CASE(test_open) {
 UT_TEST_CASE_END(test_open)
 
 UT_TEST_CASE(insert_test) {
-  Sphere sphere(6);
+  SubdividedIcosahedron sphere(6);
   HalfMesh hmesh(sphere);
 
   size_t n_faces = hmesh.faces().size();
@@ -67,7 +67,7 @@ UT_TEST_CASE(insert_test) {
 UT_TEST_CASE_END(insert_test)
 
 UT_TEST_CASE(split_test) {
-  Sphere sphere(5);
+  SubdividedIcosahedron sphere(5);
   HalfMesh hmesh(sphere);
 
   size_t n_edges = hmesh.edges().size();

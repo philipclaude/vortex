@@ -36,7 +36,7 @@ UT_TEST_CASE(polygon_test) {
 UT_TEST_CASE_END(polygon_test)
 
 UT_TEST_CASE(sphere_test) {
-  Sphere mesh(2);
+  SubdividedIcosahedron mesh(2);
   meshb::write(mesh, "sphere.meshb");
 }
 UT_TEST_CASE_END(sphere_test)

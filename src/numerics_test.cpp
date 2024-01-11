@@ -41,7 +41,7 @@ double face_area(const HalfFace& face) {
 UT_TEST_CASE(test1) {
   exactinit();
 
-  Sphere sphere(4);
+  SubdividedIcosahedron sphere(4);
   meshb::write(sphere, "sphere.meshb");
 
   double area = 0.0;
@@ -74,7 +74,7 @@ UT_TEST_CASE_END(test1)
 UT_TEST_CASE_SKIP(test2) {
   exactinit();
 
-  Sphere sphere(0);
+  SubdividedIcosahedron sphere(0);
   HalfMesh mesh(sphere);
 
   for (auto& f : mesh.faces()) {

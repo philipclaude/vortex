@@ -225,7 +225,7 @@ UT_TEST_CASE(test_sphere) {
     vertices.add(x);
   }
 
-  SphereDomain domain(1.0);
+  SphereDomain domain;
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
@@ -259,6 +259,7 @@ UT_TEST_CASE(test_sphere) {
   }
   lift_sites(vertices, voronoi.weights());
 
+  domain.set_initialization_fraction(0.7);
   voronoi.vertices().clear();
   // voronoi.vertices().set_dim(3);
   voronoi.polygons().clear();
@@ -296,15 +297,15 @@ UT_TEST_CASE(test_sphere) {
     UT_ASSERT_NEAR(di, dk, tol);
     UT_ASSERT_NEAR(dj, dk, tol);
   }
-
   voronoi.merge();
+
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0) meshb::write(voronoi, "sphere.meshb");
 }
 UT_TEST_CASE_END(test_sphere)
 
 UT_TEST_CASE(test_sphere_triangulation) {
-  Sphere sphere(2);
+  SubdividedIcosahedron sphere(2);
   static const int dim = 3;
   size_t n_sites = 1e4;
   Vertices data(3);
@@ -354,10 +355,8 @@ UT_TEST_CASE(test_sphere_triangulation) {
     int group = voronoi.polygons().group(k);  // the group is the site
     voronoi.polygons().set_group(k, site2color[group]);
   }
-
   voronoi.merge();
 
-  // voronoi.triangles().clear();  // not implemented yet
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
   if (voronoi.polygons().n() > 0)
     meshb::write(voronoi, "sphere_triangulation.meshb");

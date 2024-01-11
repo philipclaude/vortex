@@ -11,7 +11,6 @@ void main() {
   vec2 st = gl_PointCoord;
   st.x /= 10.;
   st.x += (v_number - 1) / 10.0;
-  st.y = 1.0 - st.y;
 
   vec4 color = texture(font, st);
   if (color.a < 1e-6) discard;
