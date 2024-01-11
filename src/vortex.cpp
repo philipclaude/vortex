@@ -46,6 +46,21 @@ void run_visualizer(argparse::ArgumentParser& program) {
 
   Mesh mesh(3);
   read_mesh(filename, mesh);
+
+  // randomize polygon colors a bit, otherwise neighboring cells
+  // will have similar colors and won't visually stand out
+  size_t n_colors = 20;
+  int n_groups = 1;
+  for (int k = 0; k < mesh.polygons().n(); k++)
+    n_groups = std::max(n_groups, mesh.polygons().group(k));
+  std::vector<int> site2color(n_groups);
+  for (size_t k = 0; k < n_groups; k++)
+    site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
+  for (size_t k = 0; k < mesh.polygons().n(); k++) {
+    int group = mesh.polygons().group(k);  // the group is the site
+    mesh.polygons().set_group(k, site2color[group]);
+  }
+
   mesh.fields().set_defaults(mesh);
   Viewer viewer(mesh, 7681);
 }
@@ -375,6 +390,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
   // calculate!
   if (arg_domain == "sphere") {
     SphereDomain domain;
+    if (n_points <= 10000) domain.set_initialization_fraction(0.7);
     calculate_voronoi_diagram(domain);
   } else if (arg_domain == "square") {
     SquareDomain domain;
