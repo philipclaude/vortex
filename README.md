@@ -159,7 +159,7 @@ bin/vortex voronoi --domain water.meshb --points random --n_points 100000 --outp
 Another idea for creating a Voronoi diagram of the oceans is to initially sample the oceans (using a texture) and then smooth the vertices. This will move some of the points into the continents and eventually converges to covering the entire sphere (this is a recent idea, so I have no theortical guarantees of this). The number of smoothing iterations needed to cover the sphere seems to depend on how many points are used:
 
 ```sh
-bin/vortex voronoi --domain sphere.meshb --points random_oceans --n_points 1000000 --n_smooth 10 --output example7.meshb
+bin/vortex voronoi --domain sphere --points random_oceans --n_points 1000000 --n_smooth 10 --output example7.meshb
 ```
 
 #### 8. Merging vertices geometrically.
