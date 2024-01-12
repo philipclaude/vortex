@@ -38,9 +38,9 @@ vec3 get_color(in vec3 r, in vec3 eye) {
 
   // spherical and texture coordinates
   float theta = atan(p.y, p.x) + M_PI; // in [0, 2 * \pi]
-  float phi = M_PI - acos(p.z); // in [0, \pi]
+  float phi = acos(p.z); // in [0, \pi]
   float u = 0.5 * theta / M_PI;
-  float v = phi / M_PI;
+  float v = 1 - phi / M_PI;
 
   // differentiating p = (x, y, z) to calculate dp/du
   // x = \cos(\theta) * sin(\phi)

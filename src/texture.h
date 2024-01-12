@@ -37,7 +37,7 @@ static const std::map<TextureFormat, int> kFormat2Channels = {
 
 struct TextureOptions {
   TextureFormat format{TextureFormat::kRGB};
-  bool flipy{false};  // should the y-component be flipped?
+  bool flipy{true};  // should the y-component be flipped?
 };
 
 /// @brief Represents an image that can be sampled to determine properties of a
@@ -87,9 +87,8 @@ class Texture {
   const auto* data() const { return data_.data(); }
 
  private:
-  void read(const std::string& filename);
+  void read(const std::string& filename, bool flipy);
   uint8_t channels_;
-  bool flipy_{false};
   int width_;
   int height_;
   std::vector<unsigned char> data_;

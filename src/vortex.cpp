@@ -331,20 +331,21 @@ void run_voronoi(argparse::ArgumentParser& program) {
     Texture texture(tex_file, tex_opts);
     texture.make_binary(10, 10, 255);
 
-    double x[3];
+    vec3d x, uv;
     while (sample.n() < n_points) {
       coord_t theta = 2.0 * M_PI * irand(0, 1);
       coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
-      double u = theta / (2.0 * M_PI);
-      double v = phi / (M_PI);
-      double t;
-      texture.sample(u, v, &t);
-      if (t < 50) continue;
-
       x[0] = cos(theta) * sin(phi);
       x[1] = sin(theta) * sin(phi);
       x[2] = cos(phi);
-      sample.add(x);
+
+      // calculate (u, v) consistent with other algorithms
+      sphere_params(x, uv);
+      double t;
+      texture.sample(uv[0], uv[1], &t);
+      if (t < 50) continue;
+
+      sample.add(&x[0]);
     }
   } else {
     Mesh tmp(dim);
