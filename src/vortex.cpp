@@ -278,16 +278,20 @@ void run_voronoi(argparse::ArgumentParser& program) {
   auto n_smooth = program.get<int>("--n_smooth");
 
   // set up the mesh if using a triangle mesh
+  bool use_mesh = true;
   Mesh background_mesh(3);
   if (arg_domain == "sphere" || arg_domain == "square") {
     // nothing to prepare
+    use_mesh = false;
   } else if (arg_domain == "icosahedron") {
     SubdividedIcosahedron sphere(program.get<int>("--n_subdiv"));
     sphere.vertices().copy(background_mesh.vertices());
     sphere.triangles().copy(background_mesh.triangles());
-  } else {  // TODO implement "square" domain
+  } else {
     read_mesh(arg_domain, background_mesh);
   }
+  if (use_mesh)
+    LOG << "# triangles in mesh = " << background_mesh.triangles().n();
 
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
