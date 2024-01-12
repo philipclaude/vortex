@@ -367,13 +367,16 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.allow_reattempt = false;
   options.parallel = true;
 
+  auto quiet = program.get<bool>("--quiet");
+  auto verbose = program.get<bool>("--verbose");
   auto save = program.present<std::string>("--output");
-  auto calculate_voronoi_diagram = [&voronoi, &options, &points, &n_smooth,
-                                    &save](auto& domain) {
+  auto on_sphere = program.get<bool>("--on_sphere");
+  auto calculate_voronoi_diagram = [&voronoi, &options, &points, n_smooth, save,
+                                    quiet, verbose, on_sphere](auto& domain) {
     int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
       options.store_mesh = iter == n_iter && save;
-      options.verbose = (iter == 1 || iter == n_iter);
+      options.verbose = (verbose || iter == 1 || iter == n_iter) && !quiet;
       voronoi.vertices().clear();
       voronoi.vertices().set_dim(3);
       voronoi.polygons().clear();
@@ -381,9 +384,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
-      voronoi.smooth(points);
+      voronoi.smooth(points, on_sphere);
       auto props = voronoi.analyze();
-      LOG << fmt::format("iter = {}, area = {}", iter, props.area);
+      if (!quiet) LOG << fmt::format("iter = {}, area = {}", iter, props.area);
     }
   };
 
@@ -519,16 +522,19 @@ int main(int argc, char** argv) {
       .help("output mesh file ([prefer] .meshb or .obj)");
   cmd_voronoi.add_argument("--output_points")
       .help("output points filename ([prefer] .meshb or .obj)");
-  cmd_voronoi.add_argument("--n_group_bins")
-      .help("number of bins to use for the cell groups")
-      .default_value(-1)
-      .scan<'i', int>();
   cmd_voronoi.add_argument("--n_neighbors")
       .help(
           "number of nearest neighbors to use when calculating the Voronoi "
           "diagram")
       .default_value(50)
       .scan<'i', int>();
+  cmd_voronoi.add_argument("--verbose")
+      .help("print timing information at each smoothing iteration")
+      .flag();
+  cmd_voronoi.add_argument("--quiet").flag();
+  cmd_voronoi.add_argument("--on_sphere")
+      .help("project sites to the sphere during smoothing")
+      .flag();
   program.add_subparser(cmd_voronoi);
 
   argparse::ArgumentParser cmd_merge("merge");
