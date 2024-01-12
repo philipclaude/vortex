@@ -133,7 +133,7 @@ UT_TEST_CASE(test_square) {
     voronoi.compute(domain, options);
 
     // move each site to the centroid of the corresponding cell
-    voronoi.smooth(vertices);
+    voronoi.smooth(vertices, false);
     auto props = voronoi.analyze();
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }
@@ -244,7 +244,7 @@ UT_TEST_CASE(test_sphere) {
     voronoi.compute(domain, options);
 
     // move each site to the centroid of the corresponding cell
-    voronoi.smooth(vertices);
+    voronoi.smooth(vertices, true);
     auto props = voronoi.analyze();
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }
@@ -340,7 +340,7 @@ UT_TEST_CASE(test_sphere_triangulation) {
     voronoi.compute(domain, options);
 
     // move each site to the centroid of the corresponding cell
-    voronoi.smooth(vertices);
+    voronoi.smooth(vertices, false);
     auto props = voronoi.analyze();
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }

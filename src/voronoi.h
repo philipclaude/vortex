@@ -326,7 +326,7 @@ class VoronoiDiagram : public Mesh {
   const auto& status() const { return status_; }
   auto& weights() { return weights_; }
   const auto& weights() const { return weights_; }
-  void smooth(Vertices& sites) const;
+  void smooth(Vertices& sites, bool on_sphere) const;
 
   /// @brief Calculate and return global properties like the area and energy.
   VoronoiDiagramProperties analyze() const;
