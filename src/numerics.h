@@ -35,7 +35,7 @@ using vec2d = vortex::vecs<2, double>;
 /// @param uv Parameter space coordinates (theta, phi) divided by (2\pi, \pi).
 inline void sphere_params(const vec3d& xyz, vec3d& uv) {
   uv[0] = 0.5 * (atan2(xyz[1], xyz[0]) + M_PI) / M_PI;
-  uv[1] = (M_PI - acos(xyz[2])) / M_PI;
+  uv[1] = 1.0 - acos(xyz[2]) / M_PI;
   uv[2] = 0.0;
   ASSERT(uv[0] >= 0 && uv[0] <= 1);
   ASSERT(uv[1] >= 0 && uv[1] <= 1);
