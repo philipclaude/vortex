@@ -606,6 +606,7 @@ class MeshScene : public wings::Scene {
     // write font texture
     f = std::string(VORTEX_SOURCE_DIR) + "/../data/monaco-numbers.png";
     tex_opts.format = TextureFormat::kRGBA;
+    tex_opts.flipy = false;
     Texture font(f, tex_opts);
     GL_CALL(glBindTexture(GL_TEXTURE_2D, font_texture_));
     GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, font.width(), font.height(),
