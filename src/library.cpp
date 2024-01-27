@@ -27,8 +27,7 @@
 namespace vortex {
 
 template <typename type>
-Grid<type>::Grid(const std::vector<int>& sizes, int dim)
-    : Mesh((dim < 0) ? sizes.size() : dim), sizes_(sizes) {
+Grid<type>::Grid(const std::vector<int>& sizes) : Mesh(3), sizes_(sizes) {
   build();
 }
 
@@ -43,13 +42,13 @@ void Grid<Triangle>::build() {
   vertices_.reserve((nx + 1) * (ny + 1));
   triangles_.reserve(2 * nx * ny);
 
-  std::vector<double> x(vertices_.dim(), 0.0);
+  double x[3] = {0, 0, 0};
   for (int j = 0; j < ny + 1; j++) {
     for (int i = 0; i < nx + 1; i++) {
       x[0] = i * dx;
       x[1] = j * dy;
 
-      vertices_.add(x.data());
+      vertices_.add(x);
     }
   }
 
@@ -86,13 +85,13 @@ void Grid<Quad>::build() {
   vertices_.reserve((nx + 1) * (ny + 1));
   quads_.reserve(nx * ny);
 
-  std::vector<double> x(vertices_.dim(), 0.0);
+  double x[3] = {0, 0, 0};
   for (int j = 0; j < ny + 1; j++) {
     for (int i = 0; i < nx + 1; i++) {
       x[0] = i * dx;
       x[1] = j * dy;
 
-      vertices_.add(x.data());
+      vertices_.add(x);
     }
   }
 
@@ -125,13 +124,13 @@ void Grid<Polygon>::build() {
   vertices_.reserve((nx + 1) * (ny + 1));
   polygons_.reserve(nx * ny);
 
-  std::vector<double> x(vertices_.dim(), 0.0);
+  double x[3] = {0, 0, 0};
   for (int j = 0; j < ny + 1; j++) {
     for (int i = 0; i < nx + 1; i++) {
       x[0] = i * dx;
       x[1] = j * dy;
 
-      vertices_.add(x.data());
+      vertices_.add(x);
     }
   }
 
