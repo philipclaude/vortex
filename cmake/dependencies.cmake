@@ -42,6 +42,7 @@ add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middleburygcl/ge
 add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middleburygcl/geogram.psm.Predicates" SKIP_CONFIG TRUE)
 add_extern_repository(trees GIT_REPOSITORY "https://github.com/middleburygcl/trees.git" SKIP_CONFIG TRUE)
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middleburygcl/stlext.git" SKIP_CONFIG TRUE)
+add_extern_repository(nlopt GIT_REPOSITORY "https://github.com/stevengj/nlopt")
 
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
@@ -56,7 +57,7 @@ add_library(vortex_wings ${WINGS_SOURCES})
 target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
 
 # external repositories
-set(external_libraries fmt argparse vortex_wings)
+set(external_libraries fmt argparse vortex_wings nlopt)
 
 # OpenGL
 set(GL_LIBRARIES)
