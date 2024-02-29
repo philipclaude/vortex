@@ -33,7 +33,7 @@ UT_TEST_CASE(test1) {
   //  Grid<Triangle> mesh({10, 10}, 3);
   //  Mesh mesh(3);
   //  meshb::read("water.meshb", mesh);
-  Grid<Quad> mesh({10, 10}, 3);
+  Grid<Quad> mesh({10, 10});
   mesh.fields().set_defaults(mesh);
 #if VORTEX_FULL_UNIT_TEST == 0
   Viewer viewer(mesh, 7681);

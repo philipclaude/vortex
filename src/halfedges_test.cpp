@@ -35,7 +35,7 @@ UT_TEST_CASE(test_closed) {
 UT_TEST_CASE_END(test_closed)
 
 UT_TEST_CASE(test_open) {
-  Grid<Triangle> mesh({10, 10}, 3);
+  Grid<Triangle> mesh({10, 10});
   HalfMesh hmesh(mesh);
   UT_ASSERT(hmesh.check());
 
