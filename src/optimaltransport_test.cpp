@@ -49,26 +49,26 @@ double calc_energy(VoronoiDiagram &voronoi, std::vector<double> &weights, double
 
     double energy = 0.0;
     double second_sum = 0.0;
-    double voronoi_area = 0.0;
-    for (size_t k = 0; k < polygons.n(); k++)
+    for (int k = 0; k < polygons.n(); k++)
     {
-        double areaOfCell = 0.0;
+        double cell_area = 0.0;
         // get the site of the polygon (assumes site's within polygon)
-        vec3d site = voronoi.vertices()[k];
+        int group_index = polygons.group(k);
+        vec3d site(voronoi.vertices().group(group_index));
+
         int p0_index = polygons(k, 0);
-        vec3d p0 = voronoi.vertices()[p0_index];
+        vec3d p0(voronoi.vertices()[p0_index]);
 
         for (int j = 1; j < voronoi.polygons().length(k) - 1; j++)
         {
             // get two vertices of the polygon
             int p1_index = polygons(k, j);
             int p2_index = polygons(k, j + 1);
-            vec3d p1 = voronoi.vertices()[p1_index];
-            vec3d p2 = voronoi.vertices()[p2_index];
+            vec3d p1(voronoi.vertices()[p1_index]);
+            vec3d p2(voronoi.vertices()[p2_index]);
 
             // calculate area of the triangle
             double t_area = calc_triangle_area(p0, p1, p2);
-            voronoi_area += t_area;
 
             // taken directly from Levy Geogram
             double cur_f = 0.0;
@@ -82,10 +82,11 @@ double calc_energy(VoronoiDiagram &voronoi, std::vector<double> &weights, double
                 cur_f += u2 * (u0 + u1 + u2);
             }
 
+            cell_area += t_area;
             energy += t_area * cur_f / 6.0;
         }
-        energy += -weights[k] * voronoi_area;
-        second_sum = idealWeight * weights[k];
+        energy += (-weights[k] * cell_area);
+        second_sum += idealWeight * weights[k];
     }
     return energy + second_sum;
 };
@@ -95,7 +96,7 @@ UT_TEST_CASE(test_optimaltransport)
     int n_iter = 10;
     double delta = 10e-3;
     double cell_size_tol = 10e-6;
-    size_t n_sites = 1000;
+    size_t n_sites = 10000;
 
     auto irand = [](int min, int max)
     {
@@ -146,7 +147,7 @@ UT_TEST_CASE(test_optimaltransport)
 
     for (int iter = 1; iter <= n_iter; ++iter)
     {
-        options.store_mesh = iter == n_iter;
+        options.store_mesh = true;
         options.verbose = (iter == 1 || iter == n_iter - 1);
         voronoi.vertices().clear();
         voronoi.polygons().clear();
@@ -156,8 +157,8 @@ UT_TEST_CASE(test_optimaltransport)
         // move each site to the centroid of the corresponding cell
         voronoi.smooth(vertices, true);
         auto props = voronoi.analyze();
-        LOG << fmt::format("cell size = {}", cell_size);
-        LOG << fmt::format("iter = {}, energy = {}", iter, calc_energy(voronoi, weights, cell_size));
+        LOG << fmt::format("area = {}", props.area);
+        LOG << fmt::format("iter = {}, area = {}", iter, calc_energy(voronoi, weights, cell_size));
     }
     auto props = voronoi.analyze();
 
