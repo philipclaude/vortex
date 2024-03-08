@@ -17,6 +17,7 @@ set(SOURCES
   mesher.cpp
   numerics.cpp
   #predicates.c
+  quadrature.cpp
   texture.cpp
   triangulate.cpp
   util.cpp
