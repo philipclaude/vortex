@@ -35,13 +35,8 @@ class Grid : public Mesh {
    *            for a 1d mesh (Line), sizes.size() = 1
    *            for a 2d mesh (Triangle, Quad) sizes.size() = 2
    *            for a 3d mesh (Tet), sizes.size() = 3
-   * \param[in] dim - Dimension of the vertices.
-   *                  Sometimes you may want to create a mesh in 3d even if
-   *                  the mesh is really in 2d. When the default of -1 is used
-   *                  then the ambient dimension becomes the topological
-   * dimension of the element.
    */
-  Grid(const std::vector<int>& sizes, int dim = -1);
+  Grid(const std::vector<int>& sizes);
 
   /**
    * \brief Builds the structured mesh
