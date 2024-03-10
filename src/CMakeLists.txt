@@ -20,7 +20,9 @@ set(SOURCES
   texture.cpp
   triangulate.cpp
   util.cpp
-  voronoi.cpp)
+  voronoi.cpp
+  optimaltransport.cpp
+  )
 
 # create an object library for all the sources
 add_library(vortex_src OBJECT ${SOURCES})
