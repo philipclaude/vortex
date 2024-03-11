@@ -47,8 +47,10 @@ struct Triangle {
   static int faces[6];
   typedef Line face_type;
   static vec3d get_physical_coordinates(const coord_t* pa, const coord_t* pb,
-                                        const coord_t* pc, const coord_t* pref);
+                                        const coord_t* pc, const coord_t* x);
   static coord_t area(const coord_t* xa, const coord_t* xb, const coord_t* xc);
+  static coord_t jacobian(const coord_t* pa, const coord_t* pb,
+                          const coord_t* pc, const coord_t* x);
 };
 
 struct SphericalTriangle {
@@ -60,8 +62,10 @@ struct SphericalTriangle {
   static int faces[6];
   typedef Line face_type;
   static vec3d get_physical_coordinates(const coord_t* pa, const coord_t* pb,
-                                        const coord_t* pc, const coord_t* pref);
+                                        const coord_t* pc, const coord_t* x);
   static coord_t area(const coord_t* xa, const coord_t* xb, const coord_t* xc);
+  static coord_t jacobian(const coord_t* pa, const coord_t* pb,
+                          const coord_t* pc, const coord_t* x);
 };
 
 struct Quad {
