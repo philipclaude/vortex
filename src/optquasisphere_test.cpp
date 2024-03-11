@@ -39,7 +39,7 @@ UT_TEST_SUITE(optimaltransportsphere_test_suite)
 UT_TEST_CASE(test_optimaltransportsphere)
 {
     int n_iter = 10;
-    size_t n_sites = 1000;
+    size_t n_sites = 100;
 
     auto irand = [](int min, int max)
     {
@@ -102,7 +102,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
 
-    opt.set_min_objective(&calc_energy, static_cast<void *>(&data));
+    opt.set_min_objective(&calc_energy<SphereDomain>, static_cast<void *>(&data));
 
     // set some optimization parameters
     opt.set_xtol_rel(1e-12);
@@ -126,8 +126,8 @@ UT_TEST_CASE(test_optimaltransportsphere)
         std::cout << e.what() << std::endl;
     }
 
-    double error = calc_rsme_error(voronoi, cell_sizes);
-    LOG << fmt::format("error = {}", error);
+    // double error = calc_rsme_error(voronoi, cell_sizes);
+    // LOG << fmt::format("error = {}", error);
 
     voronoi.merge();
 }

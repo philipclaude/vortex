@@ -11,6 +11,7 @@ namespace vortex
 
     double calc_rsme_error(VoronoiDiagram &voronoi, const std::vector<double> &cell_sizes);
 
+    template <typename T>
     double calc_energy(unsigned n, const double *x, double *de_dw, void *data0);
 
     double calc_energy_2D(unsigned n, const double *x, double *de_dw, void *data0);

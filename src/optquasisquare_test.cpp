@@ -43,10 +43,10 @@ UT_TEST_CASE(test_optimaltransportsquare)
 
     auto irand = []()
     {
-        return double(rand()) / (double(RAND_MAX) + 1.0);
+        return double(rand()) / (double(RAND_MAX));
     };
 
-    static const int dim = 3; // number of dimensions
+    static const int dim = 4; // number of dimensions
 
     std::vector<coord_t> sites(n_sites * dim, 0.0);
 
@@ -60,7 +60,7 @@ UT_TEST_CASE(test_optimaltransportsquare)
     }
 
     // ideal cell size
-    std::vector<double> cell_sizes(n_sites, 1 / n_sites);
+    std::vector<double> cell_sizes(n_sites, double(1.0 / double(n_sites)));
 
     std::vector<index_t> order(n_sites);
     sort_points_on_zcurve(sites.data(), n_sites, dim, order);
@@ -101,11 +101,11 @@ UT_TEST_CASE(test_optimaltransportsquare)
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
 
-    opt.set_min_objective(&calc_energy_2D, static_cast<void *>(&data));
+    opt.set_min_objective(&calc_energy<SquareDomain>, static_cast<void *>(&data));
 
     // set some optimization parameters
-    opt.set_xtol_rel(1e-12);
-    opt.set_ftol_rel(1e-12);
+    opt.set_xtol_rel(1e-16);
+    opt.set_ftol_rel(1e-16);
     opt.set_maxeval(10000);
 
     // set the lower and upper bounds on the weights
@@ -125,8 +125,9 @@ UT_TEST_CASE(test_optimaltransportsquare)
         std::cout << e.what() << std::endl;
     }
 
-    // double error = calc_rsme_error(voronoi, cell_sizes);
-    // LOG << fmt::format("error = {}", error);
+    double error = calc_rsme_error(voronoi, cell_sizes);
+    LOG << fmt::format("error = {}", error);
+    LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
 
     voronoi.merge();
 }
