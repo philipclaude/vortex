@@ -280,8 +280,9 @@ void read(const std::string& filename, Mesh& mesh) {
 void write(const Mesh& mesh, const std::string& filename, bool twod) {
   int dim = mesh.vertices().dim();
   if (twod) dim = 2;
+  int version = 3;
 
-  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, GmfDouble, dim);
+  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, version, dim);
   ASSERT(fid);
 
   GmfSetKwd(fid, GmfVertices, mesh.vertices().n());
