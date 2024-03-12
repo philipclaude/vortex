@@ -277,6 +277,16 @@
             </select>
           </div>
           <div class="form-check" style="display: inline-block">
+            <select
+              class="form-select"
+              id="dropdown-picking-type"
+              onchange="togglePicking();"
+            >
+              <option>mesh</option>
+              <option>sphere</option>
+            </select>
+          </div>
+          <div class="form-check" style="display: inline-block">
             <label class="form-check-label" id="size-label"></label>
           </div>
           <br />
@@ -455,7 +465,8 @@
     );
 
     img.addEventListener("dblclick", function (e) {
-      const x = ("0000" + e.offsetX).slice(-5);
+      let X = e.pageX - e.target.offsetLeft;
+      const x = ("0000" + X).slice(-5);
       const y = ("0000" + e.offsetY).slice(-5);
       const msg = "D" + x + y;
       ws.send(msg);
@@ -539,6 +550,11 @@
     const toggleNumbers = () => {
       const dropdown = document.getElementById("dropdown-vertex-numbers");
       ws.send("KI#" + dropdown.selectedIndex);
+    };
+
+    const togglePicking = () => {
+      const dropdown = document.getElementById("dropdown-picking-type");
+      ws.send("KIx" + dropdown.selectedIndex);
     };
 
     const setHeight = () => {
