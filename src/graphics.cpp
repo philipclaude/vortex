@@ -465,6 +465,7 @@ class MeshScene : public wings::Scene {
     bool numbers{false};
     float near{1e-3f};
     float far{1e3f};
+    bool picking_sphere{false};
   };
 
  public:
@@ -552,6 +553,46 @@ class MeshScene : public wings::Scene {
       // LOG << fmt::format("picked element {}", picked->index);
     }
     return picked;
+  }
+
+  std::pair<wings::vec3f, bool> pick_sphere(float x, float y,
+                                            const ClientView& view) {
+    float a = double(view.canvas.width) / double(view.canvas.height);
+    float height = 2.0 * tan(view.fov / 2.0);
+    float width = a * height;
+
+    auto vm = view.view_matrix;
+    auto mm = view.model_matrix;
+    for (int i = 0; i < 3; i++) {
+      vm(i, 3) = 0;
+      mm(i, 3) = 0;
+    }
+
+    // pixel coordinates relative to camera
+    const float u = x / view.canvas.width;
+    const float v = 1.0 - y / view.canvas.height;
+    wings::vec4f q = {(u - 0.5f) * width, (v - 0.5f) * height, -1.0f, 0.0f};
+
+    // ray direction relative to model (sphere)
+    auto camera_matrix = wings::glm::inverse(vm);  // camera -> world space
+    auto inverse_model = wings::glm::inverse(mm);  // world -> model space
+    auto transformation = inverse_model * camera_matrix;
+    wings::vec3f ray = unit_vector((transformation * q).xyz());
+
+    // eye with respect to model
+    wings::vec4f eyeh = {view.eye[0], view.eye[1], view.eye[2], 1.0f};
+    wings::vec4f eyem = wings::glm::inverse(view.model_matrix) * eyeh;
+    auto eye = eyem.xyz();
+
+    // intersection of ray with unit sphere, centered at (0, 0, 0)
+    auto b = dot(ray, eye);
+    auto c = dot(eye, eye) - 1.0f;
+    if (b * b - c < 0) return {eye, false};  // no intersection
+    float tmin = -b - std::sqrt(b * b - c);
+
+    // intersection with respect to model
+    auto xs = eye + ray * tmin;
+    return {{xs[0], xs[1], xs[2]}, true};
   }
 
   void write_point_visibility(const PickableObject* elem) {
@@ -783,21 +824,45 @@ class MeshScene : public wings::Scene {
         break;
       }
       case wings::InputType::DoubleClick: {
-        view.picked = pick(input.x, input.y, view);
-        if (view.picked) {
-          write_point_visibility(view.picked);
-          std::string info = fmt::format("*picked element {} ({}): (",
-                                         view.picked->index, view.picked->name);
-          size_t i = 0;
-          for (auto p : view.picked->nodes) {
-            info += std::to_string(p);
-            if (i + 1 < view.picked->nodes.size())
-              info += ", ";
-            else
-              info += ")";
-            i++;
+        if (view.picking_sphere) {
+          auto result = pick_sphere(input.x, input.y, view);
+          if (result.second) {
+            auto xyz = result.first;
+            std::string info = fmt::format("*picked point ({}, {}, {})", xyz[0],
+                                           xyz[1], xyz[2]);
+            LOG << fmt::format("clicked sphere at ({}, {}, {})", xyz[0], xyz[1],
+                               xyz[2]);
+            // rebuffer the clicked points
+            if (clicked_points_.empty())
+              GL_CALL(glGenBuffers(1, &clicked_points_buffer_));
+            for (int d = 0; d < 3; d++) clicked_points_.push_back(xyz[d]);
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, clicked_points_buffer_));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                                 sizeof(GLfloat) * clicked_points_.size(),
+                                 clicked_points_.data(), GL_STATIC_DRAW));
+            *msg = info;
+          } else {
+            std::string info = "*no intersection!";
+            *msg = info;
           }
-          *msg = info;
+        } else {
+          view.picked = pick(input.x, input.y, view);
+          if (view.picked) {
+            write_point_visibility(view.picked);
+            std::string info =
+                fmt::format("*picked element {} ({}): (", view.picked->index,
+                            view.picked->name);
+            size_t i = 0;
+            for (auto p : view.picked->nodes) {
+              info += std::to_string(p);
+              if (i + 1 < view.picked->nodes.size())
+                info += ", ";
+              else
+                info += ")";
+              i++;
+            }
+            *msg = info;
+          }
         }
         updated = true;
         break;
@@ -828,7 +893,9 @@ class MeshScene : public wings::Scene {
           view.lighting = input.ivalue > 0;
         else if (input.key == '#')
           view.numbers = input.ivalue > 0;
-        else if (input.key == 'W') {
+        else if (input.key == 'x') {
+          view.picking_sphere = input.ivalue > 0;
+        } else if (input.key == 'W') {
           int w = input.ivalue;
           view.canvas.resize(w, view.canvas.height);
           view.projection_matrix = wings::glm::perspective(
@@ -982,6 +1049,19 @@ class MeshScene : public wings::Scene {
       GL_CALL(glDisable(GL_DEPTH_TEST));
       GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
       GL_CALL(glEnable(GL_DEPTH_TEST));
+    }
+
+    // draw the clicked points
+    if (!clicked_points_.empty()) {
+      const auto& shader = shaders_["points"];
+      shader.use();
+      shader.set_uniform("u_ModelViewProjectionMatrix", mvp_matrix);
+      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, clicked_points_buffer_));
+      GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0));
+      GL_CALL(glEnableVertexAttribArray(0));
+      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+      GL_CALL(glDrawArrays(GL_POINTS, 0, clicked_points_.size() / 3));
+      GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     }
 
     // bind which attributes we want to draw
@@ -1156,6 +1236,8 @@ class MeshScene : public wings::Scene {
   GLuint point_texture_;
   GLuint node_buffer_;
   GLuint n_nodes_{0};
+  GLuint clicked_points_buffer_;
+  std::vector<GLfloat> clicked_points_;
 
   GLuint index_texture_;
   GLuint visibility_texture_;
