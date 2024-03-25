@@ -39,7 +39,7 @@ UT_TEST_SUITE(optimaltransportsphere_test_suite)
 UT_TEST_CASE(test_optimaltransportsphere)
 {
     int n_iter = 10;
-    size_t n_sites = 100;
+    size_t n_sites = 10000;
 
     auto irand = [](int min, int max)
     {
@@ -81,7 +81,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
     SphereDomain domain;
     VoronoiDiagram voronoi(dim, vertices[0], n_sites);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 100;
+    options.n_neighbors = 75;
     options.allow_reattempt = false;
     options.parallel = true;
 
@@ -112,8 +112,8 @@ UT_TEST_CASE(test_optimaltransportsphere)
     // set the lower and upper bounds on the weights
     std::vector<double> lower_bound(n_sites, 0.0);
     opt.set_lower_bounds(lower_bound);
-    std::vector<double> upper_bound(n_sites, 1.0);
-    opt.set_upper_bounds(upper_bound);
+    // std::vector<double> upper_bound(n_sites, 1.0);
+    // opt.set_upper_bounds(upper_bound);
 
     double f_opt;
     try
@@ -126,8 +126,8 @@ UT_TEST_CASE(test_optimaltransportsphere)
         std::cout << e.what() << std::endl;
     }
 
-    // double error = calc_rsme_error(voronoi, cell_sizes);
-    // LOG << fmt::format("error = {}", error);
+    double error = calc_rsme_error(voronoi, cell_sizes);
+    LOG << fmt::format("iter = {}, error = {}", data.iter, error);
 
     voronoi.merge();
 }
