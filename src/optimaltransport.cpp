@@ -57,6 +57,68 @@ namespace vortex
         return cur_f;
     }
 
+    void create_edge_map(VoronoiDiagram &voronoi, void *edgeMap)
+    {
+        const Topology<Polygon> &polygons = voronoi.polygons();
+
+        std::unordered_map<std::pair<int, int>, int> &edgeSiteMap = *static_cast<std::unordered_map<std::pair<int, int>, int> *>(edgeMap);
+
+        for (int k = 0; k < polygons.n(); k++)
+        {
+            int group_index = polygons.group(k);
+
+            for (int j = 0; j < voronoi.polygons().length(k); j++)
+            {
+                // two points that make up edge
+                int p1_index = polygons(k, j);
+                int p2_index = polygons(k, (j + 1) % voronoi.polygons().length(k));
+
+                edgeSiteMap.insert({std::pair(p1_index, p2_index), group_index});
+            }
+        }
+    }
+
+    double build_hessian(VoronoiDiagram &voronoi)
+    {
+        const Topology<Polygon> &polygons = voronoi.polygons();
+        std::unordered_map<std::pair<int, int>, int> edgeSiteMap;
+        // mapping from edge v1 - v2 to site left of v1 - v2
+        create_edge_map(voronoi, static_cast<void *>(&edgeSiteMap));
+
+        double hessian[polygons.n()][polygons.n()];
+
+        for (int k = 0; k < polygons.n(); k++)
+        {
+            int group_index = polygons.group(k);
+            vec3d site(voronoi.vertices()[group_index]);
+
+            double Hii = 0.0;
+
+            for (int j = 0; j < voronoi.polygons().length(k); j++)
+            {
+                // two points that make up edge
+                int p1_index = polygons(k, j);
+                int p2_index = polygons(k, (j + 1) % voronoi.polygons().length(k));
+
+                vec3d p1(voronoi.vertices()[p1_index]);
+                vec3d p2(voronoi.vertices()[p2_index]);
+
+                double Aij = length(p1 - p2);
+
+                int site2_index = edgeSiteMap[std::pair(p2_index, p1_index)];
+
+                vec3d site2(voronoi.vertices()[site2_index]);
+
+                double l = length(site - site2);
+
+                hessian[group_index][site2_index] = 0.5 * Aij / l;
+
+                Hii -= hessian[group_index][site2_index];
+            }
+            hessian[group_index][group_index] = Hii;
+        }
+    }
+
     template <>
     double calc_energy<SphereDomain>(unsigned int n, const double *x, double *de_dw, void *data0)
     {

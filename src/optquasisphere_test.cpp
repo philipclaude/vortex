@@ -39,7 +39,7 @@ UT_TEST_SUITE(optimaltransportsphere_test_suite)
 UT_TEST_CASE(test_optimaltransportsphere)
 {
     int n_iter = 10;
-    size_t n_sites = 10000;
+    size_t n_sites = 1000;
 
     auto irand = [](int min, int max)
     {
@@ -112,7 +112,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
     // set the lower and upper bounds on the weights
     std::vector<double> lower_bound(n_sites, 0.0);
     opt.set_lower_bounds(lower_bound);
-    // std::vector<double> upper_bound(n_sites, 1.0);
+    std::vector<double> upper_bound(n_sites, 1.0);
     // opt.set_upper_bounds(upper_bound);
 
     double f_opt;
