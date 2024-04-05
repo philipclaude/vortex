@@ -16,6 +16,10 @@ namespace vortex
     template <typename T>
     double calc_energy(unsigned n, const double *x, double *de_dw, void *data0);
 
+    void create_edge_map(VoronoiDiagram &voronoi, std::unordered_map<std::pair<int, int>, int> &edgeSiteMap);
+
+    void build_hessian(VoronoiDiagram &voronoi, spmat<double> &hessian, std::vector<double> &de_dw, std::vector<double> cell_area);
+
     template <typename T>
     struct nlopt_data
     {

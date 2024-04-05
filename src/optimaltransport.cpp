@@ -3,6 +3,7 @@
 #include "math/vec.hpp"
 #include "quadrature.hpp"
 #include "util.h"
+#include "spmat.h"
 
 namespace vortex
 {
@@ -57,11 +58,9 @@ namespace vortex
         return cur_f;
     }
 
-    void create_edge_map(VoronoiDiagram &voronoi, void *edgeMap)
+    void create_edge_map(VoronoiDiagram &voronoi, std::unordered_map<std::pair<int, int>, int> &edgeSiteMap)
     {
         const Topology<Polygon> &polygons = voronoi.polygons();
-
-        std::unordered_map<std::pair<int, int>, int> &edgeSiteMap = *static_cast<std::unordered_map<std::pair<int, int>, int> *>(edgeMap);
 
         for (int k = 0; k < polygons.n(); k++)
         {
@@ -78,14 +77,13 @@ namespace vortex
         }
     }
 
-    double build_hessian(VoronoiDiagram &voronoi)
+    void build_hessian(VoronoiDiagram &voronoi, spmat<double> &hessian, std::vector<double> &de_dw, std::vector<double> cell_area)
     {
         const Topology<Polygon> &polygons = voronoi.polygons();
         std::unordered_map<std::pair<int, int>, int> edgeSiteMap;
-        // mapping from edge v1 - v2 to site left of v1 - v2
-        create_edge_map(voronoi, static_cast<void *>(&edgeSiteMap));
 
-        double hessian[polygons.n()][polygons.n()];
+        // mapping from edge v1 - v2 to site left of v1 - v2
+        create_edge_map(voronoi, edgeSiteMap);
 
         for (int k = 0; k < polygons.n(); k++)
         {
@@ -93,6 +91,7 @@ namespace vortex
             vec3d site(voronoi.vertices()[group_index]);
 
             double Hii = 0.0;
+            de_dw[group_index] = cell_area[group_index] - voronoi.properties()[group_index].mass;
 
             for (int j = 0; j < voronoi.polygons().length(k); j++)
             {
@@ -111,11 +110,12 @@ namespace vortex
 
                 double l = length(site - site2);
 
-                hessian[group_index][site2_index] = 0.5 * Aij / l;
+                double entry = 0.5 * Aij / l;
+                hessian(group_index, site2_index) = entry;
 
-                Hii -= hessian[group_index][site2_index];
+                Hii -= entry;
             }
-            hessian[group_index][group_index] = Hii;
+            hessian(group_index, group_index) = Hii;
         }
     }
 
