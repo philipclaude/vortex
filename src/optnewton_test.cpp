@@ -24,14 +24,13 @@
 #include "graphics.h"
 #include "io.h"
 #include "library.h"
-#include <nlopt.hpp>
 #include "math/vec.hpp"
 #include "tester.h"
 #include "util.h"
 #include <iostream>
 #include <fstream>
 #include "optimaltransport.h"
-#include "spmat.h"
+#include "math/spmat.h"
 
 using namespace vortex;
 
@@ -40,7 +39,8 @@ UT_TEST_SUITE(optimaltransportnewtonsphere_test_suite)
 UT_TEST_CASE(test_optimaltransportnewtonsphere)
 {
     int n_iter = 10;
-    size_t n_sites = 1000;
+    size_t n_sites = 10000;
+    int neighbors = 150;
 
     auto irand = [](int min, int max)
     {
@@ -82,7 +82,7 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     SphereDomain domain;
     VoronoiDiagram voronoi(dim, vertices[0], n_sites);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 75;
+    options.n_neighbors = neighbors;
     options.allow_reattempt = false;
     options.parallel = true;
 
@@ -104,35 +104,88 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
 
     for (size_t k = 0; k < n_sites; k++)
     {
-        weights[k] = 0;
+        weights[k] = 1.0;
     }
 
-    spmat<double> hessian(voronoi.polygons().n(), voronoi.polygons().n());
-    std::vector<double> de_dw(voronoi.polygons().n());
     std::vector<double> cell_size(n_sites, 4 * M_PI / n_sites);
-    int max_iter = 10000;
+    int max_iter = 100;
     int iter = 0;
-    while (iter < max_iter)
+    double error = 1.0;
+    double alpha = 1.0;
+    Timer timer;
+    timer.start();
+
+    lift_sites(vertices, voronoi.weights());
+
+    domain.set_initialization_fraction(0.7);
+    voronoi.vertices().clear();
+    voronoi.polygons().clear();
+    voronoi.triangles().clear();
+    voronoi.compute(domain, options);
+
+    while (error >= 1e-16)
     {
-        lift_sites(vertices, voronoi.weights());
-
-        domain.set_initialization_fraction(0.7);
-        voronoi.vertices().clear();
-        voronoi.polygons().clear();
-        voronoi.triangles().clear();
-        voronoi.compute(domain, options);
-
-        voronoi.merge();
+        spmat<double> hessian(voronoi.polygons().n(), voronoi.polygons().n());
+        std::vector<double> de_dw(voronoi.polygons().n());
 
         build_hessian(voronoi, hessian, de_dw, cell_size);
         vecd<double> search_direction(voronoi.polygons().n());
-
         hessian.solve_nl(de_dw, search_direction);
 
+        vecd<double> old_weights(weights);
+
+        alpha = 1.0;
         for (size_t k = 0; k < n_sites; k++)
         {
-            weights[k] = weights[k] - search_direction[k];
+            weights[k] = weights[k] - alpha * search_direction[k];
         }
+
+        while (true)
+        {
+            lift_sites(vertices, voronoi.weights());
+
+            domain.set_initialization_fraction(0.7);
+            voronoi.vertices().clear();
+            voronoi.polygons().clear();
+            voronoi.triangles().clear();
+            voronoi.compute(domain, options);
+
+            // make sure no sites are lost
+            if (voronoi.polygons().n() == n_sites)
+            {
+                voronoi.merge();
+                break;
+            }
+
+            alpha = alpha / 2.0;
+            for (size_t k = 0; k < n_sites; k++)
+            {
+                weights[k] = old_weights[k] - alpha * search_direction[k];
+            }
+        }
+
+        LOG << error;
+        error = calc_gradient_norm(de_dw);
+
+        iter++;
+    }
+
+    timer.stop();
+
+    std::string hyphen = "_";
+    std::string file_path = "../../data_test/output_newton" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+
+    std::ofstream outputFile(file_path);
+    if (outputFile.is_open())
+    {
+        outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+        outputFile << "Time: " << timer.seconds() << std::endl;
+        outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
+        outputFile.close();
+    }
+    else
+    {
+        std::cout << "Error opening file" << std::endl;
     }
 }
 UT_TEST_CASE_END(test_optimaltransportnewtonsphere)

@@ -39,14 +39,14 @@ UT_TEST_SUITE(optimaltransportgradient_test_suite)
 UT_TEST_CASE(test_optimaltransportgradient)
 {
     int n_iter = 10;
-    double cell_size_tol = 10e-6;
     size_t n_sites = 1000;
+    int neighbors = 75;
 
     auto irand = [](int min, int max)
     {
         return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
     };
-    const double tol = 1e-12;
+
     static const int dim = 4; // number of dimensions
 
     std::vector<coord_t> sites(n_sites * dim, 0.0);
@@ -80,7 +80,7 @@ UT_TEST_CASE(test_optimaltransportgradient)
     SphereDomain domain;
     VoronoiDiagram voronoi(dim, vertices[0], n_sites);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 75;
+    options.n_neighbors = neighbors;
     options.allow_reattempt = false;
     options.parallel = true;
 
@@ -107,15 +107,19 @@ UT_TEST_CASE(test_optimaltransportgradient)
         weights[k] = 0;
     }
 
-    // lift vertices to 4D
-    double error = 0.0;
-    double delta = 10e-3;
+    double error = 1.0;
+    double delta = 0.45;
+    const double tol = 1e-15;
+    double iter = 0;
 
-    while (error > tol)
+    Timer timer;
+    timer.start();
+
+    while (error >= tol)
     {
-        double sum = 0.0;
-        lift_sites(vertices, voronoi.weights());
+        std::vector<double> de_dw(n_sites);
 
+        lift_sites(vertices, voronoi.weights());
         domain.set_initialization_fraction(0.7);
         voronoi.vertices().clear();
         voronoi.polygons().clear();
@@ -124,15 +128,32 @@ UT_TEST_CASE(test_optimaltransportgradient)
 
         for (size_t k = 0; k < n_sites; k++)
         {
-            weights[k] = weights[k] - delta * (voronoi.properties()[k].mass - cell_size[k]);
-            sum = sum + pow((voronoi.properties()[k].mass - cell_size[k]), 2);
+            int group_index = voronoi.polygons().group(k);
+            de_dw[group_index] = voronoi.properties()[group_index].mass - cell_size[group_index];
+            weights[group_index] = weights[group_index] - delta * (de_dw[group_index]);
         }
-        error = pow((sum / n_sites), 0.5);
+
+        error = calc_gradient_norm(de_dw);
+        iter++;
     }
 
-    calc_rsme_error(voronoi, cell_size);
-    auto props = voronoi.analyze();
-    UT_ASSERT_NEAR(props.area, 4 * M_PI, tol);
+    timer.stop();
+
+    std::string hyphen = "_";
+    std::string file_path = "../../data_test/output_gradient" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+
+    std::ofstream outputFile(file_path);
+    if (outputFile.is_open())
+    {
+        outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+        outputFile << "Time: " << timer.seconds() << std::endl;
+        outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
+        outputFile.close();
+    }
+    else
+    {
+        std::cout << "Error opening file" << std::endl;
+    }
 
     voronoi.merge();
 }

@@ -40,6 +40,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
 {
     int n_iter = 10;
     size_t n_sites = 1000;
+    int neighbors = 75;
 
     auto irand = [](int min, int max)
     {
@@ -81,7 +82,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
     SphereDomain domain;
     VoronoiDiagram voronoi(dim, vertices[0], n_sites);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 75;
+    options.n_neighbors = neighbors;
     options.allow_reattempt = false;
     options.parallel = true;
 
@@ -120,14 +121,15 @@ UT_TEST_CASE(test_optimaltransportsphere)
     {
         auto result = opt.optimize(x, f_opt);
         printf("nlopt result: %d\n", result);
+        std::ofstream outputFile("../../../data/output_newton.txt");
+        outputFile << "Number Sites" << voronoi.polygons().n() << " Neighbors: " << neighbors << std::endl;
+        outputFile << " " << result << std::endl;
+        outputFile.close();
     }
     catch (std::exception &e)
     {
         std::cout << e.what() << std::endl;
     }
-
-    double error = calc_rsme_error(voronoi, cell_sizes);
-    LOG << fmt::format("iter = {}, error = {}", data.iter, error);
 
     voronoi.merge();
 }

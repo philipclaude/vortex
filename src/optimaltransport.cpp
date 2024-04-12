@@ -3,7 +3,6 @@
 #include "math/vec.hpp"
 #include "quadrature.hpp"
 #include "util.h"
-#include "spmat.h"
 
 namespace vortex
 {
@@ -17,7 +16,9 @@ namespace vortex
         return 0.5 * length(crossProduct);
     };
 
-    double calc_spherical_triangle_area(vec3d p0, vec3d p1, vec3d p2)
+    // https : // www.johndcook.com/blog/2021/11/29/area-of-spherical-triangle/
+    double
+    calc_spherical_triangle_area(vec3d p0, vec3d p1, vec3d p2)
     {
         coord_t num = std::fabs(dot(p0, cross(p1, p2)));
 
@@ -43,7 +44,18 @@ namespace vortex
         return error;
     }
 
-    double geogram_CVT(vec3d &site, vec3d &p1, vec3d &p2, vec3d &p3)
+    double calc_gradient_norm(std::vector<double> &de_dw)
+    {
+        double sum = 0.0;
+        for (int i = 0; i < de_dw.size(); i++)
+        {
+            sum += pow(de_dw[i], 2);
+        }
+        return pow(sum, 0.5);
+    }
+
+    double
+    geogram_CVT(vec3d &site, vec3d &p1, vec3d &p2, vec3d &p3)
     {
         double cur_f = 0.0;
         for (index_t c = 0; c < 2; c++)
@@ -77,7 +89,7 @@ namespace vortex
         }
     }
 
-    void build_hessian(VoronoiDiagram &voronoi, spmat<double> &hessian, std::vector<double> &de_dw, std::vector<double> cell_area)
+    void build_hessian(VoronoiDiagram &voronoi, spmat<double> &hessian, std::vector<double> &de_dw, std::vector<double> &cell_area)
     {
         const Topology<Polygon> &polygons = voronoi.polygons();
         std::unordered_map<std::pair<int, int>, int> edgeSiteMap;
