@@ -40,7 +40,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
 {
     int n_iter = 10;
     size_t n_sites = 1000;
-    int neighbors = 75;
+    int neighbors = 175;
 
     auto irand = [](int min, int max)
     {
@@ -98,7 +98,17 @@ UT_TEST_CASE(test_optimaltransportsphere)
         // move each site to the centroid of the corresponding cell
         voronoi.smooth(vertices, true);
     }
-    nlopt_data<SphereDomain> data = {voronoi, domain, vertices, options, cell_sizes, 0};
+
+    std::string hyphen = "_";
+
+    std::string file_path = "../../data_test/converge_output_quasi" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    std::ofstream outputFile(file_path);
+
+    outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+
+    Timer timer;
+    timer.start();
+    nlopt_data<SphereDomain> data = {voronoi, domain, vertices, options, cell_sizes, n_sites, 0, 0.0, outputFile};
     std::vector<double> x(n_sites, 0.0);
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
@@ -113,25 +123,37 @@ UT_TEST_CASE(test_optimaltransportsphere)
     // set the lower and upper bounds on the weights
     std::vector<double> lower_bound(n_sites, 0.0);
     opt.set_lower_bounds(lower_bound);
-    std::vector<double> upper_bound(n_sites, 1.0);
-    // opt.set_upper_bounds(upper_bound);
 
     double f_opt;
     try
     {
         auto result = opt.optimize(x, f_opt);
-        printf("nlopt result: %d\n", result);
-        std::ofstream outputFile("../../../data/output_newton.txt");
-        outputFile << "Number Sites" << voronoi.polygons().n() << " Neighbors: " << neighbors << std::endl;
-        outputFile << " " << result << std::endl;
-        outputFile.close();
+
+        timer.stop();
+        // std::string hyphen = "_";
+
+        // std::string file_path = "../../data_test/output_quasi" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+
+        // std::ofstream outputFile(file_path);
+        // if (outputFile.is_open())
+        // {
+        //     outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+        //     outputFile << "Time: " << timer.seconds() << std::endl;
+        //     outputFile << "Error: " << data.error << "Iterations: " << data.iter << std::endl;
+        //     outputFile << "result: " << result << std::endl;
+        //     outputFile.close();
+        // }
+        // else
+        // {
+        //     std::cout << "Error opening file" << std::endl;
+        // }
+        std::cout << result;
     }
     catch (std::exception &e)
     {
         std::cout << e.what() << std::endl;
     }
-
-    voronoi.merge();
+    outputFile.close();
 }
 UT_TEST_CASE_END(test_optimaltransportsphere)
 

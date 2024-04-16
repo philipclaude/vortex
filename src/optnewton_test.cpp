@@ -39,8 +39,8 @@ UT_TEST_SUITE(optimaltransportnewtonsphere_test_suite)
 UT_TEST_CASE(test_optimaltransportnewtonsphere)
 {
     int n_iter = 10;
-    size_t n_sites = 10000;
-    int neighbors = 150;
+    size_t n_sites = 1000;
+    int neighbors = 100;
 
     auto irand = [](int min, int max)
     {
@@ -112,6 +112,13 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     int iter = 0;
     double error = 1.0;
     double alpha = 1.0;
+    int sub_iter = 0;
+
+    std::string hyphen = "_";
+    std::string file_path = "../../data_test/converge_output_newton" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+
+    std::ofstream outputFile(file_path);
+
     Timer timer;
     timer.start();
 
@@ -123,7 +130,7 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     voronoi.triangles().clear();
     voronoi.compute(domain, options);
 
-    while (error >= 1e-16)
+    while (error >= 1e-10)
     {
         spmat<double> hessian(voronoi.polygons().n(), voronoi.polygons().n());
         std::vector<double> de_dw(voronoi.polygons().n());
@@ -132,16 +139,21 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
         vecd<double> search_direction(voronoi.polygons().n());
         hessian.solve_nl(de_dw, search_direction);
 
+        error = calc_gradient_norm(de_dw);
+
         vecd<double> old_weights(weights);
 
         alpha = 1.0;
-        for (size_t k = 0; k < n_sites; k++)
-        {
-            weights[k] = weights[k] - alpha * search_direction[k];
-        }
 
         while (true)
         {
+            for (size_t k = 0; k < n_sites; k++)
+            {
+                // LOG << de_dw[k];
+                // LOG << search_direction[k];
+                weights[k] = old_weights[k] - alpha * search_direction[k];
+            }
+
             lift_sites(vertices, voronoi.weights());
 
             domain.set_initialization_fraction(0.7);
@@ -153,34 +165,34 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
             // make sure no sites are lost
             if (voronoi.polygons().n() == n_sites)
             {
-                voronoi.merge();
                 break;
             }
 
             alpha = alpha / 2.0;
-            for (size_t k = 0; k < n_sites; k++)
-            {
-                weights[k] = old_weights[k] - alpha * search_direction[k];
-            }
+            sub_iter++;
         }
 
-        LOG << error;
-        error = calc_gradient_norm(de_dw);
+        voronoi.merge();
 
         iter++;
+        if (outputFile.is_open())
+        {
+            outputFile << "iter: " << iter << " error: " << error << std::endl;
+        }
+        else
+        {
+            break;
+        }
     }
 
     timer.stop();
 
-    std::string hyphen = "_";
-    std::string file_path = "../../data_test/output_newton" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
-
-    std::ofstream outputFile(file_path);
     if (outputFile.is_open())
     {
         outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
         outputFile << "Time: " << timer.seconds() << std::endl;
         outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
+        outputFile << "Sub Iterations" << sub_iter << std::endl;
         outputFile.close();
     }
     else

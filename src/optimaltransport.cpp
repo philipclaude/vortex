@@ -2,6 +2,9 @@
 #include "math/mat.hpp"
 #include "math/vec.hpp"
 #include "quadrature.hpp"
+#include <iostream>
+#include <fstream>
+
 #include "util.h"
 
 namespace vortex
@@ -54,6 +57,16 @@ namespace vortex
         return pow(sum, 0.5);
     }
 
+    double calc_gradient(std::vector<double> &de_dw)
+    {
+        double sum = 0.0;
+        for (int i = 0; i < de_dw.size(); i++)
+        {
+            sum += de_dw[i];
+        }
+        return sum;
+    }
+
     double
     geogram_CVT(vec3d &site, vec3d &p1, vec3d &p2, vec3d &p3)
     {
@@ -103,8 +116,8 @@ namespace vortex
             vec3d site(voronoi.vertices()[group_index]);
 
             double Hii = 0.0;
-            de_dw[group_index] = cell_area[group_index] - voronoi.properties()[group_index].mass;
-
+            double area = 0.0;
+            const auto *p0 = voronoi.vertices()[polygons(k, 0)];
             for (int j = 0; j < voronoi.polygons().length(k); j++)
             {
                 // two points that make up edge
@@ -126,7 +139,14 @@ namespace vortex
                 hessian(group_index, site2_index) = entry;
 
                 Hii -= entry;
+                if (j != 0 && j != voronoi.polygons().length(k) - 1)
+                {
+                    double t_area = calc_spherical_triangle_area(p0, p1, p2);
+                    area += t_area;
+                }
             }
+            de_dw[group_index] = cell_area[group_index] - area;
+
             hessian(group_index, group_index) = Hii;
         }
     }
@@ -154,7 +174,7 @@ namespace vortex
 
         data.iter++;
 
-        TriangleQuadrature<SphericalTriangle> quad(10);
+        TriangleQuadrature<SphericalTriangle> quad(4);
 
         double energy = 0.0;
         for (int k = 0; k < polygons.n(); k++)
@@ -164,6 +184,7 @@ namespace vortex
             int group_index = polygons.group(k);
             vec3d site(voronoi.vertices()[group_index]);
             double curr_weight = weights[group_index];
+            double cell_energy = 0.0;
 
             const auto *p1 = voronoi.vertices()[polygons(k, 0)];
 
@@ -182,7 +203,7 @@ namespace vortex
                     return std::pow(length(x - site), 2);
                 };
 
-                energy -= quad.integrate(fn, p1, p2, p3);
+                cell_energy += quad.integrate(fn, p1, p2, p3);
                 cell_area += t_area;
             }
 
@@ -190,12 +211,26 @@ namespace vortex
             {
                 de_dw[group_index] = cell_area - data.cell_sizes[group_index];
             }
-            energy += (curr_weight * cell_area);
-            energy -= data.cell_sizes[k] * curr_weight;
+            energy += cell_energy - curr_weight * (cell_area - data.cell_sizes[group_index]);
         }
-        LOG << fmt::format("iter={}, energy = {}", data.iter, energy);
+        int size = sizeof(de_dw);
+        std::vector<double> gradients(de_dw, de_dw + size);
+        double error = calc_gradient(gradients);
 
-        return energy;
+        data.error = error;
+
+        if (data.outputFile.is_open())
+        {
+            data.outputFile << "iter: " << data.iter << " error: " << data.error << std::endl;
+        }
+        else
+        {
+            std::cout << "Error opening file" << std::endl;
+        }
+        LOG << polygons.n();
+        // LOG << -energy;
+
+        return -energy;
     };
 
     template <>

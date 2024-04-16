@@ -39,8 +39,8 @@ UT_TEST_SUITE(optimaltransportgradient_test_suite)
 UT_TEST_CASE(test_optimaltransportgradient)
 {
     int n_iter = 10;
-    size_t n_sites = 1000;
-    int neighbors = 75;
+    size_t n_sites = 5000;
+    int neighbors = 100;
 
     auto irand = [](int min, int max)
     {
@@ -109,8 +109,12 @@ UT_TEST_CASE(test_optimaltransportgradient)
 
     double error = 1.0;
     double delta = 0.45;
-    const double tol = 1e-15;
+    const double tol = 1e-10;
     double iter = 0;
+
+    std::string hyphen = "_";
+    std::string file_path = "../../data_test/converge_output_gradient" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    std::ofstream outputFile(file_path);
 
     Timer timer;
     timer.start();
@@ -135,14 +139,19 @@ UT_TEST_CASE(test_optimaltransportgradient)
 
         error = calc_gradient_norm(de_dw);
         iter++;
+
+        if (outputFile.is_open())
+        {
+            outputFile << "iter: " << iter << " error: " << error << std::endl;
+        }
+        else
+        {
+            break;
+        }
     }
 
     timer.stop();
 
-    std::string hyphen = "_";
-    std::string file_path = "../../data_test/output_gradient" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
-
-    std::ofstream outputFile(file_path);
     if (outputFile.is_open())
     {
         outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
