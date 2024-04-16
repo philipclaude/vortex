@@ -157,10 +157,13 @@ namespace vortex
         nlopt_data<SphereDomain> &data = *static_cast<nlopt_data<SphereDomain> *>(data0);
         VoronoiDiagram &voronoi = data.voronoi;
         const Topology<Polygon> &polygons = voronoi.polygons();
+
         auto &weights = voronoi.weights();
+        std::set<int> sites_visited;
         weights.resize(n, 0.0);
         for (int i = 0; i < n; i++)
         {
+            sites_visited.insert(i);
             weights[i] = x[i];
         }
         lift_sites(data.vertices, voronoi.weights());
@@ -183,6 +186,7 @@ namespace vortex
             // get the site of the polygon
             int group_index = polygons.group(k);
             vec3d site(voronoi.vertices()[group_index]);
+            sites_visited.erase(group_index);
             double curr_weight = weights[group_index];
             double cell_energy = 0.0;
 
@@ -211,13 +215,23 @@ namespace vortex
             {
                 de_dw[group_index] = cell_area - data.cell_sizes[group_index];
             }
-            energy += cell_energy - curr_weight * (cell_area - data.cell_sizes[group_index]);
+            energy += cell_energy + curr_weight * (-cell_area + data.cell_sizes[group_index]);
         }
         int size = sizeof(de_dw);
         std::vector<double> gradients(de_dw, de_dw + size);
         double error = calc_gradient(gradients);
 
         data.error = error;
+
+        for (int index : sites_visited)
+        {
+            LOG << index;
+            if (de_dw)
+            {
+                de_dw[index] = -data.cell_sizes[index];
+            }
+            energy += weights[index] * (data.cell_sizes[index]);
+        }
 
         if (data.outputFile.is_open())
         {
@@ -227,9 +241,6 @@ namespace vortex
         {
             std::cout << "Error opening file" << std::endl;
         }
-        LOG << polygons.n();
-        // LOG << -energy;
-
         return -energy;
     };
 

@@ -31,7 +31,7 @@ namespace vortex
         Vertices &vertices;
         VoronoiDiagramOptions &options;
         const std::vector<double> &cell_sizes;
-        int nsites;
+        size_t n_sites;
         int iter;
         double error;
         std::ofstream &outputFile;
