@@ -23,10 +23,10 @@ namespace vortex
     double
     calc_spherical_triangle_area(vec3d p0, vec3d p1, vec3d p2)
     {
-        coord_t num = std::fabs(dot(p0, cross(p1, p2)));
+        double num = std::fabs(dot(p0, cross(p1, p2)));
 
-        coord_t den = 1.0 + dot(p0, p1) + dot(p1, p2) + dot(p0, p2);
-        coord_t area = 2.0 * std::atan2(num, den);
+        double den = 1.0 + dot(p0, p1) + dot(p1, p2) + dot(p0, p2);
+        double area = 2.0 * std::atan2(num, den);
         return area;
     };
 
@@ -39,8 +39,6 @@ namespace vortex
         {
             int group_index = polygons.group(k);
             sum += pow((voronoi.properties()[group_index].mass - cell_sizes[group_index]), 2);
-            // auto props = voronoi.analyze();
-            // LOG << fmt::format("cell_sizes[{}] = {}, mass = {}", group_index, cell_sizes[group_index], voronoi.properties()[group_index].mass);
         }
         error = pow((sum / polygons.n()), 0.5);
 
@@ -68,7 +66,7 @@ namespace vortex
     }
 
     double
-    geogram_CVT(vec3d &site, vec3d &p1, vec3d &p2, vec3d &p3)
+    geogram_CVT(vec3d site, vec3d p1, vec3d p2, vec3d p3)
     {
         double cur_f = 0.0;
         for (index_t c = 0; c < 2; c++)
@@ -152,16 +150,18 @@ namespace vortex
     }
 
     template <>
-    double calc_energy<SphereDomain>(unsigned int n, const double *x, double *de_dw, void *data0)
+    double calc_energy<SphereDomain>(const std::vector<double> &x, std::vector<double> &de_dw, void *data0)
     {
-        nlopt_data<SphereDomain> &data = *static_cast<nlopt_data<SphereDomain> *>(data0);
+        Timer time;
+        nlopt_data<SphereDomain> &data = *reinterpret_cast<nlopt_data<SphereDomain> *>(data0);
         VoronoiDiagram &voronoi = data.voronoi;
         const Topology<Polygon> &polygons = voronoi.polygons();
 
+        time.start();
         auto &weights = voronoi.weights();
         std::set<int> sites_visited;
-        weights.resize(n, 0.0);
-        for (int i = 0; i < n; i++)
+        weights.resize(x.size(), 0.0);
+        for (int i = 0; i < x.size(); i++)
         {
             sites_visited.insert(i);
             weights[i] = x[i];
@@ -183,12 +183,13 @@ namespace vortex
         for (int k = 0; k < polygons.n(); k++)
         {
             double cell_area = 0.0;
+            double cell_energy = 0.0;
+
             // get the site of the polygon
             int group_index = polygons.group(k);
             vec3d site(voronoi.vertices()[group_index]);
             sites_visited.erase(group_index);
             double curr_weight = weights[group_index];
-            double cell_energy = 0.0;
 
             const auto *p1 = voronoi.vertices()[polygons(k, 0)];
 
@@ -201,59 +202,71 @@ namespace vortex
                 // calculate area of the triangle
                 double t_area = calc_spherical_triangle_area(p1, p2, p3);
 
-                // quadrature
-                auto fn = [&site](const vec3d &x) -> double
+                auto fn = [&site](const vec3d &q) -> double
                 {
-                    return std::pow(length(x - site), 2);
+                    return std::pow(length(q - site), 2);
                 };
 
                 cell_energy += quad.integrate(fn, p1, p2, p3);
+
                 cell_area += t_area;
             }
-
-            if (de_dw)
+            if (!de_dw.empty())
             {
-                de_dw[group_index] = cell_area - data.cell_sizes[group_index];
+                de_dw[group_index] = data.cell_sizes[group_index] - cell_area;
             }
             energy += cell_energy + curr_weight * (-cell_area + data.cell_sizes[group_index]);
         }
-        int size = sizeof(de_dw);
-        std::vector<double> gradients(de_dw, de_dw + size);
-        double error = calc_gradient(gradients);
 
-        data.error = error;
-
+        // calculate for any missed vertices
         for (int index : sites_visited)
         {
-            LOG << index;
-            if (de_dw)
+            if (!de_dw.empty())
             {
-                de_dw[index] = -data.cell_sizes[index];
+                de_dw[index] = data.cell_sizes[index];
             }
-            energy += weights[index] * (data.cell_sizes[index]);
+            energy += weights[index] * data.cell_sizes[index];
         }
 
-        if (data.outputFile.is_open())
+        for (int i = 0; i < de_dw.size(); i++)
         {
-            data.outputFile << "iter: " << data.iter << " error: " << data.error << std::endl;
+            de_dw[i] = -1 * de_dw[i];
         }
-        else
+
+        time.stop();
+
+        data.energy_time += time.seconds();
+
+        double error = calc_gradient_norm(de_dw);
+        data.error = error;
+
+        if (data.output_converge)
         {
-            std::cout << "Error opening file" << std::endl;
+            if (data.outputFile.is_open())
+            {
+                data.outputFile << "iter: " << data.iter << " error: " << error << std::endl;
+            }
+            else
+            {
+                std::cout << "Error opening file" << std::endl;
+            }
         }
+
         return -energy;
     };
 
     template <>
-    double calc_energy<SquareDomain>(unsigned int n, const double *x, double *de_dw, void *data0)
+    double calc_energy<SquareDomain>(const std::vector<double> &x, std::vector<double> &de_dw, void *data0)
     {
         nlopt_data<SquareDomain> &data = *static_cast<nlopt_data<SquareDomain> *>(data0);
         VoronoiDiagram &voronoi = data.voronoi;
         const Topology<Polygon> &polygons = voronoi.polygons();
         auto &weights = voronoi.weights();
-        weights.resize(n, 0.0);
-        for (int i = 0; i < n; i++)
+        std::set<int> sites_visited;
+        weights.resize(x.size(), 0.0);
+        for (int i = 0; i < x.size(); i++)
         {
+            sites_visited.insert(i);
             weights[i] = x[i];
         }
         lift_sites(data.vertices, voronoi.weights());
@@ -270,13 +283,14 @@ namespace vortex
         for (int k = 0; k < polygons.n(); k++)
         {
             double cell_area = 0.0;
+            double cell_energy = 0.0;
+
             // get the site of the polygon
             int group_index = polygons.group(k);
             const auto *site = voronoi.vertices()[group_index];
             double curr_weight = weights[group_index];
-
+            sites_visited.erase(group_index);
             const auto *p1 = voronoi.vertices()[polygons(k, 0)];
-
             for (int j = 1; j < voronoi.polygons().length(k) - 1; j++)
             {
                 // get two vertices of the polygon
@@ -300,14 +314,42 @@ namespace vortex
                 cell_area += t_area;
             }
 
-            if (de_dw)
+            if (!de_dw.empty())
             {
-                de_dw[group_index] = cell_area - data.cell_sizes[group_index];
+                de_dw[group_index] = data.cell_sizes[group_index] - cell_area;
             }
-            energy += (-curr_weight * cell_area);
-            energy += data.cell_sizes[k] * curr_weight;
+            energy += curr_weight * (-cell_area + data.cell_sizes[group_index]);
         }
-        LOG << fmt::format("iter={}, energy = {}", data.iter, energy);
+
+        // calculate for any missed vertices
+        for (int index : sites_visited)
+        {
+            if (!de_dw.empty())
+            {
+                de_dw[index] = data.cell_sizes[index];
+            }
+            energy += weights[index] * data.cell_sizes[index];
+        }
+
+        for (int i = 0; i < de_dw.size(); i++)
+        {
+            LOG << de_dw[i];
+            de_dw[i] = -1.0 * de_dw[i];
+        }
+
+        if (data.output_converge)
+        {
+            double error = calc_gradient_norm(de_dw);
+
+            if (data.outputFile.is_open())
+            {
+                data.outputFile << "iter: " << data.iter << " error: " << error << std::endl;
+            }
+            else
+            {
+                std::cout << "Error opening file" << std::endl;
+            }
+        }
         return -energy;
     };
 }

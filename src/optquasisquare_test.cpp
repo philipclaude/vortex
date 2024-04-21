@@ -39,7 +39,7 @@ UT_TEST_SUITE(optimaltransportsquare_test_suite)
 UT_TEST_CASE(test_optimaltransportsquare)
 {
     int n_iter = 10;
-    size_t n_sites = 10;
+    size_t n_sites = 100;
 
     auto irand = []()
     {
@@ -80,7 +80,7 @@ UT_TEST_CASE(test_optimaltransportsquare)
     SquareDomain domain;
     VoronoiDiagram voronoi(dim, vertices[0], n_sites);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 75;
+    options.n_neighbors = 100;
     options.allow_reattempt = false;
     options.parallel = true;
 
@@ -96,12 +96,19 @@ UT_TEST_CASE(test_optimaltransportsquare)
         // move each site to the centroid of the corresponding cell
         voronoi.smooth(vertices, true);
     }
-    nlopt_data<SquareDomain> data = {voronoi, domain, vertices, options, cell_sizes, 0};
+    std::string hyphen = "_";
+
+    std::string file_path = "../../data_test/quasi/square/converge/scq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(100) + ".txt";
+    std::ofstream outputFile(file_path);
+
+    outputFile << "Number Sites: " << n_sites << " Neighbors: " << 100 << std::endl;
+
+    nlopt_data<SquareDomain> data = {voronoi, domain, vertices, options, cell_sizes, 0, 0.0, true, outputFile};
     std::vector<double> x(n_sites, 0.0);
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
 
-    opt.set_min_objective(&calc_energy<SquareDomain>, static_cast<void *>(&data));
+    opt.set_min_objective(calc_energy<SquareDomain>, static_cast<void *>(&data));
 
     // set some optimization parameters
     opt.set_xtol_rel(1e-16);
@@ -125,8 +132,6 @@ UT_TEST_CASE(test_optimaltransportsquare)
         std::cout << e.what() << std::endl;
     }
 
-    double error = calc_rsme_error(voronoi, cell_sizes);
-    LOG << fmt::format("error = {}", error);
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
 
     voronoi.merge();

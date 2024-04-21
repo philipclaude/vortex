@@ -38,9 +38,10 @@ UT_TEST_SUITE(optimaltransportsphere_test_suite)
 
 UT_TEST_CASE(test_optimaltransportsphere)
 {
-    int n_iter = 10;
-    size_t n_sites = 1000;
-    int neighbors = 175;
+    int n_iter = 50;
+    size_t n_sites = 25000;
+    int neighbors = 100;
+    bool converge = false;
 
     auto irand = [](int min, int max)
     {
@@ -101,23 +102,26 @@ UT_TEST_CASE(test_optimaltransportsphere)
 
     std::string hyphen = "_";
 
-    std::string file_path = "../../data_test/converge_output_quasi" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    std::string file_path = "../../data_test/quasi/runtime/csqq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
     std::ofstream outputFile(file_path);
 
     outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
 
+    double energy_time = 0.0;
+    int iter = 0;
+    double error = 0.0;
     Timer timer;
     timer.start();
-    nlopt_data<SphereDomain> data = {voronoi, domain, vertices, options, cell_sizes, n_sites, 0, 0.0, outputFile};
+    nlopt_data<SphereDomain> data = {voronoi, domain, vertices, options, cell_sizes, iter, error, converge, outputFile, energy_time};
     std::vector<double> x(n_sites, 0.0);
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
 
-    opt.set_min_objective(&calc_energy<SphereDomain>, static_cast<void *>(&data));
+    opt.set_min_objective(calc_energy<SphereDomain>, static_cast<void *>(&data));
 
     // set some optimization parameters
-    opt.set_xtol_rel(1e-12);
-    opt.set_ftol_rel(1e-12);
+    opt.set_xtol_rel(1e-16);
+    opt.set_ftol_rel(1e-16);
     opt.set_maxeval(10000);
 
     // set the lower and upper bounds on the weights
@@ -130,27 +134,42 @@ UT_TEST_CASE(test_optimaltransportsphere)
         auto result = opt.optimize(x, f_opt);
 
         timer.stop();
-        // std::string hyphen = "_";
-
-        // std::string file_path = "../../data_test/output_quasi" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
-
-        // std::ofstream outputFile(file_path);
-        // if (outputFile.is_open())
-        // {
-        //     outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
-        //     outputFile << "Time: " << timer.seconds() << std::endl;
-        //     outputFile << "Error: " << data.error << "Iterations: " << data.iter << std::endl;
-        //     outputFile << "result: " << result << std::endl;
-        //     outputFile.close();
-        // }
-        // else
-        // {
-        //     std::cout << "Error opening file" << std::endl;
-        // }
-        std::cout << result;
+        if (!converge)
+        {
+            if (outputFile.is_open())
+            {
+                outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+                outputFile << "Success" << std::endl;
+                outputFile << "Time: " << timer.seconds() << std::endl;
+                outputFile << "Average Energy Calculation: " << (energy_time / (double)data.iter) << std::endl;
+                outputFile << "Error: " << data.error << " Iterations: " << data.iter << std::endl;
+                outputFile << "result: " << result << std::endl;
+            }
+            else
+            {
+                std::cout << "Error opening file" << std::endl;
+            }
+        }
     }
     catch (std::exception &e)
     {
+        timer.stop();
+
+        if (!converge)
+        {
+            if (outputFile.is_open())
+            {
+                outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+                outputFile << "Fail" << std::endl;
+                outputFile << "Time: " << timer.seconds() << std::endl;
+                outputFile << "Average Energy Calculation: " << (energy_time / (double)data.iter) << std::endl;
+                outputFile << "Error: " << data.error << "Iterations: " << data.iter << std::endl;
+            }
+            else
+            {
+                std::cout << "Error opening file" << std::endl;
+            }
+        }
         std::cout << e.what() << std::endl;
     }
     outputFile.close();

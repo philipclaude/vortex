@@ -38,9 +38,10 @@ UT_TEST_SUITE(optimaltransportgradient_test_suite)
 
 UT_TEST_CASE(test_optimaltransportgradient)
 {
-    int n_iter = 10;
+    int n_iter = 50;
     size_t n_sites = 5000;
     int neighbors = 100;
+    bool output_converge = false;
 
     auto irand = [](int min, int max)
     {
@@ -108,19 +109,22 @@ UT_TEST_CASE(test_optimaltransportgradient)
     }
 
     double error = 1.0;
-    double delta = 0.45;
-    const double tol = 1e-10;
-    double iter = 0;
+    double delta = 0.55;
+    const double tol = 1e-8;
+    int iter = 0;
+    int max_iter = 10000;
 
     std::string hyphen = "_";
-    std::string file_path = "../../data_test/converge_output_gradient" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    std::string file_path = "../../data_test/gradient/runtime/cg" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(delta) + ".txt";
     std::ofstream outputFile(file_path);
 
     Timer timer;
     timer.start();
 
-    while (error >= tol)
+    while (error >= tol && iter < max_iter)
     {
+        iter++;
+
         std::vector<double> de_dw(n_sites);
 
         lift_sites(vertices, voronoi.weights());
@@ -138,33 +142,36 @@ UT_TEST_CASE(test_optimaltransportgradient)
         }
 
         error = calc_gradient_norm(de_dw);
-        iter++;
 
-        if (outputFile.is_open())
+        if (output_converge)
         {
-            outputFile << "iter: " << iter << " error: " << error << std::endl;
-        }
-        else
-        {
-            break;
+            if (outputFile.is_open())
+            {
+                outputFile << "iter: " << iter << " error: " << error << std::endl;
+            }
+            else
+            {
+                break;
+            }
         }
     }
 
     timer.stop();
 
-    if (outputFile.is_open())
+    if (!output_converge)
     {
-        outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
-        outputFile << "Time: " << timer.seconds() << std::endl;
-        outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
-        outputFile.close();
+        if (outputFile.is_open())
+        {
+            outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+            outputFile << "Time: " << timer.seconds() << std::endl;
+            outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
+        }
+        else
+        {
+            std::cout << "Error opening file" << std::endl;
+        }
     }
-    else
-    {
-        std::cout << "Error opening file" << std::endl;
-    }
-
-    voronoi.merge();
+    outputFile.close();
 }
 UT_TEST_CASE_END(test_optimaltransportgradient)
 UT_TEST_SUITE_END(optimaltransportgradient_test_suite)

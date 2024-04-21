@@ -38,9 +38,10 @@ UT_TEST_SUITE(optimaltransportnewtonsphere_test_suite)
 
 UT_TEST_CASE(test_optimaltransportnewtonsphere)
 {
-    int n_iter = 10;
-    size_t n_sites = 1000;
+    int n_iter = 35;
+    size_t n_sites = 25000;
     int neighbors = 100;
+    bool output_converge = false;
 
     auto irand = [](int min, int max)
     {
@@ -86,6 +87,11 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     options.allow_reattempt = false;
     options.parallel = true;
 
+    Timer timer;
+    timer.start();
+
+    Timer lloyd_timer;
+    lloyd_timer.start();
     for (int iter = 1; iter <= n_iter; ++iter)
     {
         options.store_mesh = true;
@@ -98,6 +104,7 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
         // move each site to the centroid of the corresponding cell
         voronoi.smooth(vertices, true);
     }
+    lloyd_timer.stop();
 
     auto &weights = voronoi.weights();
     weights.resize(n_sites, 0.0);
@@ -108,19 +115,15 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     }
 
     std::vector<double> cell_size(n_sites, 4 * M_PI / n_sites);
-    int max_iter = 100;
     int iter = 0;
     double error = 1.0;
     double alpha = 1.0;
     int sub_iter = 0;
 
     std::string hyphen = "_";
-    std::string file_path = "../../data_test/converge_output_newton" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    std::string file_path = "../../data_test/newton/lloyd_relax/cn" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(n_iter) + ".txt";
 
     std::ofstream outputFile(file_path);
-
-    Timer timer;
-    timer.start();
 
     lift_sites(vertices, voronoi.weights());
 
@@ -130,14 +133,30 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     voronoi.triangles().clear();
     voronoi.compute(domain, options);
 
-    while (error >= 1e-10)
+    double hessian_time = 0.0;
+    double solve_time = 0.0;
+    double voronoi_time = 0.0;
+
+    while (error >= 1e-8)
     {
+        iter++;
+
+        Timer hessian_timer;
+        Timer solve_timer;
+
         spmat<double> hessian(voronoi.polygons().n(), voronoi.polygons().n());
         std::vector<double> de_dw(voronoi.polygons().n());
 
+        hessian_timer.start();
         build_hessian(voronoi, hessian, de_dw, cell_size);
         vecd<double> search_direction(voronoi.polygons().n());
+        hessian_timer.stop();
+        hessian_time += hessian_timer.seconds();
+
+        solve_timer.start();
         hessian.solve_nl(de_dw, search_direction);
+        solve_timer.stop();
+        solve_time += solve_timer.seconds();
 
         error = calc_gradient_norm(de_dw);
 
@@ -149,11 +168,11 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
         {
             for (size_t k = 0; k < n_sites; k++)
             {
-                // LOG << de_dw[k];
-                // LOG << search_direction[k];
                 weights[k] = old_weights[k] - alpha * search_direction[k];
             }
 
+            Timer voronoi_timer;
+            voronoi_timer.start();
             lift_sites(vertices, voronoi.weights());
 
             domain.set_initialization_fraction(0.7);
@@ -161,6 +180,9 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
             voronoi.polygons().clear();
             voronoi.triangles().clear();
             voronoi.compute(domain, options);
+
+            voronoi_timer.stop();
+            voronoi_time += voronoi_timer.seconds();
 
             // make sure no sites are lost
             if (voronoi.polygons().n() == n_sites)
@@ -174,31 +196,39 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
 
         voronoi.merge();
 
-        iter++;
-        if (outputFile.is_open())
+        if (output_converge)
         {
-            outputFile << "iter: " << iter << " error: " << error << std::endl;
-        }
-        else
-        {
-            break;
+            if (outputFile.is_open())
+            {
+                outputFile << "iter: " << iter << " error: " << error << std::endl;
+            }
+            else
+            {
+                break;
+            }
         }
     }
 
     timer.stop();
-
-    if (outputFile.is_open())
+    if (!output_converge)
     {
-        outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
-        outputFile << "Time: " << timer.seconds() << std::endl;
-        outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
-        outputFile << "Sub Iterations" << sub_iter << std::endl;
-        outputFile.close();
+        if (outputFile.is_open())
+        {
+            outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+            outputFile << "Lloyd Relax Time: " << lloyd_timer.seconds() << std::endl;
+            outputFile << "Average Hessian Build: " << (hessian_time / (double)iter) << std::endl;
+            outputFile << "Average Hessian solve: " << (solve_time / (double)iter) << std::endl;
+            outputFile << "Average Voronoi Creation: " << (voronoi_time / (double)iter) << std::endl;
+            outputFile << "Total Time: " << timer.seconds() << std::endl;
+            outputFile << "Iterations: " << iter << " Error: " << error << std::endl;
+            outputFile << "Sub Iterations " << sub_iter << std::endl;
+        }
+        else
+        {
+            std::cout << "Error opening file" << std::endl;
+        }
     }
-    else
-    {
-        std::cout << "Error opening file" << std::endl;
-    }
+    outputFile.close();
 }
 UT_TEST_CASE_END(test_optimaltransportnewtonsphere)
 
