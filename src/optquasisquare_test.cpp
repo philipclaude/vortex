@@ -38,13 +38,11 @@ UT_TEST_SUITE(optimaltransportsquare_test_suite)
 
 UT_TEST_CASE(test_optimaltransportsquare)
 {
-    int n_iter = 10;
-    size_t n_sites = 100;
-
-    auto irand = []()
-    {
-        return double(rand()) / (double(RAND_MAX));
-    };
+    int n_iter = 50;
+    size_t n_sites = 1000;
+    int neighbors = 100;
+    // ideal cell size
+    std::vector<double> cell_sizes(n_sites, double(1 / double(n_sites)));
 
     static const int dim = 4; // number of dimensions
 
@@ -53,14 +51,12 @@ UT_TEST_CASE(test_optimaltransportsquare)
     // generate random sites on the square
     for (int i = 0; i < n_sites; i++)
     {
-        sites[i * dim + 0] = irand();
-        sites[i * dim + 1] = irand();
+        sites[i * dim + 0] = double((double(rand()) / double(RAND_MAX)));
+        sites[i * dim + 1] = double((double(rand()) / double(RAND_MAX)));
         sites[i * dim + 2] = 0;
-        LOG << fmt::format("site[{}] = ({}, {})", i, sites[i * dim + 0], sites[i * dim + 1]);
+        if (dim > 3)
+            sites[i * dim + 3] = 0.0;
     }
-
-    // ideal cell size
-    std::vector<double> cell_sizes(n_sites, double(1.0 / double(n_sites)));
 
     std::vector<index_t> order(n_sites);
     sort_points_on_zcurve(sites.data(), n_sites, dim, order);
@@ -68,8 +64,6 @@ UT_TEST_CASE(test_optimaltransportsquare)
     Vertices vertices(dim);
     vertices.reserve(n_sites);
     coord_t vertex[dim];
-
-    // add sites in z-curve order to Vertices list
     for (size_t i = 0; i < n_sites; i++)
     {
         for (int d = 0; d < dim; d++)
@@ -80,35 +74,40 @@ UT_TEST_CASE(test_optimaltransportsquare)
     SquareDomain domain;
     VoronoiDiagram voronoi(dim, vertices[0], n_sites);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 100;
+    options.n_neighbors = neighbors;
     options.allow_reattempt = false;
     options.parallel = true;
 
     for (int iter = 1; iter <= n_iter; ++iter)
     {
-        options.store_mesh = true;
+        options.store_mesh = iter == n_iter;
         options.verbose = (iter == 1 || iter == n_iter - 1);
         voronoi.vertices().clear();
+        voronoi.vertices().set_dim(3);
         voronoi.polygons().clear();
         voronoi.triangles().clear();
         voronoi.compute(domain, options);
 
         // move each site to the centroid of the corresponding cell
-        voronoi.smooth(vertices, true);
+        voronoi.smooth(vertices, false);
     }
+
+    LOG << voronoi.polygons().n();
     std::string hyphen = "_";
 
-    std::string file_path = "../../data_test/quasi/square/converge/scq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(100) + ".txt";
+    std::string file_path = "../../data_test/quasi/square/runtime/scq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(100) + ".txt";
     std::ofstream outputFile(file_path);
 
-    outputFile << "Number Sites: " << n_sites << " Neighbors: " << 100 << std::endl;
+    int iter = 0;
+    double error = 0.0;
+    bool converge = false;
+    double energy_time = 0.0;
 
-    nlopt_data<SquareDomain> data = {voronoi, domain, vertices, options, cell_sizes, 0, 0.0, true, outputFile};
-    std::vector<double> x(n_sites, 0.0);
+    nlopt_data<SquareDomain> data = {voronoi, domain, vertices, options, cell_sizes, 0, 0.0, 0.0, converge, outputFile, energy_time};
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
 
-    opt.set_min_objective(calc_energy<SquareDomain>, static_cast<void *>(&data));
+    opt.set_min_objective(objective_func<SquareDomain>, static_cast<void *>(&data));
 
     // set some optimization parameters
     opt.set_xtol_rel(1e-16);
@@ -118,18 +117,52 @@ UT_TEST_CASE(test_optimaltransportsquare)
     // set the lower and upper bounds on the weights
     std::vector<double> lower_bound(n_sites, 0.0);
     opt.set_lower_bounds(lower_bound);
-    // std::vector<double> upper_bound(n_sites, 1.0);
-    // opt.set_upper_bounds(upper_bound);
 
     double f_opt;
+    std::vector<double> x(n_sites, 0.0);
     try
     {
         auto result = opt.optimize(x, f_opt);
-        printf("nlopt result: %d\n", result);
+        std::vector<double> der(n_sites, 0.0);
+        for (int i = 0; i < n_sites; i++)
+        {
+            der[i] = x[i] - cell_sizes[i];
+            // LOG << x[i];
+        }
+        LOG << f_opt;
+        // LOG << calc_gradient_norm(der);
+        if (!converge)
+        {
+            if (outputFile.is_open())
+            {
+                outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+                outputFile << "Success" << std::endl;
+                outputFile << "Average Energy Calculation: " << (energy_time / (double)data.iter) << std::endl;
+                outputFile << "Error: " << error << " Iterations: " << data.iter << std::endl;
+                outputFile << "result: " << result << std::endl;
+            }
+            else
+            {
+                std::cout << "Error opening file" << std::endl;
+            }
+        }
     }
     catch (std::exception &e)
     {
-        std::cout << e.what() << std::endl;
+        if (!converge)
+        {
+            if (outputFile.is_open())
+            {
+                outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
+                outputFile << "Fail" << std::endl;
+                outputFile << "Average Energy Calculation: " << (energy_time / (double)data.iter) << std::endl;
+                outputFile << "Error: " << error << " Iterations: " << data.iter << std::endl;
+            }
+            else
+            {
+                std::cout << "Error opening file" << std::endl;
+            }
+        }
     }
 
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());

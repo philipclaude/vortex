@@ -41,7 +41,7 @@ UT_TEST_CASE(test_optimaltransportgradient)
     int n_iter = 50;
     size_t n_sites = 5000;
     int neighbors = 100;
-    bool output_converge = false;
+    bool output_converge = true;
 
     auto irand = [](int min, int max)
     {
@@ -103,8 +103,11 @@ UT_TEST_CASE(test_optimaltransportgradient)
         voronoi.smooth(vertices, true);
     }
     // start weights as 0
+    std::set<int> sites_visited;
+
     for (size_t k = 0; k < n_sites; k++)
     {
+        sites_visited.insert(k);
         weights[k] = 0;
     }
 
@@ -112,16 +115,28 @@ UT_TEST_CASE(test_optimaltransportgradient)
     double delta = 0.55;
     const double tol = 1e-8;
     int iter = 0;
-    int max_iter = 10000;
+    double prev_energy = 2.0;
+    double curr_energy = 1.0;
+    double energy_change = 1.0;
 
     std::string hyphen = "_";
-    std::string file_path = "../../data_test/gradient/runtime/cg" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(delta) + ".txt";
+    std::string file_path = "";
+
+    if (output_converge)
+    {
+        file_path = "../../data_test/gradient/energy/cg" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    }
+    else
+    {
+        file_path = "../../data_test/gradient/energy/runtime/cg" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    }
+
     std::ofstream outputFile(file_path);
 
     Timer timer;
     timer.start();
 
-    while (error >= tol && iter < max_iter)
+    while (energy_change >= 1e-12)
     {
         iter++;
 
@@ -141,13 +156,16 @@ UT_TEST_CASE(test_optimaltransportgradient)
             weights[group_index] = weights[group_index] - delta * (de_dw[group_index]);
         }
 
-        error = calc_gradient_norm(de_dw);
+        // error = calc_gradient_norm(de_dw);
+        prev_energy = curr_energy;
+        curr_energy = calculate_energy(voronoi, cell_size, de_dw, sites_visited);
+        energy_change = abs(curr_energy - prev_energy);
 
         if (output_converge)
         {
             if (outputFile.is_open())
             {
-                outputFile << "iter: " << iter << " error: " << error << std::endl;
+                outputFile << "iter: " << iter << " error: " << energy_change << std::endl;
             }
             else
             {

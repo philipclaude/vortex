@@ -38,10 +38,11 @@ UT_TEST_SUITE(optimaltransportnewtonsphere_test_suite)
 
 UT_TEST_CASE(test_optimaltransportnewtonsphere)
 {
-    int n_iter = 35;
-    size_t n_sites = 25000;
+    int n_iter = 50;
+    size_t n_sites = 100000;
     int neighbors = 100;
-    bool output_converge = false;
+    bool output = true;
+    bool converge = false;
 
     auto irand = [](int min, int max)
     {
@@ -109,8 +110,11 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     auto &weights = voronoi.weights();
     weights.resize(n_sites, 0.0);
 
+    std::set<int> sites_visited;
+
     for (size_t k = 0; k < n_sites; k++)
     {
+        sites_visited.insert(k);
         weights[k] = 1.0;
     }
 
@@ -121,7 +125,16 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     int sub_iter = 0;
 
     std::string hyphen = "_";
-    std::string file_path = "../../data_test/newton/lloyd_relax/cn" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(n_iter) + ".txt";
+    std::string file_path = "";
+
+    if (output && converge)
+    {
+        file_path = "../../data_test/newton/energy/cn" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    }
+    else if (output)
+    {
+        file_path = "../../data_test/newton/runtime/cn" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    }
 
     std::ofstream outputFile(file_path);
 
@@ -133,10 +146,22 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
     voronoi.triangles().clear();
     voronoi.compute(domain, options);
 
+    voronoi.merge();
+
+    LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
+    if (voronoi.polygons().n() > 0)
+        meshb::write(voronoi, "newton" + std::to_string(0) + ".meshb");
+
     double hessian_time = 0.0;
     double solve_time = 0.0;
     double voronoi_time = 0.0;
 
+    double prev_energy = 1.0;
+    double curr_energy = 0.0;
+
+    double ftol = 1e-12;
+
+    // while (abs(curr_energy - prev_energy) >= ftol)
     while (error >= 1e-8)
     {
         iter++;
@@ -159,6 +184,8 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
         solve_time += solve_timer.seconds();
 
         error = calc_gradient_norm(de_dw);
+        // prev_energy = curr_energy;
+        // curr_energy = calculate_energy(voronoi, cell_sizes, de_dw, sites_visited);
 
         vecd<double> old_weights(weights);
 
@@ -194,23 +221,23 @@ UT_TEST_CASE(test_optimaltransportnewtonsphere)
             sub_iter++;
         }
 
-        voronoi.merge();
-
-        if (output_converge)
+        if (output && converge)
         {
             if (outputFile.is_open())
             {
-                outputFile << "iter: " << iter << " error: " << error << std::endl;
+                outputFile << "iter: " << iter << " energy: " << abs(curr_energy - prev_energy) << std::endl;
             }
             else
             {
                 break;
             }
         }
+
+        voronoi.merge();
     }
 
     timer.stop();
-    if (!output_converge)
+    if (output && !converge)
     {
         if (outputFile.is_open())
         {

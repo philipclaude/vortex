@@ -39,9 +39,9 @@ UT_TEST_SUITE(optimaltransportsphere_test_suite)
 UT_TEST_CASE(test_optimaltransportsphere)
 {
     int n_iter = 50;
-    size_t n_sites = 25000;
+    size_t n_sites = 5000;
     int neighbors = 100;
-    bool converge = false;
+    bool converge = true;
 
     auto irand = [](int min, int max)
     {
@@ -86,6 +86,8 @@ UT_TEST_CASE(test_optimaltransportsphere)
     options.n_neighbors = neighbors;
     options.allow_reattempt = false;
     options.parallel = true;
+    auto &weights = voronoi.weights();
+    weights.resize(n_sites, 0.0);
 
     for (int iter = 1; iter <= n_iter; ++iter)
     {
@@ -101,27 +103,31 @@ UT_TEST_CASE(test_optimaltransportsphere)
     }
 
     std::string hyphen = "_";
-
-    std::string file_path = "../../data_test/quasi/runtime/csqq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    std::string file_path = "";
+    if (converge)
+    {
+        file_path = "../../data_test/quasi/energy/csqq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    }
+    else
+    {
+        file_path = "../../data_test/quasi/energy/runtime/csqq" + hyphen + std::to_string(n_sites) + hyphen + std::to_string(neighbors) + ".txt";
+    }
     std::ofstream outputFile(file_path);
 
-    outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
-
     double energy_time = 0.0;
-    int iter = 0;
-    double error = 0.0;
     Timer timer;
     timer.start();
-    nlopt_data<SphereDomain> data = {voronoi, domain, vertices, options, cell_sizes, iter, error, converge, outputFile, energy_time};
+    nlopt_data<SphereDomain> data = {voronoi, domain, vertices, options, cell_sizes, 0, 0.0, 0.0, converge, outputFile, energy_time};
     std::vector<double> x(n_sites, 0.0);
 
     nlopt::opt opt(nlopt::LD_LBFGS, n_sites);
 
-    opt.set_min_objective(calc_energy<SphereDomain>, static_cast<void *>(&data));
+    opt.set_min_objective(objective_func<SphereDomain>, static_cast<void *>(&data));
 
     // set some optimization parameters
-    opt.set_xtol_rel(1e-16);
-    opt.set_ftol_rel(1e-16);
+    opt.set_xtol_rel(0);
+    opt.set_ftol_abs(1e-16);
+    // opt.set_stopval(1e-8);
     opt.set_maxeval(10000);
 
     // set the lower and upper bounds on the weights
@@ -132,7 +138,6 @@ UT_TEST_CASE(test_optimaltransportsphere)
     try
     {
         auto result = opt.optimize(x, f_opt);
-
         timer.stop();
         if (!converge)
         {
@@ -141,6 +146,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
                 outputFile << "Number Sites: " << n_sites << " Neighbors: " << neighbors << std::endl;
                 outputFile << "Success" << std::endl;
                 outputFile << "Time: " << timer.seconds() << std::endl;
+                outputFile << "Energy: " << f_opt << std::endl;
                 outputFile << "Average Energy Calculation: " << (energy_time / (double)data.iter) << std::endl;
                 outputFile << "Error: " << data.error << " Iterations: " << data.iter << std::endl;
                 outputFile << "result: " << result << std::endl;
@@ -154,6 +160,7 @@ UT_TEST_CASE(test_optimaltransportsphere)
     catch (std::exception &e)
     {
         timer.stop();
+        LOG << f_opt;
 
         if (!converge)
         {
