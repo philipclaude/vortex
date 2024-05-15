@@ -49,7 +49,7 @@
 
 using namespace vortex;
 
-UT_TEST_SUITE(cut_test_suite)
+UT_TEST_SUITE(adjacent_test_suite)
 
 // KD tree for nearest neighbors to a single point
 template <int dim>
@@ -124,24 +124,19 @@ bool findIntersection(const coord_t* edge1Start, const coord_t* edge1End, const 
     }
 }
 
-UT_TEST_CASE(voronoi_cut) {
-    Timer timer;
-    timer.start();
-    
+UT_TEST_CASE(voronoi_cut_edge) {
     // read in mesh to be edited
     static const int dim = 3;
     Mesh o_mesh(dim);
-    meshb::read("../build/release/analytic_10M.meshb", o_mesh);
     //meshb::read("../build/release/example7.meshb", o_mesh);
-    //meshb::read("../build/release/example4.meshb", o_mesh);
+    meshb::read("../build/release/analytic_10M.meshb", o_mesh);
     size_t n_sites = o_mesh.polygons().n();
-    
+
     // create boundary object (l_mesh) and place lines on original mesh (o_mesh)
     Mesh l_mesh(dim);
     meshb::read("../build/release/water_0025.meshb", l_mesh);
     index_t current = o_mesh.vertices().n();
     index_t l = 0;
-    o_mesh.lines().reserve(l_mesh.lines().n());
     while(l < l_mesh.lines().n()){
         int g = l_mesh.lines().group(l); 
         index_t c = 0;
@@ -171,7 +166,7 @@ UT_TEST_CASE(voronoi_cut) {
     Mesh mesh(dim);
     mesh.vertices().reserve(o_mesh.vertices().n());
     mesh.polygons().reserve(n_sites);
-    
+
     // texture options
     std::string tex_file =
         std::string(VORTEX_SOURCE_DIR) + "/../data/oceans_2048.png";
@@ -179,27 +174,19 @@ UT_TEST_CASE(voronoi_cut) {
     tex_opts.format = TextureFormat::kGrayscale;
     Texture texture(tex_file, tex_opts);
     texture.make_binary(10, 10, 255);
-    timer.stop();
-    LOG << fmt::format("All preprocessing in {} seconds", timer.seconds());
 
-    timer.start();
     // KD tree
     size_t n_boundaries = o_mesh.lines().n();
     std::vector<index_t> VNN(o_mesh.lines().n());
     std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
     get_nearest_neighbor<dim>(o_mesh.vertices()[0], n_sites, o_mesh.vertices()[o_mesh.vertices().n()-n_boundaries], n_boundaries, VNN, tree);
-    timer.stop();
-    LOG << fmt::format("All neighbors calculated in {} seconds", timer.seconds());
 
-    timer.start();
     // site to polygon to ensure correct polygon indices
     index_t S2P[n_sites];
     for(index_t s = 0; s < n_sites; s++){
         S2P[o_mesh.polygons().group(s)] = s;
     }
 
-    // nearest polygon with parallel-sorted polygons
-    //std::vector<index_t> VNP(n_boundaries);
     // adjacent vertices of boundary edges (use vector reserve [upper bound] and shrink to fit after loop)
     std::vector<std::pair<index_t, index_t>> ABV(n_boundaries);
     // polygon to boundary vertices (possible to reserve inner vector?)
@@ -218,26 +205,6 @@ UT_TEST_CASE(voronoi_cut) {
         P2BV[S2P[VNN[vn]]].push_back(o_mesh.vertices().n() - n_boundaries + vn);
     }
 
-    /*
-    for(index_t b = 0; b < n_boundaries; b++){
-        index_t curr = o_mesh.vertices().n() - n_boundaries + b;
-        if(b == 0){
-            ABV.push_back(std::make_pair(o_mesh.vertices().n()-1, curr+1));
-        }else if(b==n_boundaries-1){
-            ABV.push_back(std::make_pair(curr-1,o_mesh.vertices().n()-n_boundaries));
-        }else{
-            ABV.push_back(std::make_pair(curr-1,curr+1));
-        }
-    }
-    */
-   /*
-    // polygon to boundary vertices
-    std::vector<std::vector<coord_t>> P2BV(o_mesh.polygons().n());
-    for(index_t n = 0; n < n_boundaries; n++){
-        P2BV[VNP[n]].push_back(o_mesh.vertices().n() - n_boundaries + n);
-    }
-    */
-
     // polygon to boundary edges
     std::vector<std::vector<std::pair<index_t, index_t>>> P2BE(o_mesh.polygons().n());
     for (auto& vect : P2BE) vect.reserve(10);
@@ -254,10 +221,32 @@ UT_TEST_CASE(voronoi_cut) {
             }
         } 
     }
-    timer.stop();
-    LOG << fmt::format("All data structures made in {} seconds", timer.seconds());
-
+    
+    Timer timer;
     timer.start();
+    // Create map of adjacent polygons
+    std::unordered_map<std::pair<index_t, index_t>, std::pair<index_t, index_t>> adjMap;
+    adjMap.reserve(o_mesh.polygons().n()*10);
+    for(index_t poly = 0; poly < o_mesh.polygons().n(); poly++){
+        for(index_t e = 0; e < o_mesh.polygons().length(poly); e++){
+            index_t e0 = o_mesh.polygons()[poly][e];
+            index_t e1 = o_mesh.polygons()[poly][(e+1)%o_mesh.polygons().length(poly)];
+            std::pair<index_t, index_t> check_key = std::make_pair(e1, e0);
+            auto it = adjMap.find(check_key);
+            if (it != adjMap.end()) {
+                adjMap[check_key].second = poly;
+            } else {
+                adjMap[std::make_pair(e0, e1)] = std::make_pair(poly, -1);
+            }
+        }
+    }
+    timer.stop();
+    LOG << fmt::format("Adjacencies found in {} seconds", timer.seconds());
+
+    // map of old polygon indices to new indices
+    std::unordered_map<index_t, index_t> indices;
+    indices.reserve(o_mesh.polygons().n());
+
     // Creation of new restricted polygons
     for(index_t poly = 0; poly < o_mesh.polygons().n(); poly++){
         // remove inside cells (texture-based) - not 100% accurate
@@ -330,11 +319,117 @@ UT_TEST_CASE(voronoi_cut) {
             for(index_t vc = 0; vc < vertices_count; vc++){
                 new_polygon[vc] = mesh.vertices().n() - vertices_count + vc;
             }
+            indices[poly] = mesh.polygons().n();
             mesh.polygons().add(new_polygon,vertices_count);
         }
     }
+
+    timer.start();
+    // adjacent test
+    for(index_t poly = 0; poly < o_mesh.polygons().n(); poly++){
+        bool water = false;
+        for (size_t i = 0; i < o_mesh.polygons().length(poly); i++){
+            vec3d p, q;
+            p[0] = o_mesh.vertices()[o_mesh.polygons()[poly][i]][0];
+            p[1] = o_mesh.vertices()[o_mesh.polygons()[poly][i]][1];
+            p[2] = o_mesh.vertices()[o_mesh.polygons()[poly][i]][2];
+            sphere_params(p, q);
+            double t;
+            texture.sample(q[0], q[1], &t);
+            if (t >= 11){ 
+                water = true;
+                break;
+            }
+        }
+        if(water){  
+            if(!P2BE[poly].empty()){
+                // std::cout << "first polygon: " << poly << std::endl;
+                // std::cout << "P2BE: " << P2BE[poly].back().second << std::endl;
+                std::pair<index_t, index_t> edge;
+                coord_t firstIntersection[dim];
+                for(int e = 0; e < o_mesh.polygons().length(poly); e++){
+                    index_t v1 = e; index_t v2 = (e + 1) % o_mesh.polygons().length(poly);
+                    if(planeSide(o_mesh.vertices()[o_mesh.polygons()[poly][v1]],o_mesh.vertices()[o_mesh.polygons()[poly][v2]],o_mesh.vertices()[P2BE[poly].back().first])!=planeSide(o_mesh.vertices()[o_mesh.polygons()[poly][v1]],o_mesh.vertices()[o_mesh.polygons()[poly][v2]],o_mesh.vertices()[P2BE[poly].back().second])){
+                        vec3d intersection;
+                        if(findIntersection(o_mesh.vertices()[P2BE[poly].back().first], o_mesh.vertices()[P2BE[poly].back().second], o_mesh.vertices()[o_mesh.polygons()[poly][v1]], o_mesh.vertices()[o_mesh.polygons()[poly][v2]],intersection)){
+                            edge.first = o_mesh.polygons()[poly][v1]; edge.second = o_mesh.polygons()[poly][v2];
+                            firstIntersection[0] = intersection[0]; firstIntersection[1] = intersection[1]; firstIntersection[2] = intersection[2];
+                            break;
+                        }
+                    }
+                }
+                index_t first_endpoint = P2BE[poly].back().first;
+                index_t second_endpoint = P2BE[poly].back().second;
+                //find the next polygon
+                index_t next_poly;
+                if (adjMap.find(edge) != adjMap.end()) {
+                    next_poly = adjMap[edge].second;
+                } else {
+                    std::pair<index_t, index_t> key = {edge.second, edge.first};
+                    next_poly = adjMap[key].first;
+                }
+                // std::cout << "next polygon: " << next_poly << std::endl;
+                // std::cout << "P2BE: " << P2BE[next_poly].front().second << std::endl;
+                // while(P2BE[next_poly].front().second != second_endpoint){
+                while(P2BE[next_poly].empty()){
+                    mesh.vertices().add(firstIntersection);
+                    size_t vert_count = 1;
+                    size_t n = o_mesh.polygons().length(next_poly);
+                    index_t eIndex;
+                    // find index of the edge
+                    for(index_t e = 0; e < n; e++){
+                        if(o_mesh.polygons()[next_poly][e] == edge.second && o_mesh.polygons()[next_poly][(e+1)%n] == edge.first){
+                            eIndex = (e+1)%n;
+                            break;
+                        }
+                    }
+                    // loop through polygon edge until second intersection point of edge is found, adding vertices along the way
+                    for(index_t e = 0; e < n; e++){
+                        index_t nv1 = (eIndex + e)%n;
+                        index_t nv2 = (nv1 + 1)%n;
+                        coord_t ver[dim] = {o_mesh.vertices()[o_mesh.polygons()[next_poly][nv1]][0],o_mesh.vertices()[o_mesh.polygons()[next_poly][nv1]][1],o_mesh.vertices()[o_mesh.polygons()[next_poly][nv1]][2]};
+                        mesh.vertices().add(ver);
+                        vert_count++;
+                        if(planeSide(o_mesh.vertices()[o_mesh.polygons()[next_poly][nv1]],o_mesh.vertices()[o_mesh.polygons()[next_poly][nv2]],o_mesh.vertices()[first_endpoint])!=planeSide(o_mesh.vertices()[o_mesh.polygons()[next_poly][nv1]],o_mesh.vertices()[o_mesh.polygons()[next_poly][nv2]],o_mesh.vertices()[second_endpoint])){
+                            vec3d intersection;
+                            if(findIntersection(o_mesh.vertices()[first_endpoint], o_mesh.vertices()[second_endpoint], o_mesh.vertices()[o_mesh.polygons()[next_poly][nv1]], o_mesh.vertices()[o_mesh.polygons()[next_poly][nv2]],intersection)){
+                                firstIntersection[0] = intersection[0]; firstIntersection[1] = intersection[1]; firstIntersection[2] = intersection[2];
+                                mesh.vertices().add(firstIntersection);
+                                vert_count++;
+                                edge.first = o_mesh.polygons()[next_poly][nv1]; edge.second = o_mesh.polygons()[next_poly][nv2];
+                                break;
+                            }
+                        }
+                    }
+                    // create polygon
+                    index_t new_polygon[vert_count];
+                    for(index_t vc = 0; vc < vert_count; vc++){
+                        new_polygon[vc] = mesh.vertices().n() - vert_count + vc;
+                    }
+                    mesh.polygons().add(new_polygon,vert_count);
+                    // remove old version
+                    index_t index = indices[next_poly];
+                    for(int v = 1; v < mesh.polygons().length(index); v++){
+                        mesh.vertices()[mesh.polygons()[index][v]][0] = mesh.vertices()[mesh.polygons()[index][0]][0];
+                        mesh.vertices()[mesh.polygons()[index][v]][1] = mesh.vertices()[mesh.polygons()[index][0]][1];
+                        mesh.vertices()[mesh.polygons()[index][v]][2] = mesh.vertices()[mesh.polygons()[index][0]][2];
+                    }
+                    // set the next polygon
+                    if (adjMap.find(edge) != adjMap.end()) {
+                        next_poly = adjMap[edge].second;
+                    } else {
+                        std::pair<index_t, index_t> key = {edge.second, edge.first};
+                        next_poly = adjMap[key].first;
+                    }
+                    // std::cout << "last polygon: " << next_poly << std::endl;
+                    // std::cout << "P2BE: " << P2BE[next_poly].front().second << std::endl;
+                }
+            }
+        }
+    }
+
     timer.stop();
-    LOG << fmt::format("All polygons altered and added in {} seconds", timer.seconds());
+    LOG << fmt::format("Adjacency test completed in {} seconds", timer.seconds());
 
     mesh.lines().reserve(n_boundaries);
     current = mesh.vertices().n();
@@ -363,11 +458,10 @@ UT_TEST_CASE(voronoi_cut) {
         mesh.lines().set_group(id, l_mesh.lines().group(l));
         l++; current+=(c+1);
     }
-    std::cout << mesh.polygons().n();
-    meshb::write(mesh, "finaltest.meshb");
-    //meshb::write(mesh, "A_10M.meshb");
+
+    //meshb::write(mesh, "edgetest.meshb");
 }
-UT_TEST_CASE_END(voronoi_cut)
+UT_TEST_CASE_END(voronoi_cut_edge)
 
 
-UT_TEST_SUITE_END(cut_test_suite)
+UT_TEST_SUITE_END(adjacent_test_suite)

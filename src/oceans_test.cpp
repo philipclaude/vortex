@@ -51,8 +51,8 @@ UT_TEST_CASE(test_random_oceans) {
     auto irand = [](int min, int max) {
         return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
     };
-    size_t n_points = 1000000;
-    int n_smooth = 10;
+    size_t n_points = 10000000;
+    int n_smooth = 5;
     int count = 0;
     Vertices sample(3);
 
