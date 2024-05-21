@@ -10,10 +10,10 @@ namespace vortex {
 template <>
 void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x, double tol,
                              bool symmetric) const {
-  ASSERT(b.m() == nb_rows());
+  ASSERT(b.m() == n_rows());
 
   nlNewContext();
-  nlSolverParameteri(NL_NB_VARIABLES, NLint(nb_rows()));
+  nlSolverParameteri(NL_NB_VARIABLES, NLint(n_rows()));
   nlSolverParameteri(NL_NB_SYSTEMS, 1);
   if (symmetric) {
     nlSolverParameteri(NL_SOLVER, NL_CG);
@@ -29,22 +29,8 @@ void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x, double tol,
   nlBegin(NL_SYSTEM);
   nlBegin(NL_MATRIX);
 
-#if 0
-  for (auto& t : triplets_) {
-    nlAddIJCoefficient(t.first.first, t.first.second, t.second);
-  }
-
-  ASSERT(b.m() == nb_rows());
-  for (int i = 0; i < nb_rows(); i++) nlAddIRightHandSide(i, b[i]);
-#else
-  std::vector<std::unordered_map<uint32_t, double> > rows(b.m());
-  for (auto& r : rows) r.reserve(10);
-  for (const auto& [idx, value] : triplets_) {
-    rows[idx.first].insert({idx.second, value});
-  }
-
-  for (size_t k = 0; k < rows.size(); k++) {
-    const auto& r = rows[k];
+  for (size_t k = 0; k < rows_.size(); k++) {
+    const auto& r = rows_[k];
     nlBegin(NL_ROW);
     for (const auto& [col, value] : r) {
       nlCoefficient(col, value);
@@ -53,15 +39,13 @@ void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x, double tol,
     nlEnd(NL_ROW);
   }
 
-#endif
-
   nlEnd(NL_MATRIX);
   nlEnd(NL_SYSTEM);
 
   nlSolve();
 
   ASSERT(x.m() == b.m());
-  for (auto k = 0; k < nb_rows(); k++) x[k] = nlGetVariable(k);
+  for (auto k = 0; k < n_rows(); k++) x[k] = nlGetVariable(k);
 
   nlDeleteContext(nlGetCurrent());
 }
