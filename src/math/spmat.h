@@ -75,7 +75,8 @@ class spmat {
    * \param[inout] x - solution vector
    * \param[in]    symmetric - option to specify if the matrix is symmetric
    */
-  void solve_nl(const vecd<T>& b, vecd<T>& x, bool symmetric = true) const;
+  void solve_nl(const vecd<T>& b, vecd<T>& x, double tol,
+                bool symmetric = true) const;
 
   /**
    * \brief Solves A * x = b using the Jacobi method.
@@ -139,6 +140,8 @@ class spmat {
       std::cout << std::endl;
     }
   }
+
+  void clear() { triplets_.clear(); }
 
  private:
   std::unordered_set<int> rows_;

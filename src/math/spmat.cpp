@@ -2,12 +2,13 @@
 
 #include <OpenNL_psm.h>
 
+#include "defs.h"
 #include "vec.h"
 
 namespace vortex {
 
 template <>
-void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x,
+void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x, double tol,
                              bool symmetric) const {
   ASSERT(b.m() == nb_rows());
 
@@ -22,18 +23,37 @@ void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x,
     nlSolverParameteri(NL_SYMMETRIC, NL_FALSE);
   }
   nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_JACOBI);
-  nlSolverParameterd(NL_THRESHOLD, 1e-10);
-  nlSolverParameteri(NL_MAX_ITERATIONS, 10000);
+  nlSolverParameterd(NL_THRESHOLD, tol);
+  nlSolverParameteri(NL_MAX_ITERATIONS, 100);
 
   nlBegin(NL_SYSTEM);
   nlBegin(NL_MATRIX);
 
+#if 0
   for (auto& t : triplets_) {
     nlAddIJCoefficient(t.first.first, t.first.second, t.second);
   }
 
   ASSERT(b.m() == nb_rows());
   for (int i = 0; i < nb_rows(); i++) nlAddIRightHandSide(i, b[i]);
+#else
+  std::vector<std::unordered_map<uint32_t, double> > rows(b.m());
+  for (auto& r : rows) r.reserve(10);
+  for (const auto& [idx, value] : triplets_) {
+    rows[idx.first].insert({idx.second, value});
+  }
+
+  for (size_t k = 0; k < rows.size(); k++) {
+    const auto& r = rows[k];
+    nlBegin(NL_ROW);
+    for (const auto& [col, value] : r) {
+      nlCoefficient(col, value);
+      nlRightHandSide(b[k]);
+    }
+    nlEnd(NL_ROW);
+  }
+
+#endif
 
   nlEnd(NL_MATRIX);
   nlEnd(NL_SYSTEM);

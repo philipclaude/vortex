@@ -231,6 +231,7 @@ UT_TEST_CASE(test_sphere) {
   options.n_neighbors = 75;
   options.allow_reattempt = false;
   options.parallel = true;
+  options.store_facet_data = true;
   int n_iter = 20;
   auto& weights = voronoi.weights();
   weights.resize(n_sites, 0.0);
