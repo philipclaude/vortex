@@ -109,6 +109,9 @@ UT_TEST_CASE(test_sphere_nonuniform) {
   };
   static const int dim = 3;
   size_t n_sites = 1e5;
+#if VORTEX_FULL_UNIT_TEST != 0
+  n_sites = 1e4;
+#endif
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
     coord_t theta = 2.0 * M_PI * irand(0, 1);

@@ -79,24 +79,30 @@ class ParticleSimulation {
       voronoi_.weights().resize(particles_.n(), 0.0);
 
     // iterate until converged to the desired mass
-    double error = 1;
-    int iter = 0;
-    for (iter = 0; iter < sim_opts.max_iter; iter++) {
+    SimulationConvergence convergence;
+    convergence.error = 1;
+    convergence.converged = false;
+    for (convergence.n_iterations = 0;
+         convergence.n_iterations < sim_opts.max_iter;
+         convergence.n_iterations++) {
       lift_sites(particles_, voronoi_.weights());
       voronoi_.compute(domain, voro_opts);
       compute_search_direction();
 
       // TODO backtracking to make sure cells always have positive volume
-      error = length(gradient_);
+      convergence.error = length(gradient_);
       if (sim_opts.verbose)
-        LOG << fmt::format("iter[{:3}]: error = {:.3e}", iter, error);
-      if (error < sim_opts.volume_grad_tol)
-        return {.error = error, .converged = true, .n_iterations = iter};
+        LOG << fmt::format("iter[{:3}]: error = {:.3e}",
+                           convergence.n_iterations, convergence.error);
+      if (convergence.error < sim_opts.volume_grad_tol) {
+        convergence.converged = true;
+        break;
+      }
 
       for (size_t k = 0; k < voronoi_.weights().size(); k++)
         voronoi_.weights()[k] -= dw_[k];
     }
-    return {.error = error, .converged = false, .n_iterations = iter};
+    return convergence;
   }
 
   void compute_search_direction();
@@ -112,5 +118,12 @@ class ParticleSimulation {
   vecd<double> dw_;
   vecd<double> gradient_;
 };
+
+class PowerParticles : public ParticleSimulation {
+ public:
+  PowerParticles();
+};
+
+class ParticleFEM : public ParticleSimulation {};
 
 }  // namespace vortex

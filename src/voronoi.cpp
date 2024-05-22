@@ -640,6 +640,8 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
     blocks[k]->set_elem2site_ptr(tnn.data());
     blocks[k]->set_properties_ptr(properties_.data());
     blocks[k]->set_status_ptr(status_.data());
+    blocks[k]->set_save_mesh(options.store_mesh);
+    blocks[k]->set_save_facets(options.store_facet_data);
     size_t m = k * n_elems_per_block;
     size_t n = m + n_elems_per_block;
     if (k + 1 == n_threads) n = n_elems;
