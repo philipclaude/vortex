@@ -26,7 +26,6 @@
 #include <unordered_set>
 
 #include "elements.h"
-// #define HAVE_NANOFLANN 1
 #include "mesh.h"
 #include "stlext.h"
 #include "trees/kdtree.h"
@@ -251,7 +250,9 @@ class VoronoiThreadBlock : public VoronoiMesh {
         vertex_pool_(nv),
         plane_pool_(np),
         domain_(domain),  // copy the domain
-        cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {}
+        cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {
+    allocate(20);
+  }
 
   void append_to_mesh(VoronoiMesh& mesh) {
     // add vertices
@@ -516,10 +517,9 @@ compute_voronoi:
   size_t n_threads = std::thread::hardware_concurrency();
   if (!options.parallel) n_threads = 1;
   std::mutex append_mesh_lock;
-  // VoronoiMesh* mesh = options.store_mesh ? this : nullptr;
+  allocate(n_sites_);
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
-  // (options.store_mesh) ? ((options.mesh) ? options.mesh : this) : nullptr;
   std::vector<std::thread> threads;
   std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
   properties_.resize(n_sites_);
@@ -595,7 +595,7 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   size_t n_threads = std::thread::hardware_concurrency();
   if (!options.parallel) n_threads = 1;
   std::mutex append_mesh_lock;
-  // VoronoiMesh* mesh = options.store_mesh ? this : nullptr;
+  allocate(n_sites_);
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
   std::vector<std::thread> threads;

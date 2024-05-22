@@ -70,8 +70,9 @@ UT_TEST_CASE(test_sphere_uniform) {
   options.allow_reattempt = false;
   options.parallel = true;
   options.store_facet_data = true;
-  int n_iter = 10;
+  int n_iter = 100;
   for (int iter = 1; iter <= n_iter; ++iter) {
+    vtk::write(vertices, fmt::format("particles/points{}.vtk", iter));
     options.store_mesh = false;
     options.verbose = false;
     smoother.compute(domain, options);  // calculate voronoi diagram
@@ -82,7 +83,9 @@ UT_TEST_CASE(test_sphere_uniform) {
   double m_target = 4.0 * M_PI / n_sites;
   ParticleSimulation particles(n_sites, vertices[0], vertices.dim());
   for (auto& m : particles.particles().mass()) m = m_target;
-  particles.conserve_mass(domain);
+  SimulationOptions sim_opts;
+  auto result = particles.conserve_mass(domain, sim_opts);
+  UT_ASSERT(result.converged);
 
   // recompute the voronoi diagram to save it
   auto& voronoi = particles.voronoi();
@@ -92,14 +95,6 @@ UT_TEST_CASE(test_sphere_uniform) {
   // check the mass
   const auto& props = voronoi.properties();
   for (auto& p : props) UT_ASSERT_NEAR(p.mass, m_target, 1e-8);
-  auto m_min = *std::min_element(
-      props.begin(), props.end(),
-      [&](const auto& p, const auto& q) { return p.mass < q.mass; });
-  auto m_max = *std::max_element(
-      props.begin(), props.end(),
-      [&](const auto& p, const auto& q) { return p.mass > q.mass; });
-  LOG << fmt::format("mass_min = {}, mass_max = {}, vs {}", m_min.mass,
-                     m_max.mass, m_target);
 
   // save the mesh
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
@@ -144,7 +139,7 @@ UT_TEST_CASE(test_sphere_nonuniform) {
   options.n_neighbors = 100;
   options.allow_reattempt = false;
   options.parallel = true;
-  options.store_facet_data = true;
+  options.store_facet_data = false;
   int n_iter = 10;
   std::vector<double> target_mass(n_sites);
   for (int iter = 1; iter <= n_iter; ++iter) {
@@ -154,13 +149,18 @@ UT_TEST_CASE(test_sphere_nonuniform) {
     for (size_t k = 0; k < n_sites; k++)  // save target mass
       target_mass[k] = smoother.properties()[k].mass;
     smoother.smooth(vertices, true);  // move sites to centroids
+    // vtk::write(vertices, fmt::format("particles/points{}.vtk", iter));
   }
 
   // set up the target mass for each cell from the previous voronoi diagram
   ParticleSimulation particles(n_sites, vertices[0], vertices.dim());
   for (size_t k = 0; k < n_sites; k++)
     particles.particles().mass()[k] = target_mass[k];
-  particles.conserve_mass(domain);
+  SimulationOptions sim_opts;
+  // sim_opts.volume_grad_tol = 1e-14;
+  // sim_opts.max_iter = 100;
+  auto result = particles.conserve_mass(domain, sim_opts);
+  UT_ASSERT(result.converged);
 
   // recompute the voronoi diagram to save it
   auto& voronoi = particles.voronoi();
@@ -173,8 +173,8 @@ UT_TEST_CASE(test_sphere_nonuniform) {
     UT_ASSERT_NEAR(props[k].mass, target_mass[k], 1e-8);
 
   // save the mesh
-  // LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
-  // if (voronoi.polygons().n() > 0) meshb::write(voronoi, "particles.meshb");
+  LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
+  if (voronoi.polygons().n() > 0) meshb::write(voronoi, "particles2.meshb");
 }
 UT_TEST_CASE_END(test_sphere_nonuniform)
 

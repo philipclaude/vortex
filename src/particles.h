@@ -25,6 +25,19 @@
 
 namespace vortex {
 
+struct SimulationOptions {
+  double volume_grad_tol{1e-8};
+  int max_iter{25};
+  int n_neighbors{80};
+  bool verbose{true};
+};
+
+struct SimulationConvergence {
+  double error{1};
+  bool converged{false};
+  int n_iterations{0};
+};
+
 class Particles : public Vertices {
  public:
   Particles(size_t np, const coord_t* xp, int dim) : Vertices(4) {
@@ -51,36 +64,39 @@ class ParticleSimulation {
         gradient_(np) {}
 
   template <typename Domain_t>
-  void conserve_mass(const Domain_t& domain) {
+  SimulationConvergence conserve_mass(const Domain_t& domain,
+                                      SimulationOptions sim_opts) {
     // calculate the voronoi diagram
-    VoronoiDiagramOptions options;
-    options.store_mesh = false;
-    options.store_facet_data = true;
-    options.allow_reattempt = false;
-    options.n_neighbors = 100;
-    options.verbose = false;
+    VoronoiDiagramOptions voro_opts;
+    voro_opts.store_mesh = false;
+    voro_opts.store_facet_data = true;
+    voro_opts.allow_reattempt = false;
+    voro_opts.n_neighbors = sim_opts.n_neighbors;
+    voro_opts.verbose = false;
 
     // in case this is the first iteration
     if (voronoi_.weights().empty())
       voronoi_.weights().resize(particles_.n(), 0.0);
 
     // iterate until converged to the desired mass
-    for (int iter = 0; iter < 100; iter++) {
+    double error = 1;
+    int iter = 0;
+    for (iter = 0; iter < sim_opts.max_iter; iter++) {
       lift_sites(particles_, voronoi_.weights());
-      voronoi_.compute(domain, options);
+      voronoi_.compute(domain, voro_opts);
       compute_search_direction();
 
       // TODO backtracking to make sure cells always have positive volume
-      double error = length(gradient_);
-      LOG << fmt::format("iter. {}: error = {}", iter, error);
-      if (error < 1e-8) {
-        LOG << fmt::format("converged in {} iterations", iter);
-        break;
-      }
+      error = length(gradient_);
+      if (sim_opts.verbose)
+        LOG << fmt::format("iter[{:3}]: error = {:.3e}", iter, error);
+      if (error < sim_opts.volume_grad_tol)
+        return {.error = error, .converged = true, .n_iterations = iter};
 
       for (size_t k = 0; k < voronoi_.weights().size(); k++)
         voronoi_.weights()[k] -= dw_[k];
     }
+    return {.error = error, .converged = false, .n_iterations = iter};
   }
 
   void compute_search_direction();
