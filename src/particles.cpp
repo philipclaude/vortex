@@ -6,7 +6,10 @@ namespace vortex {
 
 void Particles::create(size_t np, const coord_t* xp, int dim) {
   Vertices::reserve(np);
-  for (size_t k = 0; k < np; k++) Vertices::add(xp + dim * k);
+  for (size_t k = 0; k < np; k++) {
+    vec4d xk(xp + dim * k, dim);
+    Vertices::add(&xk[0]);
+  }
   mass_.resize(np, 0.0);
 }
 
