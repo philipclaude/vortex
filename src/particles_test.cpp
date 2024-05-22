@@ -72,7 +72,7 @@ UT_TEST_CASE(test_sphere_uniform) {
   options.store_facet_data = true;
   int n_iter = 100;
   for (int iter = 1; iter <= n_iter; ++iter) {
-    vtk::write(vertices, fmt::format("particles/points{}.vtk", iter));
+    // vtk::write(vertices, fmt::format("particles/points{}.vtk", iter));
     options.store_mesh = false;
     options.verbose = false;
     smoother.compute(domain, options);  // calculate voronoi diagram

@@ -119,11 +119,4 @@ class ParticleSimulation {
   vecd<double> gradient_;
 };
 
-class PowerParticles : public ParticleSimulation {
- public:
-  PowerParticles();
-};
-
-class ParticleFEM : public ParticleSimulation {};
-
 }  // namespace vortex

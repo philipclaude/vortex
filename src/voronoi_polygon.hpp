@@ -233,7 +233,7 @@ class VoronoiPolygon {
 
       // add Delaunay triangle associated with this Voronoi vertex
       auto site_j = bisector_to_site_[p_[k].bl];
-      ASSERT(site_j >= 0);
+      // ASSERT(site_j >= 0);
       if (site_j < 0) continue;
       mesh.add(site_i, site_j, l, c);
     }
