@@ -76,7 +76,7 @@ class VoronoiPolygon {
 
   // calculate the Voronoi cell for site i clipped to the domain k_elem
   VoronoiStatusCode compute(const Domain_t& domain, int dim, size_t site,
-                            Mesh* mesh = nullptr) {
+                            VoronoiMesh& mesh) {
     assert(sites_);
     assert(neighbors_);
     clear();
@@ -105,7 +105,8 @@ class VoronoiPolygon {
     }
 
     // append to the mesh if necessary
-    if (mesh) append_to_mesh(*mesh, site);
+    if (mesh.save_mesh()) append_to_mesh(mesh, site);
+    if (mesh.save_facets()) save_facets(mesh, site);
 
     // TODO(philip) retrieve more neighbors and keep clipping
     if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
@@ -116,8 +117,8 @@ class VoronoiPolygon {
   VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
                             uint64_t triangle, uint64_t site,
                             ElementVoronoiWorkspace& workspace,
-                            VoronoiCellProperties* properties = nullptr,
-                            Mesh* mesh = nullptr) {
+                            VoronoiCellProperties* properties,
+                            VoronoiMesh& mesh) {
     NOT_POSSIBLE;
     return VoronoiStatusCode::kSuccess;
   }
@@ -178,7 +179,7 @@ class VoronoiPolygon {
     cell_.get_properties(p_, plane_, props);
   }
 
-  bool append_to_mesh(Mesh& mesh, index_t site) const {
+  bool append_to_mesh(VoronoiMesh& mesh, index_t site) const {
     if (p_.size() < 3) return false;
 
     // initialize arrays for Voronoi polygon and Delaunay triangle
@@ -209,9 +210,40 @@ class VoronoiPolygon {
     return true;
   }
 
+  void save_facets(VoronoiMesh& mesh, index_t site_i) const {
+    if (p_.size() < 3) return;
+
+    // last point in the polygon
+    size_t m = p_.size() - 1;
+    vec4 p = cell_.compute(plane_[p_[m].bl], plane_[p_[m].br]);
+    if (p.w == 0.0) p.w = 1.0;
+    p = p / p.w;
+    for (size_t k = 0; k < p_.size(); k++) {
+      vec4 q = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
+      if (q.w == 0.0) q.w = 1.0;
+      q = q / q.w;
+
+      // TODO(philip) use the specialized cell_ to compute geometric quantities
+      // double l = length(p.xyz() - q.xyz());
+      double l = std::acos(dot(p.xyz(), q.xyz()));
+      vec3 c = 0.5 * (p.xyz() + q.xyz());
+
+      // save the vertex for the next iteration
+      p = q;
+
+      // add Delaunay triangle associated with this Voronoi vertex
+      auto site_j = bisector_to_site_[p_[k].bl];
+      // ASSERT(site_j >= 0);
+      if (site_j < 0) continue;
+      mesh.add(site_i, site_j, l, c);
+    }
+  }
+
   Cell_t& cell() { return cell_; }
   auto& vertices() { return p_; }
   auto& planes() { return plane_; }
+  const auto* sites() const { return sites_; }
+  const auto& bisector_to_site(uint8_t b) { return bisector_to_site_[b]; }
 
  private:
   Cell_t cell_;
@@ -232,7 +264,7 @@ template <>
 VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
     const TriangulationDomain& domain, int dim, uint64_t triangle,
     uint64_t site, ElementVoronoiWorkspace& workspace,
-    VoronoiCellProperties* properties, Mesh* mesh) {
+    VoronoiCellProperties* properties, VoronoiMesh& mesh) {
   assert(sites_);
   assert(neighbors_);
 
@@ -271,7 +303,7 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       if (4.01 * r < distance_squared(ui, uj)) break;
     }
     // append to the mesh and properties if necessary
-    if (mesh) append_to_mesh(*mesh, i);
+    if (mesh.save_mesh()) append_to_mesh(mesh, i);
     if (properties) get_properties(properties[i], false);
   }
   return VoronoiStatusCode::kSuccess;

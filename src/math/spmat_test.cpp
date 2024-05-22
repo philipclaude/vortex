@@ -19,13 +19,14 @@ UT_TEST_CASE(test1) {
   b(0) = 5.0;
   b(1) = 6.0;
 
-  UT_ASSERT_EQUALS(A.nb_rows(), 2);
-  UT_ASSERT_EQUALS(A.nb_cols(), 2);
+  UT_ASSERT_EQUALS(A.n_rows(), 2);
+  UT_ASSERT_EQUALS(A.n_cols(), 2);
 
-  UT_ASSERT_EQUALS(A.nb_nnz(), 4);
+  UT_ASSERT_EQUALS(A.nnz(), 4);
 
   vecd<double> x(2);
-  A.solve_nl(b, x);
+  A.solve_nl(b, x, 1e-10, false);
+  A.print();
 
   x.print();
 
@@ -147,7 +148,7 @@ UT_TEST_CASE(cg_test) {
   // solve the system
   vecd<double> x(n + 1);
   x.zero();
-  A.solve_nl(b, x, false);
+  A.solve_nl(b, x, 1e-10, false);
   x.print();
 
   // check the error

@@ -27,10 +27,9 @@ class spmat {
    * \param[in] bandwidth (optional) - estimate on the number of non-zero
    * entries per row or column (default: 10)
    */
-  spmat(int m, int n, int bandwidth = 10) {
-    rows_.reserve(m);
-    cols_.reserve(n);
-    triplets_.reserve(std::max(m, n) * bandwidth);
+  spmat(int m, int n, int bandwidth = 10) : n_rows_(m), n_cols_(n) {
+    rows_.resize(m);
+    for (auto& row : rows_) row.reserve(bandwidth);
   }
 
   /**
@@ -43,15 +42,12 @@ class spmat {
    * \return reference to the entry at (i,j)
    */
   T& operator()(int i, int j) {
-    typename std::unordered_map<std::pair<int, int>, T>::iterator it =
-        triplets_.find({i, j});
-    if (it == triplets_.end()) {
-      triplets_.insert({{i, j}, 0});  // initialize the entry to zero
-      rows_.insert(i);
-      cols_.insert(j);
+    auto it = rows_[i].find(j);
+    if (it == rows_[i].end()) {
+      rows_[i].insert({j, 0});  // initialize the entry to zero
     }
-    it = triplets_.find({i, j});
-    ASSERT(it != triplets_.end());
+    it = rows_[i].find(j);
+    ASSERT(it != rows_[i].end());
     return it->second;
   }
 
@@ -64,8 +60,8 @@ class spmat {
    * \return const reference to the entry at (i,j)
    */
   const T& operator()(int i, int j) const {
-    ASSERT(triplets_.find({i, j}) != triplets_.end());
-    return triplets_.at({i, j});
+    ASSERT(rows_[i].find(j) != rows_[i].end());
+    return rows_[i].at(j);
   }
 
   /**
@@ -75,7 +71,8 @@ class spmat {
    * \param[inout] x - solution vector
    * \param[in]    symmetric - option to specify if the matrix is symmetric
    */
-  void solve_nl(const vecd<T>& b, vecd<T>& x, bool symmetric = true) const;
+  void solve_nl(const vecd<T>& b, vecd<T>& x, double tol,
+                bool symmetric = true) const;
 
   /**
    * \brief Solves A * x = b using the Jacobi method.
@@ -91,36 +88,31 @@ class spmat {
                       int max_iter = -1, bool verbose = false) const;
 
   /**
-   * \brief Returns the number of rows in the matrix, according to the triplets
-   * added.
+   * \brief Returns the number of rows in the matrix.
    */
-  int nb_rows() const { return rows_.size(); }
+  int n_rows() const { return rows_.size(); }
 
   /**
-   * \brief Returns the number of columns in the matrix, according to the
-   * triplets added.
+   * \brief Returns the number of columns in the matrix.
    */
-  int nb_cols() const { return cols_.size(); }
+  int n_cols() const { return n_cols_; }
 
   /**
    * \brief Returns the number of nonzero entries in the matrix.
    */
-  int nb_nnz() const { return triplets_.size(); }
-
-  /**
-   * \brief Returns the triplets (row,col,value) stored in the matrix.
-   */
-  const std::unordered_map<std::pair<int, int>, T>& triplets() const {
-    return triplets_;
+  int nnz() const {
+    size_t count = 0;
+    for (const auto& row : rows_) count += row.size();
+    return count;
   }
 
   /**
    * \brief Prints all the triplets (row,col,value) stored in the matrix.
    */
   void print() const {
-    for (auto& t : triplets_) {
-      std::cout << "A(" << t.first.first << "," << t.first.second
-                << ") = " << t.second << std::endl;
+    for (size_t row = 0; row < rows_.size(); row++) {
+      for (const auto& [col, value] : rows_[row])
+        std::cout << "(" << row << ", " << col << "):" << value << std::endl;
     }
   }
 
@@ -129,21 +121,31 @@ class spmat {
    * large matrices).
    */
   void print_full() const {
-    for (int i = 0; i < this->nb_rows(); i++) {
-      for (int j = 0; j < this->nb_cols(); j++) {
+    if (rows_.size() > 50) {
+      std::cout << "matrix is too big" << std::endl;
+      return;
+    }
+    for (size_t row = 0; row < rows_.size(); row++) {
+      for (size_t col = 0; col < n_cols_; col++) {
         double value = 0.0;
-        auto it = triplets_.find({i, j});
-        if (it != triplets_.end()) value = it->second;
+        auto it = rows_[row].find(col);
+        if (it != rows_[row].end()) value = it->second;
         std::cout << value << " ";
       }
       std::cout << std::endl;
     }
   }
 
+  const auto& rows() const { return rows_; }
+
+  void clear() {
+    for (auto& row : rows_) row.clear();
+  }
+
  private:
-  std::unordered_set<int> rows_;
-  std::unordered_set<int> cols_;
-  std::unordered_map<std::pair<int, int>, T> triplets_;  // (row,col,value)
+  std::vector<std::unordered_map<uint32_t, T>> rows_;
+  size_t n_rows_{0};
+  size_t n_cols_{0};
 };
 
 /**
@@ -159,12 +161,9 @@ template <typename T>
 vecd<T> operator*(const spmat<T>& A, const vecd<T>& x) {
   vecd<T> b(x.m());
   b.zero();
-  auto& triplets = A.triplets();
-  for (auto& t : triplets) {
-    int row = t.first.first;
-    int col = t.first.second;
-    const T& entry = t.second;
-    b(row) += entry * x(col);
+  auto& rows = A.rows();
+  for (size_t row = 0; row < rows.size(); row++) {
+    for (const auto& [col, entry] : rows[row]) b(row) += entry * x(col);
   }
   return b;
 }

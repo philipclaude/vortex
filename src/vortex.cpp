@@ -380,7 +380,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
                                     quiet, verbose, on_sphere](auto& domain) {
     int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
-      options.store_mesh = iter == n_iter && save;
+      options.store_mesh = (iter == n_iter) && save;
       options.verbose = (verbose || iter == 1 || iter == n_iter) && !quiet;
       voronoi.vertices().clear();
       voronoi.vertices().set_dim(3);

@@ -80,4 +80,13 @@ inline void read_mesh(const std::string& filename, Mesh& mesh) {
     NOT_IMPLEMENTED;
 }
 
+namespace vtk {
+
+/// @brief Writes a .vtk file.
+/// @param vertices Vertices object to write.
+/// @param filename Path to the output .vtk file.
+void write(const Vertices& vertices, const std::string& filename);
+
+}  // namespace vtk
+
 }  // namespace vortex
