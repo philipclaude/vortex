@@ -16,6 +16,8 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+// This file was used to test the planeSide and findIntersection functions (throw away)
+//
 #include <fmt/format.h>
 
 #include <argparse/argparse.hpp>

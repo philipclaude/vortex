@@ -16,6 +16,8 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+// This file was used to test polygon counts and surface area values for all the Voronoi diagrams that I generated. (throw away)
+//
 #include <fmt/format.h>
 
 #include <argparse/argparse.hpp>

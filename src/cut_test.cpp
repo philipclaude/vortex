@@ -16,6 +16,10 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+// This was the main code file used to actually complete the boundary cutting process. Other than the handling of intersected polygons without 
+// boundary vertices inside and the check for more than two (four) intersection points (Frank's issue), this file should contain re-usable 
+// methods for Vortex. Please refer to the Methods section of my thesis for more information about the functions and clipping process.
+//
 #include <fmt/format.h>
 
 #include <argparse/argparse.hpp>
@@ -200,9 +204,9 @@ UT_TEST_CASE(voronoi_cut) {
 
     // nearest polygon with parallel-sorted polygons
     //std::vector<index_t> VNP(n_boundaries);
-    // adjacent vertices of boundary edges (use vector reserve [upper bound] and shrink to fit after loop)
+    // adjacent vertices of boundary edges (use vector reserve [upper bound] and shrink to fit after loop) : future work
     std::vector<std::pair<index_t, index_t>> ABV(n_boundaries);
-    // polygon to boundary vertices (possible to reserve inner vector?)
+    // P2BV: polygon to boundary vertices
     std::vector<std::vector<coord_t>> P2BV(o_mesh.polygons().n());
     for (auto& vect : P2BV) vect.reserve(10);
     for(index_t vn = 0; vn < n_boundaries; vn++){
@@ -218,7 +222,9 @@ UT_TEST_CASE(voronoi_cut) {
         P2BV[S2P[VNN[vn]]].push_back(o_mesh.vertices().n() - n_boundaries + vn);
     }
 
+    // I was able to either remove these data structures or place them in already-existing loops, but I'll keep the code here
     /*
+    // ABV: adjacent boundary vertices
     for(index_t b = 0; b < n_boundaries; b++){
         index_t curr = o_mesh.vertices().n() - n_boundaries + b;
         if(b == 0){
@@ -231,7 +237,7 @@ UT_TEST_CASE(voronoi_cut) {
     }
     */
    /*
-    // polygon to boundary vertices
+    // P2BV: polygon to boundary vertices
     std::vector<std::vector<coord_t>> P2BV(o_mesh.polygons().n());
     for(index_t n = 0; n < n_boundaries; n++){
         P2BV[VNP[n]].push_back(o_mesh.vertices().n() - n_boundaries + n);
@@ -275,10 +281,12 @@ UT_TEST_CASE(voronoi_cut) {
                 break;
             }
         }
+        // if at least one vertex is in the water
         if(water){   
             index_t vertices_count = 0;
             if(!P2BE[poly].empty()){
                 index_t v1 = 0;
+                // find first intersection
                 while(v1 < o_mesh.polygons().length(poly)){
                     index_t v2 = (v1 + 1)%o_mesh.polygons().length(poly);
                     if(planeSide(o_mesh.vertices()[o_mesh.polygons()[poly][v1]],o_mesh.vertices()[o_mesh.polygons()[poly][v2]],o_mesh.vertices()[P2BE[poly].front().first])!=planeSide(o_mesh.vertices()[o_mesh.polygons()[poly][v1]],o_mesh.vertices()[o_mesh.polygons()[poly][v2]],o_mesh.vertices()[P2BE[poly].front().second])){
@@ -294,6 +302,7 @@ UT_TEST_CASE(voronoi_cut) {
                     v1++;
                 }
                 index_t temp = 0;
+                // loop through vertices until second intersection is found
                 while(temp < o_mesh.polygons().length(poly)){
                     v1 = (v1)%o_mesh.polygons().length(poly);
                     index_t v2 = (v1 + 1)%o_mesh.polygons().length(poly);
@@ -314,11 +323,13 @@ UT_TEST_CASE(voronoi_cut) {
                     v1++;
                     temp++;
                 }
+                // add any remaining (interior) boundary vertices
                 for(index_t bE = 1; bE < P2BE[poly].size(); bE++){
                     coord_t ver[dim] = {o_mesh.vertices()[P2BE[poly][P2BE[poly].size() - bE].first][0],o_mesh.vertices()[P2BE[poly][P2BE[poly].size() - bE].first][1],o_mesh.vertices()[P2BE[poly][P2BE[poly].size() - bE].first][2]};
                     mesh.vertices().add(ver);
                     vertices_count++;
                 }
+            // if not intersected, just add the original polygon
             }else{
                 for(index_t v = 0; v < o_mesh.polygons().length(poly); v++){
                     coord_t ver[dim] = {o_mesh.vertices()[o_mesh.polygons()[poly][v]][0],o_mesh.vertices()[o_mesh.polygons()[poly][v]][1],o_mesh.vertices()[o_mesh.polygons()[poly][v]][2]};
@@ -326,6 +337,7 @@ UT_TEST_CASE(voronoi_cut) {
                     vertices_count++;
                 }
             }
+            // add the polygon to the new mesh
             index_t new_polygon[vertices_count];
             for(index_t vc = 0; vc < vertices_count; vc++){
                 new_polygon[vc] = mesh.vertices().n() - vertices_count + vc;
@@ -336,6 +348,7 @@ UT_TEST_CASE(voronoi_cut) {
     timer.stop();
     LOG << fmt::format("All polygons altered and added in {} seconds", timer.seconds());
 
+    // add lines to the mesh for visualization purposes
     mesh.lines().reserve(n_boundaries);
     current = mesh.vertices().n();
     l = 0;

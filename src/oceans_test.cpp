@@ -16,6 +16,8 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+//  This file was used to compare land polygons to ocean polygons in the texture-based mesh (throw away)
+//
 #include <fmt/format.h>
 
 #include <argparse/argparse.hpp>

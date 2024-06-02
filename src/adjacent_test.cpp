@@ -16,6 +16,9 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+// This file was used to add the adjacency traversal method to the same code from cut_test.cpp, although 
+// there is an error that prevented this from being added to the final product.
+//
 #include <fmt/format.h>
 
 #include <argparse/argparse.hpp>
@@ -187,9 +190,9 @@ UT_TEST_CASE(voronoi_cut_edge) {
         S2P[o_mesh.polygons().group(s)] = s;
     }
 
-    // adjacent vertices of boundary edges (use vector reserve [upper bound] and shrink to fit after loop)
+    // adjacent vertices of boundary edges 
     std::vector<std::pair<index_t, index_t>> ABV(n_boundaries);
-    // polygon to boundary vertices (possible to reserve inner vector?)
+    // polygon to boundary vertices 
     std::vector<std::vector<coord_t>> P2BV(o_mesh.polygons().n());
     for (auto& vect : P2BV) vect.reserve(10);
     for(index_t vn = 0; vn < n_boundaries; vn++){
@@ -222,8 +225,10 @@ UT_TEST_CASE(voronoi_cut_edge) {
         } 
     }
     
+    // timer for testing purposes
     Timer timer;
     timer.start();
+
     // Create map of adjacent polygons
     std::unordered_map<std::pair<index_t, index_t>, std::pair<index_t, index_t>> adjMap;
     adjMap.reserve(o_mesh.polygons().n()*10);
@@ -247,9 +252,9 @@ UT_TEST_CASE(voronoi_cut_edge) {
     std::unordered_map<index_t, index_t> indices;
     indices.reserve(o_mesh.polygons().n());
 
-    // Creation of new restricted polygons
+    // Creation of new restricted polygons (same as cut_test.cpp)
     for(index_t poly = 0; poly < o_mesh.polygons().n(); poly++){
-        // remove inside cells (texture-based) - not 100% accurate
+        // remove inside cells (texture-based)
         bool water = false;
         for (size_t i = 0; i < o_mesh.polygons().length(poly); i++){
             vec3d p, q;
@@ -368,11 +373,11 @@ UT_TEST_CASE(voronoi_cut_edge) {
                     std::pair<index_t, index_t> key = {edge.second, edge.first};
                     next_poly = adjMap[key].first;
                 }
-                // std::cout << "next polygon: " << next_poly << std::endl;
-                // std::cout << "P2BE: " << P2BE[next_poly].front().second << std::endl;
+                // this should be the while loop, but it would never find the second endpoint because of the line issue (future work)
                 // while(P2BE[next_poly].front().second != second_endpoint){
                 while(P2BE[next_poly].empty()){
                     mesh.vertices().add(firstIntersection);
+                    // number of vertices in each additional polygon added through adjacency traversal
                     size_t vert_count = 1;
                     size_t n = o_mesh.polygons().length(next_poly);
                     index_t eIndex;
@@ -401,13 +406,13 @@ UT_TEST_CASE(voronoi_cut_edge) {
                             }
                         }
                     }
-                    // create polygon
+                    // create and add polygon
                     index_t new_polygon[vert_count];
                     for(index_t vc = 0; vc < vert_count; vc++){
                         new_polygon[vc] = mesh.vertices().n() - vert_count + vc;
                     }
                     mesh.polygons().add(new_polygon,vert_count);
-                    // remove old version
+                    // remove old version by simply placing all the vertices in the same coordinate location
                     index_t index = indices[next_poly];
                     for(int v = 1; v < mesh.polygons().length(index); v++){
                         mesh.vertices()[mesh.polygons()[index][v]][0] = mesh.vertices()[mesh.polygons()[index][0]][0];
@@ -421,8 +426,6 @@ UT_TEST_CASE(voronoi_cut_edge) {
                         std::pair<index_t, index_t> key = {edge.second, edge.first};
                         next_poly = adjMap[key].first;
                     }
-                    // std::cout << "last polygon: " << next_poly << std::endl;
-                    // std::cout << "P2BE: " << P2BE[next_poly].front().second << std::endl;
                 }
             }
         }
@@ -431,6 +434,7 @@ UT_TEST_CASE(voronoi_cut_edge) {
     timer.stop();
     LOG << fmt::format("Adjacency test completed in {} seconds", timer.seconds());
 
+    // add lines to the mesh for visualization purposes
     mesh.lines().reserve(n_boundaries);
     current = mesh.vertices().n();
     l = 0;
@@ -458,7 +462,7 @@ UT_TEST_CASE(voronoi_cut_edge) {
         mesh.lines().set_group(id, l_mesh.lines().group(l));
         l++; current+=(c+1);
     }
-
+    // write mesh to data folder
     //meshb::write(mesh, "edgetest.meshb");
 }
 UT_TEST_CASE_END(voronoi_cut_edge)
