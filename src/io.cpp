@@ -465,22 +465,18 @@ void write(const Mesh& mesh, const std::string& filename) {
 
 namespace vtk {
 
-template <typename T>
-void swap_end(T& var) {
-  // https://stackoverflow.com/questions/10913666/error-writing-binary-vtk-files
-  char* varArray = reinterpret_cast<char*>(&var);
-  for (long i = 0; i < static_cast<long>(sizeof(var) / 2); i++)
-    std::swap(varArray[sizeof(var) - 1 - i], varArray[i]);
-}
-
 void write(const Vertices& vertices, const std::string& filename) {
-  size_t n_data = vertices.n() * vertices.dim();
-  std::vector<float> data(vertices[0], vertices[0] + n_data);
+  size_t n_data = vertices.n() * 3;
+  std::vector<float> data(n_data);
+  size_t m = 0;
+  for (size_t k = 0; k < vertices.n(); k++)
+    for (int d = 0; d < 3; d++) data[m++] = vertices[k][d];
   FILE* fid = fopen(filename.c_str(), "wb");
   fprintf(fid, "# vtk DataFile Version 2.0\nvortex vertices\n");
-  fprintf(fid, "BINARY\nDATASET UNSTRUCTURED_GRID\nPOINTS %d float\n",
+  fprintf(fid, "BINARY\nDATASET UNSTRUCTURED_GRID\nPOINTS %zu float\n",
           vertices.n());
-  std::parafor_i(0, n_data, [&data](int tid, size_t k) { swap_end(data[k]); });
+  std::parafor_i(0, n_data,
+                 [&data](int tid, size_t k) { io::swap_end(data[k]); });
   fwrite(&data[0], 4, n_data, fid);
   fprintf(fid, "\nCELLS 0 0\nCELL_TYPES 0\n");
   fclose(fid);

@@ -160,12 +160,65 @@ class spmat {
 template <typename T>
 vecd<T> operator*(const spmat<T>& A, const vecd<T>& x) {
   vecd<T> b(x.m());
+  spmv(A, x, b);
+  return b;
+}
+
+/**
+ * \brief Computes sparse matrix-vector multiplication b = A * x.
+ *
+ * \param[in] A - sparse matrix
+ * \param[in] x - vector
+ *
+ * \return b = A * x
+ */
+template <typename T>
+void spmv(const spmat<T>& A, const vecd<T>& x, vecd<T>& b) {
   b.zero();
-  auto& rows = A.rows();
+  const auto& rows = A.rows();
   for (size_t row = 0; row < rows.size(); row++) {
     for (const auto& [col, entry] : rows[row]) b(row) += entry * x(col);
   }
-  return b;
+}
+
+/**
+ * \brief Computes sparse matrix-matrix multiplication C = A * B.
+ *
+ * \param[in] A - sparse matrix
+ * \param[in] B - sparse matrix
+ * \param[out] C - sparse matrix
+ */
+template <typename T>
+void spmm(const spmat<T>& A, const spmat<T>& B, spmat<T>& C) {
+  ASSERT(A.n_cols() == B.n_rows());
+  ASSERT(C.n_rows() == A.n_rows());
+  ASSERT(C.n_cols() == B.n_cols());
+  const auto& a_rows = A.rows();
+  const auto& b_rows = B.rows();
+  for (size_t a_row = 0; a_row < a_rows.size(); a_row++) {
+    for (const auto& [a_col, a_value] : a_rows[a_row]) {
+      for (const auto& [b_col, b_value] : b_rows[a_col])
+        C(a_row, b_col) += a_value * b_value;
+    }
+  }
+}
+
+/**
+ * \brief Computes the transpose of a matrix, optionally multiplying factors by
+ * some constant.
+ *
+ * \param[in] A - sparse matrix
+ * \param[out] At - tranpose of A (sparse matrix)
+ * \param[in] f - factor to multiply the entries by
+ */
+template <typename T>
+void transpose(const spmat<T>& A, spmat<T>& At, double f = 1) {
+  ASSERT(At.n_rows() == A.n_cols());
+  ASSERT(At.n_cols() == A.n_rows());
+  const auto& a_rows = A.rows();
+  for (size_t i = 0; i < a_rows.size(); i++) {
+    for (const auto& [j, value] : a_rows[i]) At(j, i) = f * value;
+  }
 }
 
 /**

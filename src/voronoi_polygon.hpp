@@ -90,6 +90,10 @@ class VoronoiPolygon {
       // get the next point and weight
       const index_t n = neighbors_[site * n_neighbors_ + j];
       const coord_t* zj = sites_ + n * dim;
+#if 0
+      ASSERT(n < 1000) << fmt::format("j = {}, n = {}, site = {}, nn = {}", j,
+                                      n, site, n_neighbors_);
+#endif
       const coord_t wj = (weights_) ? weights_[n] : 0.0;
       const vec4 uj(zj, dim);
 
@@ -99,8 +103,8 @@ class VoronoiPolygon {
       clip_by_plane(b);
 
       // check if no more bisectors contribute to the cell
-      double r = squared_radius(ui);
-      security_radius_reached = 4.01 * r < distance_squared(ui, uj);
+      double sr = squared_radius(ui);
+      security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
       if (security_radius_reached) break;
     }
 
@@ -224,8 +228,8 @@ class VoronoiPolygon {
       q = q / q.w;
 
       // TODO(philip) use the specialized cell_ to compute geometric quantities
-      // double l = length(p.xyz() - q.xyz());
-      double l = std::acos(dot(p.xyz(), q.xyz()));
+      double l = length(p.xyz() - q.xyz());
+      // double l = std::acos(dot(p.xyz(), q.xyz()));
       vec3 c = 0.5 * (p.xyz() + q.xyz());
 
       // save the vertex for the next iteration
@@ -233,8 +237,14 @@ class VoronoiPolygon {
 
       // add Delaunay triangle associated with this Voronoi vertex
       auto site_j = bisector_to_site_[p_[k].bl];
+      ASSERT(p_[k].bl == p_[m].br);
+      m = k;
       // ASSERT(site_j >= 0);
-      if (site_j < 0) continue;
+      if (site_j < 0) {
+        mesh.n_boundary_facets()++;
+        mesh.boundary_area() += l;
+        continue;
+      }
       mesh.add(site_i, site_j, l, c);
     }
   }
@@ -299,8 +309,8 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       clip_by_plane(b);
 
       // check if no more bisectors contribute to the cell
-      double r = squared_radius(ui);
-      if (4.01 * r < distance_squared(ui, uj)) break;
+      double sr = squared_radius(ui);
+      if (4.01 * sr < distance_squared(ui, uj)) break;
     }
     // append to the mesh and properties if necessary
     if (mesh.save_mesh()) append_to_mesh(mesh, i);

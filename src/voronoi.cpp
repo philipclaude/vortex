@@ -134,7 +134,7 @@ void SphericalVoronoiPolygon::get_properties(
     vec3 ck = unit_vector((1.0 / 3.0) * (a + b + c));
 
     props.moment = props.moment + ak * ck;
-    props.mass += ak;
+    props.volume += ak;
     b = c;
   }
 }
@@ -220,7 +220,7 @@ void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
     vec3 ck = (1.0 / 3.0) * (a + b + c);
 
     props.moment = props.moment + ak * ck;
-    props.mass += ak;
+    props.volume += ak;
     b = c;
   }
 }
@@ -520,6 +520,7 @@ compute_voronoi:
   allocate(n_sites_);
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
+  facets_.clear();
   std::vector<std::thread> threads;
   std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
   properties_.resize(n_sites_);
@@ -673,9 +674,9 @@ void lift_sites(Vertices& sites, const std::vector<double>& weights) {
 void VoronoiDiagram::smooth(Vertices& sites, bool on_sphere) const {
   vec3 x;
   for (size_t k = 0; k < n_sites_; k++) {
-    if (properties_[k].mass == 0) continue;
-    ASSERT(properties_[k].mass > 0);
-    x = static_cast<float>(1.0 / properties_[k].mass) * properties_[k].moment;
+    if (properties_[k].volume == 0) continue;
+    ASSERT(properties_[k].volume > 0);
+    x = static_cast<float>(1.0 / properties_[k].volume) * properties_[k].moment;
     if (on_sphere) x = unit_vector(x);
     for (int d = 0; d < 3; d++) sites[k][d] = x[d];
   }
@@ -685,7 +686,7 @@ VoronoiDiagramProperties VoronoiDiagram::analyze() const {
   // TODO(philip) calculate energy and gradient norms
   VoronoiDiagramProperties props;
   for (size_t k = 0; k < n_sites_; k++) {
-    props.area += properties_[k].mass;
+    props.area += properties_[k].volume;
   }
   return props;
 }
