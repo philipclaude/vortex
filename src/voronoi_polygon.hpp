@@ -90,10 +90,6 @@ class VoronoiPolygon {
       // get the next point and weight
       const index_t n = neighbors_[site * n_neighbors_ + j];
       const coord_t* zj = sites_ + n * dim;
-#if 0
-      ASSERT(n < 1000) << fmt::format("j = {}, n = {}, site = {}, nn = {}", j,
-                                      n, site, n_neighbors_);
-#endif
       const coord_t wj = (weights_) ? weights_[n] : 0.0;
       const vec4 uj(zj, dim);
 
