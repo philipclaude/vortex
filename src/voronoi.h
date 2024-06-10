@@ -84,6 +84,11 @@ class pool {
   }
 #undef SWAP
 
+  void erase(size_t k) {
+    for (size_t i = k + 1; i < index_; i++) data_[i - 1] = data_[i];
+    index_--;
+  }
+
  private:
   T* data_{nullptr};
   size_t index_{0};
@@ -136,6 +141,7 @@ struct vec<T, 3> {
   }
   vec() : x(0), y(0), z(0) {}
   T& operator[](int d) { return *(&x + d); }
+  const T& operator[](int d) const { return *(&x + d); }
 };
 
 template <typename T>
@@ -288,12 +294,14 @@ struct VoronoiDiagramOptions {
 struct VoronoiCellProperties {
   VoronoiCellProperties() { reset(); }
   uint64_t site;         // which site/cell is this for?
-  vec3 moment{0, 0, 0};  // centroid * mass
-  double mass{0};        // mass
+  vec3 moment{0, 0, 0};  // centroid * volume
+  double volume{0};      // volume
   void reset() {
     moment = {0, 0, 0};
-    mass = 0;
+    volume = 0;
   }
+  double rmin{0};
+  double rmax{1e6};
 };
 
 struct VoronoiDiagramProperties {
@@ -304,7 +312,7 @@ struct VoronoiDiagramProperties {
 };
 
 struct VoronoiFacetData {
-  double mass{0};
+  double volume{0};
   vec3 centroid{0, 0, 0};
 };
 
@@ -324,23 +332,39 @@ class VoronoiMesh : public Mesh {
   bool save_mesh() const { return save_mesh_; }
   bool save_facets() const { return save_facets_; }
 
-  void add(uint64_t bi, uint64_t bj, double mass, vec3 centroid) {
+  void add(uint64_t bi, uint64_t bj, double volume, vec3 centroid) {
     if (bi > bj) std::swap(bi, bj);
     auto it = facets_.find({bi, bj});
-    if (it == facets_.end()) facets_.insert({{bi, bj}, {mass, centroid}});
+    if (it == facets_.end()) facets_.insert({{bi, bj}, {volume, centroid}});
   }
 
   const auto& facets() const { return facets_; }
+  auto& facets() { return facets_; }
 
   void append(const VoronoiMesh& mesh) {
     for (const auto& [b, data] : mesh.facets())
-      add(b[0], b[1], data.mass, data.centroid);
+      add(b[0], b[1], data.volume, data.centroid);
+    n_incomplete_ += mesh.n_incomplete();
+    n_boundary_facets_ += mesh.n_boundary_facets();
+    boundary_area_ += mesh.boundary_area();
   }
+
+  size_t& n_incomplete() { return n_incomplete_; }
+  size_t n_incomplete() const { return n_incomplete_; }
+
+  size_t& n_boundary_facets() { return n_boundary_facets_; }
+  size_t n_boundary_facets() const { return n_boundary_facets_; }
+
+  double& boundary_area() { return boundary_area_; }
+  double boundary_area() const { return boundary_area_; }
 
  protected:
   bool save_mesh_{false};
   bool save_facets_{false};
   std::unordered_map<std::array<uint64_t, 2>, VoronoiFacetData> facets_;
+  size_t n_incomplete_{0};
+  size_t n_boundary_facets_{0};
+  double boundary_area_{0};
 };
 
 class VoronoiDiagram : public VoronoiMesh {
@@ -365,6 +389,7 @@ class VoronoiDiagram : public VoronoiMesh {
                VoronoiDiagramOptions options = VoronoiDiagramOptions());
 
   const auto& properties() const { return properties_; }
+  auto& properties() { return properties_; }
   auto& status() { return status_; }
   const auto& status() const { return status_; }
   auto& weights() { return weights_; }
@@ -377,6 +402,13 @@ class VoronoiDiagram : public VoronoiMesh {
   /// @brief Merge vertices with the same symbolic information (they represent
   /// the same Delaunay triangle).
   void merge();
+
+  double max_radius() const {
+    auto props = *std::max_element(
+        properties_.begin(), properties_.end(),
+        [](const auto& pa, const auto& pb) { return pa.rmax > pb.rmax; });
+    return props.rmax;
+  }
 
  private:
   int dim_;
@@ -420,9 +452,7 @@ struct SphericalVoronoiPolygon {
   /// @param pi first plane used to compute the intersection point
   /// @param pj second plane used to compute the intersection point
   /// @param p plane equation
-  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const {
-    return plane_side(compute(pi, pj), p);
-  }
+  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const;
 
   /// @brief Calculate the contribution of this polygon to the cell
   /// properties.
