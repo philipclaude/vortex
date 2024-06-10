@@ -75,6 +75,7 @@ UT_TEST_CASE(test_square_uniform) {
   // set up the target mass for each cell (uniform)
   double v_target = 1.0 / n_sites;
   ParticleSimulation particles(n_sites, vertices[0], vertices.dim());
+  particles.voronoi().weights().resize(n_sites, 0);
   std::vector<double> target_volume(n_sites, v_target);
   SimulationOptions sim_opts;
   sim_opts.volume_grad_tol = 1e-14;
@@ -146,6 +147,7 @@ UT_TEST_CASE(test_sphere_uniform) {
   // set up the target mass for each cell (uniform)
   double v_target = 4.0 * M_PI / n_sites;
   ParticleSimulation particles(n_sites, vertices[0], vertices.dim());
+  particles.voronoi().weights().resize(n_sites, 0);
   std::vector<double> target_volume(n_sites, v_target);
   SimulationOptions sim_opts;
   sim_opts.volume_grad_tol = 1e-14;
@@ -222,8 +224,10 @@ UT_TEST_CASE(test_sphere_nonuniform) {
 
   // set up the target mass for each cell from the previous voronoi diagram
   ParticleSimulation particles(n_sites, vertices[0], vertices.dim());
+  particles.voronoi().weights().resize(n_sites, 0);
   SimulationOptions sim_opts;
   sim_opts.volume_grad_tol = 1e-14;
+  sim_opts.max_iter = 30;
   sim_opts.backtrack = true;
   auto result = particles.optimize_volumes(domain, sim_opts, target_volume);
   UT_ASSERT(result.converged);

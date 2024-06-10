@@ -84,6 +84,11 @@ class pool {
   }
 #undef SWAP
 
+  void erase(size_t k) {
+    for (size_t i = k + 1; i < index_; i++) data_[i - 1] = data_[i];
+    index_--;
+  }
+
  private:
   T* data_{nullptr};
   size_t index_{0};
@@ -398,6 +403,13 @@ class VoronoiDiagram : public VoronoiMesh {
   /// the same Delaunay triangle).
   void merge();
 
+  double max_radius() const {
+    auto props = *std::max_element(
+        properties_.begin(), properties_.end(),
+        [](const auto& pa, const auto& pb) { return pa.rmax > pb.rmax; });
+    return props.rmax;
+  }
+
  private:
   int dim_;
   const coord_t* sites_;
@@ -440,9 +452,7 @@ struct SphericalVoronoiPolygon {
   /// @param pi first plane used to compute the intersection point
   /// @param pj second plane used to compute the intersection point
   /// @param p plane equation
-  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const {
-    return plane_side(compute(pi, pj), p);
-  }
+  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const;
 
   /// @brief Calculate the contribution of this polygon to the cell
   /// properties.

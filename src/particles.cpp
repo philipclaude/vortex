@@ -1,6 +1,7 @@
 #include "particles.h"
 
 #include "io.h"
+#include "math/mat.hpp"
 #include "math/vec.hpp"
 
 namespace vortex {
@@ -33,8 +34,11 @@ void project_velocity<SquareDomain>(double* v) {}
 template <>
 void project_velocity<SphereDomain>(double* v) {
   vec3d p(v);
+  vec3d u(v);
   p = normalize(p);
-  for (int d = 0; d < 3; d++) v[d] = v[d] - p[d];
+  vec3d ur = dot(u, p) * p;  // radial component of velocity
+  vec3d ut = u - ur;         // tangential component of velocity
+  for (int d = 0; d < 3; d++) v[d] = ut[d];
 }
 
 void Particles::create(size_t np, const coord_t* xp, int dim) {
@@ -108,11 +112,25 @@ void ParticleSimulation::calculate_properties() {
   for (size_t k = 0; k < particles_.n(); k++) {
     ASSERT(voronoi_.properties()[k].site == k);
     particles_.volume()[k] = voronoi_.properties()[k].volume;
+    ASSERT(particles_.volume()[k] > 0);
     for (int d = 0; d < 3; d++)
       particles_.centroids()(k, d) =
           voronoi_.properties()[k].moment[d] / particles_.volume()[k];
+    max_displacement_[k] = std::numeric_limits<double>::max();
   }
-  voronoi_.weights().resize(particles_.n(), 0);
+  // voronoi_.weights().resize(particles_.n(), 0);
+
+  // determine the maximum displacement as the min (bisector distance)/2
+  const auto& facets = voronoi_.facets();
+  for (const auto& [b, _] : facets) {
+    size_t site_i = b[0];
+    size_t site_j = b[1];
+    vec3d pi(particles_[site_i]);
+    vec3d pj(particles_[site_j]);
+    double d = 0.5 * length(pi - pj);
+    if (d < max_displacement_[site_i]) max_displacement_[site_i] = d;
+    if (d < max_displacement_[site_j]) max_displacement_[site_j] = d;
+  }
 }
 
 template <typename Domain_t>

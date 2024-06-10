@@ -33,20 +33,31 @@ UT_TEST_SUITE(power_particles_test_suite)
 
 UT_TEST_CASE(test1) {
 #if VORTEX_FULL_UNIT_TEST != 0
+  // skip this test when running the full suite of tests
   return;
 #endif
 
   static const int dim = 3;
-  size_t n_sites = 5e4;
+  size_t n_sites = 1e5;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
-#if 1
+#if 0  // square
   for (size_t k = 0; k < n_sites; k++) {
     sites[k * dim + 0] = double(rand()) / double(RAND_MAX);
     sites[k * dim + 1] = double(rand()) / double(RAND_MAX);
     sites[k * dim + 2] = 0.0;
   }
   typedef SquareDomain Domain_t;
-#else
+  auto velocity = [](const double* x) -> vec3 { return {0, 0, 0}; };
+  auto fext = [](const Particle& p) -> vec3d {
+    vec3d f;
+    f[1] -= 9.81 * p.mass;
+    return f;
+  };
+  auto density = [](const double* x) -> double {
+    double f = 0.1 * sin(3 * M_PI * x[0]);
+    return x[1] - 0.5 > f ? 10 : 1;
+  };
+#else  // sphere
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
   };
@@ -58,6 +69,24 @@ UT_TEST_CASE(test1) {
     sites[k * dim + 2] = cos(phi);
   }
   typedef SphereDomain Domain_t;
+  vec3d omega{0., 0.01, 0.};
+  auto velocity = [omega](const double* x) -> vec3d {
+    vec3d p(x);
+    vec3d v = cross(omega, p);
+    return v;
+  };
+  auto fext = [omega](const Particle& particle) -> vec3d {
+    vec3d f;
+    double m = particle.mass;
+    const auto& v = particle.velocity;
+    const auto& p = particle.position;
+    // f = -2 * m * cross(omega, v);
+    f = -2 * m * omega[1] * p[1] * cross(p, v);
+    return f;
+  };
+  auto density = [](const double* x) -> double {
+    return std::fabs(x[1]) > 0.25 ? 1 : 10;
+  };
 #endif
 
   Domain_t domain;
@@ -87,6 +116,8 @@ UT_TEST_CASE(test1) {
     options.verbose = false;
     smoother.compute(domain, options);  // calculate voronoi diagram
     smoother.smooth(vertices, false);   // move sites to centroids
+    for (size_t k = 0; k < vertices.n(); k++)
+      project_point<Domain_t>(vertices[k]);
   }
 
   // set up the fluid simulator
@@ -94,38 +125,35 @@ UT_TEST_CASE(test1) {
                                    vertices.dim());
 
   // assign initial velocities
-  auto velocity = [](const double* x) -> vec3 { return {0, 0, 0}; };
   solver.particles().set_velocity(velocity);
-
-  auto density = [](const double* x) -> double {
-    double f = 0.1 * sin(3 * M_PI * x[0]);
-    return x[1] - 0.5 > f ? 10 : 1;
-  };
   solver.particles().set_density(density);
-
-  // set up the forcing function
-  auto fext = [](const Particle& p) -> vec3d {
-    vec3d omega{0., 1., 0.};
-    vec3d f = -2 * p.mass * cross(omega, p.velocity);
-    // f[1] -= 9.81 * p.mass;
-    return f;
-  };
 
   // set up fluid properties
   FluidProperties props;
   // props.viscosity = 0;
 
   SimulationOptions solver_opts;
+  solver_opts.save_initial_mesh = true;
   solver.initialize(domain, solver_opts);
-  int nt = 100000;
-  solver_opts.time_step = 3e-5;
+  // std::vector<double> target_vol(n_sites, 4.0 * M_PI / n_sites);
+  // solver.optimize_volumes(domain, solver_opts, target_vol);
+  meshb::write(solver.voronoi(), "voronoi.meshb");
+
+  int nt = 50000;
+  double hn = solver.voronoi().max_radius();
+  // solver_opts.epsilon = 4e-2;
+  solver_opts.epsilon = 10 * hn;
+  // solver_opts.time_step = 2e-4;
+  solver_opts.time_step = 0.15 * std::pow(solver_opts.epsilon, 2);
+  LOG << fmt::format("hn = {:1.3e}, eps = {:1.3e}, dt = {:1.3e}", hn,
+                     solver_opts.epsilon, solver_opts.time_step);
   solver_opts.verbose = false;
+  solver_opts.backtrack = false;
   int s = 0;
   for (int t = 0; t < nt; t++) {
     if (t % 50 == 0)
-      solver.particles().save(fmt::format("particles10k/particles{}.vtk", s++));
+      solver.particles().save(fmt::format("sphere100k/particles{}.vtk", s++));
     solver.step(fext, props, solver_opts);
-    solver_opts.time += solver_opts.time_step;
     solver_opts.iteration++;
   }
 }
