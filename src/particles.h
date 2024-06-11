@@ -41,6 +41,7 @@ struct SimulationOptions {
   bool restart_zero_weights{false};
   int print_frequency{50};
   bool reflection_boundary_condition{false};
+  bool advect_from_centroid{true};
 };
 
 struct SimulationConvergence {
@@ -380,8 +381,10 @@ class SpringParticles : public ParticleSimulation {
       for (int d = 0; d < 3; d++) {
         double dx_d = dt * velocity(k, d);
         dx_k += dx_d * dx_d;
-        particles_(k, d) = particles_.centroids()(k, d) + dx_d;
-        // particles_(k, d) = particles_(k, d) + dx_d;
+        if (options.advect_from_centroid)
+          particles_(k, d) = particles_.centroids()(k, d) + dx_d;
+        else
+          particles_(k, d) = particles_(k, d) + dx_d;
       }
       project_point<Domain_t>(particles_[k]);
       dx_k = std::sqrt(dx_k);
@@ -416,14 +419,9 @@ class SpringParticles : public ParticleSimulation {
     auto convergence = optimize_volumes(domain_, options, target_volume);
     if (options.iteration % options.print_frequency == 0) {
       timer_.stop();
-      int n_bars = 100;
-      std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
-      std::cout << fmt::format(
-          "| {:6s} | {:9s} | {:9s} | {:9s} | {:9s} | {:3s} | {:9s} | {:9s} | "
-          "{:9s} | @{:4d} steps / sec.\n",
-          "step", "time", "dt_max", "dt", "|rm|", "nm", "max(dx)", "|dx|",
-          "max(v)", int(options.print_frequency / timer_.seconds()));
-      std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
+      simulation_rate_ = double(options.print_frequency / timer_.seconds());
+      print_footer();
+      print_header();
       timer_.start();
     }
     std::cout << fmt::format(
@@ -434,9 +432,23 @@ class SpringParticles : public ParticleSimulation {
     options.time += dt;
   }
 
+  void print_header(int n_bars = 100) const {
+    std::cout << fmt::format(
+        "| {:6s} | {:9s} | {:9s} | {:9s} | {:9s} | {:3s} | {:9s} | {:9s} | "
+        "{:9s} | @{:3.1f} steps / sec.\n",
+        "step", "time", "dt_max", "dt", "|rm|", "nm", "max(dx)", "|dx|",
+        "max(v)", simulation_rate_);
+    std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
+  }
+
+  void print_footer(int n_bars = 100) const {
+    std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
+  }
+
  private:
   const Domain_t& domain_;
   Timer timer_;
+  double simulation_rate_{0};  // # time steps per second (of wall-clock time)
 };
 
 template <typename Domain_t>

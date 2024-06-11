@@ -29,6 +29,7 @@
 #include "log.h"
 #include "mesher.h"
 #include "numerics.h"
+#include "particles.h"
 #include "texture.h"
 #include "util.h"
 #include "voronoi.h"
@@ -356,7 +357,12 @@ void run_voronoi(argparse::ArgumentParser& program) {
   LOG << fmt::format("initialized {} points", n_points);
 
   std::vector<index_t> order(n_points);
-  sort_points_on_zcurve(sample[0], n_points, dim, order);
+  auto ordering = program.get<std::string>("--reorder");
+  if (ordering == "morton")
+    sort_points_on_zcurve(sample[0], n_points, dim, order);
+  else {
+    for (size_t k = 0; k < n_points; k++) order[k] = k;
+  }
 
   Vertices points(dim);
   points.reserve(n_points);
@@ -447,7 +453,197 @@ void run_merge(argparse::ArgumentParser& program) {
   meshb::write(output_mesh, arg_output);
 }
 
+void run_simulation(argparse::ArgumentParser& program) {
+  const int dim = 3;
+  size_t n_points = program.get<int>("--n_particles");
+  auto corners = program.get<std::vector<double>>("--corners");
+
+  Vertices sample(3);
+  auto arg_points = program.get<std::string>("--particles");
+  auto arg_domain = program.get<std::string>("--domain");
+  auto irand = [](int min, int max) {
+    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
+  };
+  if (arg_points == "random") {
+    sample.reserve(n_points);
+    if (arg_domain == "sphere") {
+      double x[3];
+      for (size_t k = 0; k < n_points; k++) {
+        coord_t theta = 2.0 * M_PI * irand(0, 1);
+        coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
+        x[0] = cos(theta) * sin(phi);
+        x[1] = sin(theta) * sin(phi);
+        x[2] = cos(phi);
+        sample.add(x);
+      }
+    } else if (arg_domain == "rectangle") {
+      SquareDomain domain({corners[0], corners[1], 0},
+                          {corners[2], corners[3], 0});
+      for (size_t k = 0; k < n_points; k++) {
+        auto x = domain.random_point();
+        // for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
+        sample.add(&x[0]);
+      }
+    } else
+      NOT_IMPLEMENTED;
+  } else if (arg_points == "random_oceans") {
+    sample.reserve(n_points);
+    std::string tex_file =
+        std::string(VORTEX_SOURCE_DIR) + "/../data/oceans_2048.png";
+    TextureOptions tex_opts;
+    tex_opts.format = TextureFormat::kGrayscale;
+    Texture texture(tex_file, tex_opts);
+    texture.make_binary(10, 10, 255);
+
+    vec3d x, uv;
+    while (sample.n() < n_points) {
+      coord_t theta = 2.0 * M_PI * irand(0, 1);
+      coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
+      x[0] = cos(theta) * sin(phi);
+      x[1] = sin(theta) * sin(phi);
+      x[2] = cos(phi);
+
+      // calculate (u, v) consistent with other algorithms
+      sphere_params(x, uv);
+      double t;
+      texture.sample(uv[0], uv[1], &t);
+      if (t < 50) continue;
+
+      sample.add(&x[0]);
+    }
+  } else {
+    Mesh tmp(dim);
+    read_mesh(arg_points, tmp);
+    tmp.vertices().copy(sample);
+  }
+  n_points = sample.n();
+  LOG << fmt::format("initialized {} points", n_points);
+
+  // construct a better ordering of the points
+  std::vector<index_t> order(n_points);
+  sort_points_on_zcurve(sample[0], n_points, dim, order);
+  Vertices vertices(dim);
+  vertices.reserve(n_points);
+  coord_t x[dim];
+  for (size_t i = 0; i < n_points; i++) {
+    for (int d = 0; d < dim; d++) x[d] = sample[order[i]][d];
+    vertices.add(x);
+  }
+
+  auto run_case = [&](auto& domain, const auto& velocity, const auto& density,
+                      const auto& force) {
+    using Domain_t = typename std::remove_reference<decltype(domain)>::type;
+
+    // smooth the initial point distribution with Lloyd relaxation
+    VoronoiDiagram smoother(dim, vertices[0], n_points);
+    VoronoiDiagramOptions options;
+    options.n_neighbors = 100;
+    options.allow_reattempt = false;
+    options.parallel = true;
+    options.store_facet_data = true;
+    int n_iter = program.get<int>("--n_smooth");
+
+    for (int iter = 1; iter <= n_iter; ++iter) {
+      options.store_mesh = false;
+      options.verbose = false;
+      smoother.compute(domain, options);  // calculate voronoi diagram
+      smoother.smooth(vertices, false);   // move sites to centroids
+      for (size_t k = 0; k < vertices.n(); k++)
+        project_point<Domain_t>(vertices[k]);
+    }
+    LOG << "done smoothing points";
+
+    // set up the fluid simulator
+    SpringParticles<Domain_t> solver(domain, n_points, vertices[0],
+                                     vertices.dim());
+
+    // assign initial velocities
+    solver.particles().set_velocity(velocity);
+    solver.particles().set_density(density);
+
+    // set up fluid and solver properties
+    FluidProperties props;
+    SimulationOptions solver_opts;
+    solver.initialize(domain, solver_opts);
+    LOG << "initialized simulation";
+
+    int nt = program.get<int>("--total_time_steps");
+    double hn = solver.voronoi().max_radius();
+    solver_opts.epsilon = program.get<double>("--epsilon_scale") * hn;
+    solver_opts.time_step = program.get<double>("--time_step_scale") *
+                            std::pow(solver_opts.epsilon, 2);
+    LOG << fmt::format("hn = {:1.3e}, eps = {:1.3e}, dt = {:1.3e}", hn,
+                       solver_opts.epsilon, solver_opts.time_step);
+    double force_eps = program.get<double>("--force_epsilon");
+    if (force_eps > 0) solver_opts.epsilon = force_eps;
+    double force_dt = program.get<double>("--force_time_step");
+    if (force_dt > 0) solver_opts.time_step = force_dt;
+    solver_opts.verbose = false;
+    solver_opts.backtrack = false;
+    solver_opts.reflection_boundary_condition =
+        program.get<bool>("--boundary_reflection");
+    ASSERT(!solver_opts.reflection_boundary_condition);
+    solver_opts.advect_from_centroid = !program.get<bool>("--advect_from_site");
+    const auto directory = program.get<std::string>("--output_directory");
+    int s = 0;
+    Timer timer;
+    timer.start();
+    for (int t = 0; t < nt; t++) {
+      if (t % program.get<int>("--save_every") == 0)
+        solver.particles().save(
+            fmt::format("{}/particles{}.vtk", directory, s++));
+      solver.step(force, props, solver_opts);
+      solver_opts.iteration++;
+    }
+    timer.stop();
+    solver.print_footer();
+    LOG << fmt::format("done! total time = {} seconds.", timer.seconds());
+  };
+
+  const auto density_ratio = program.get<double>("--density_ratio");
+  if (arg_domain == "rectangle") {
+    typedef SquareDomain Domain_t;
+    auto velocity = [](const double* x) -> vec3 { return {0, 0, 0}; };
+    auto force = [](const Particle& p) -> vec3d {
+      vec3d f;
+      f[1] -= 9.81 * p.mass;
+      return f;
+    };
+    auto density = [&](const double* x) -> double {
+      // double f = 0.1 * sin(3 * M_PI * x[0]);
+      // return x[1] - 0.5 > f ? density_ratio : 1;
+      double f = -0.2 * cos(M_PI * x[0]);
+      return x[1] > f ? density_ratio : 1;
+    };
+    Domain_t domain({corners[0], corners[1], 0}, {corners[2], corners[3], 0});
+    run_case(domain, velocity, density, force);
+  } else if (arg_domain == "sphere") {
+    typedef SphereDomain Domain_t;
+    vec3d omega{0., 0., 0.};
+    omega[1] = program.get<double>("--omega");
+    auto velocity = [omega](const double* x) -> vec3d {
+      vec3d p(x);
+      vec3d v = cross(omega, p);
+      return v;
+    };
+    auto force = [omega](const Particle& particle) -> vec3d {
+      vec3d f;
+      double m = particle.mass;
+      const auto& v = particle.velocity;
+      const auto& p = particle.position;
+      f = -2 * m * omega[1] * p[1] * cross(p, v);
+      return f;
+    };
+    auto density = [](const double* x) -> double {
+      return std::fabs(x[1]) > 0.25 ? 1 : 10;
+    };
+    Domain_t domain;
+    run_case(domain, velocity, density, force);
+  }
+}
+
 }  // namespace
+
 }  // namespace vortex
 
 int main(int argc, char** argv) {
@@ -540,6 +736,9 @@ int main(int argc, char** argv) {
   cmd_voronoi.add_argument("--on_sphere")
       .help("project sites to the sphere during smoothing")
       .flag();
+  cmd_voronoi.add_argument("--reorder")
+      .help("ordering method (morton, none)")
+      .default_value("morton");
   program.add_subparser(cmd_voronoi);
 
   argparse::ArgumentParser cmd_merge("merge");
@@ -554,6 +753,72 @@ int main(int argc, char** argv) {
       .flag();
   cmd_merge.add_argument("--output").help("path to output mesh file (.meshb)");
   program.add_subparser(cmd_merge);
+
+  argparse::ArgumentParser cmd_sim("simulate");
+  cmd_sim.add_description("simulate fluid flow");
+  cmd_sim.add_argument("--domain").help("simulation domain: rectangle, sphere");
+  cmd_sim.add_argument("--particles")
+      .help(
+          "sampling technique to use for initial particle positions (random, "
+          "random_oceans)")
+      .default_value("random");
+  cmd_sim.add_argument("--n_particles")
+      .help("# particles to use in the simulation")
+      .default_value(10000)
+      .scan<'i', int>();
+  cmd_sim.add_argument("--omega")
+      .help("y-component of rotational velocity")
+      .default_value(0)
+      .scan<'g', double>();
+  cmd_sim.add_argument("--boundary_reflection")
+      .help(
+          "option to add reflection boundary conditions (only for the "
+          "rectangular domain)")
+      .flag();
+  cmd_sim.add_argument("--density_ratio")
+      .default_value(10.0)
+      .scan<'g', double>();
+  cmd_sim.add_argument("--n_smooth")
+      .help("# iterations of Lloyd relaxation for initial points")
+      .default_value(100)
+      .scan<'i', int>();
+  cmd_sim.add_argument("--epsilon_scale")
+      .help(
+          "scaling factor used to compute the inverse spring coefficient eps = "
+          "epsilon_scale * hn")
+      .default_value(10.0)
+      .scan<'g', double>();
+  cmd_sim.add_argument("--time_step_scale")
+      .help(
+          "scaling factor used to compute the time step: dt = time_step_scale "
+          "* eps * eps")
+      .default_value(0.15)
+      .scan<'g', double>();
+  cmd_sim.add_argument("--output_directory")
+      .help("output location for .vtk files")
+      .default_value("");
+  cmd_sim.add_argument("--save_every")
+      .help("# time steps after which the solution is saved")
+      .default_value(50)
+      .scan<'i', int>();
+  cmd_sim.add_argument("--total_time_steps")
+      .help("total # time steps in simulation")
+      .default_value(100)
+      .scan<'i', int>();
+  cmd_sim.add_argument("--advect_from_site").flag();
+  cmd_sim.add_argument("--force_time_step")
+      .default_value(-1.0)
+      .scan<'g', double>();
+  cmd_sim.add_argument("--force_epsilon")
+      .default_value(-1.0)
+      .scan<'g', double>();
+  cmd_sim.add_argument("--corners")
+      .help("xmin ymin xmax ymax")
+      .nargs(4)
+      .default_value(std::vector<double>{0.0, 0.0, 1.0, 1.0})
+      .scan<'g', double>();
+
+  program.add_subparser(cmd_sim);
 
   try {
     program.parse_args(argc, argv);
@@ -573,6 +838,8 @@ int main(int argc, char** argv) {
     vortex::run_voronoi(program.at<argparse::ArgumentParser>("voronoi"));
   } else if (program.is_subcommand_used("merge")) {
     vortex::run_merge(program.at<argparse::ArgumentParser>("merge"));
+  } else if (program.is_subcommand_used("simulate")) {
+    vortex::run_simulation(program.at<argparse::ArgumentParser>("simulate"));
   } else {
     std::cout << program.help().str();
   }
