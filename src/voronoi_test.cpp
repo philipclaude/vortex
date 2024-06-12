@@ -114,7 +114,8 @@ UT_TEST_CASE(test_square) {
     vertices.add(x);
   }
 
-  SquareDomain domain;
+  // SquareDomain domain;
+  SquareDomain domain({-1, -3, 0}, {1, 3, 0});
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
@@ -157,7 +158,7 @@ UT_TEST_CASE(test_square) {
   voronoi.compute(domain, options);
   auto props = voronoi.analyze();
   LOG << fmt::format("power diagram area = {}", props.area);
-  UT_ASSERT_NEAR(props.area, 1.0, tol);
+  UT_ASSERT_NEAR(props.area, domain.area(), tol);
 
   // check the power diagram
   UT_ASSERT_EQUALS(voronoi.vertices().n() - n_sites, voronoi.triangles().n());

@@ -531,14 +531,35 @@ struct SquareDomain {
   /// lengths of 1.
   SquareDomain() {}
 
+  /// @ brief Initializes a square domain from lower-left and upper-right
+  /// corners.
+  SquareDomain(vec3 pll, vec3 pur) {
+    points_[0] = pll;
+    points_[1] = {pur[0], pll[1], 0};
+    points_[2] = pur;
+    points_[3] = {pll[0], pur[1], 0};
+  }
+
+  double xlength() const { return points_[1][0] - points_[0][0]; }
+  double ylength() const { return points_[2][1] - points_[0][1]; }
+  double area() const { return xlength() * ylength(); }
+
   /// @brief Copies a square domain
-  SquareDomain(const SquareDomain& domain) {}
+  SquareDomain(const SquareDomain& domain) {
+    for (int i = 0; i < 4; i++) points_[i] = domain.points_[i];
+  }
+
+  vec3 random_point() const {
+    const double x = points_[0][0] + rand() * xlength() / RAND_MAX;
+    const double y = points_[0][1] + rand() * ylength() / RAND_MAX;
+    return {x, y, 0};
+  }
 
   /// @brief Initializes the Voronoi polygon (cell) to the entire square
   /// domain.
   /// @param cell polygon to initialize in the calculation.
   void initialize(vec4 z, VoronoiPolygon<SquareDomain>& cell) const;
-  const vec3 points_[4] = {{0., 0., 0.}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}};
+  vec3 points_[4] = {{0., 0., 0.}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}};
 };
 
 struct TriangulationDomain {
