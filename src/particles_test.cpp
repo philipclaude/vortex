@@ -33,7 +33,6 @@ using namespace vortex;
 UT_TEST_SUITE(particles_test_suite)
 
 UT_TEST_CASE(test_square_uniform) {
-  return;
   // randomly initialize points in a square
   static const int dim = 3;
   size_t n_sites = 1e4;
@@ -99,7 +98,6 @@ UT_TEST_CASE(test_square_uniform) {
 UT_TEST_CASE_END(test_square_uniform)
 
 UT_TEST_CASE(test_sphere_uniform) {
-  return;
   // randomly initialize points on the sphere
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
@@ -172,7 +170,6 @@ UT_TEST_CASE(test_sphere_uniform) {
 UT_TEST_CASE_END(test_sphere_uniform)
 
 UT_TEST_CASE(test_sphere_nonuniform) {
-  return;
   // randomly initialize points on the sphere
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
