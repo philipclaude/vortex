@@ -35,11 +35,6 @@ jobs:
         cmake -B ${{github.workspace}}/build/debug -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
         cmake -B ${{github.workspace}}/build/coverage
 
-    - name: coverage
-      working-directory: ${{github.workspace}}/build/coverage
-      run: |
-        make unit_coverage
-
     - name: build
       working-directory: ${{github.workspace}}/build/debug
       run: make -j 2
@@ -51,6 +46,11 @@ jobs:
         cd ${{github.workspace}}/build/release && make vortex -j
         cd ${{github.workspace}}
         dev/examples.sh ${{github.workspace}}/build/release/bin/vortex 0.02
+
+    - name: coverage
+      working-directory: ${{github.workspace}}/build/coverage
+      run: |
+        make unit_coverage
 
     - name: test
       id: tester
