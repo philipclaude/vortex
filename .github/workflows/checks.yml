@@ -56,6 +56,11 @@ jobs:
       working-directory: ${{github.workspace}}/build/debug
       run: |
         cat unit_tests_output.txt
+
+    - name: coverage
+      working-directory: ${{github.workspace}}/build/coverage
+      run: |
+        make unit_coverage
         
 
     # - name: upload artifacts

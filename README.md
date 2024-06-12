@@ -265,6 +265,32 @@ Note that the half-edge mesh will be created using **all** polygons, triangles a
 
 Please see the member functions and variables for `HalfNode`, `HalfEdge` and `HalfFace` in `src/halfedges.h`. One way to become familiar with this data structure is to study the `HalfMesh::flip`, `HalfMesh::split` or `HalfMesh::collapse` functions, in addition to how they are used in `mesher.cpp`. It may also be useful to look at the `run_extract` function in `src/vortex.cpp`.
 
+#### Checking code coverage.
+
+Code coverage reports let us know how many lines of the `vortex` source code are "covered" by the testing suite. Generating these reports requires a few extra dependencies (`gcov`, `lcov`, and `genhtml` which requires the Perl `GD.pm` module), which are installed by the `dev/setup.sh` script.
+
+Assuming you are starting from the root of the `vortex` repository, create a directory that will automatically be detected for code coverage:
+
+```sh
+mkdir build/coverage
+```
+
+Navigate to this directory, configure and build:
+
+```sh
+cd build/coverage
+cmake ../../
+make unit_coverage
+```
+
+This time, we are running the `unit_coverage` target which will run all of the unit tests and generate code coverage information. Now, display the code coverage results:
+
+```sh
+make coverage_show
+```
+
+and navigate through the `HTML` report to see which lines are being executed.
+
 ### Acknowledgements
 
 Many thanks to the following projects which `vortex` depends on:
@@ -273,8 +299,8 @@ Many thanks to the following projects which `vortex` depends on:
 - `fmtlib`: https://github.com/fmtlib/fmt
 - `libMeshb`: https://github.com/LoicMarechal/libMeshb
 - `morton-nd`: https://github.com/morton-nd/morton-nd
-- `OpenNL`: https://github.com/morton-nd/morton-nd
-- `PCK`: https://github.com/middleburygcl/geogram.psm.Predicates
+- `OpenNL`: https://github.com/BrunoLevy/geogram.psm.OpenNL
+- `PCK`: https://github.com/BrunoLevy/geogram.psm.Predicates
 - `tinyobjloader`: https://github.com/tinyobjloader/tinyobjloader
 - `stb` (via `wings`): https://github.com/nothings/stb
 
