@@ -31,7 +31,9 @@ jobs:
         dev/check-format.sh
 
     - name: configure
-      run: cmake -B ${{github.workspace}}/build/debug -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: |
+        cmake -B ${{github.workspace}}/build/debug -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        cmake -B ${{github.workspace}}/build/coverage
 
     - name: build
       working-directory: ${{github.workspace}}/build/debug
@@ -56,7 +58,11 @@ jobs:
       working-directory: ${{github.workspace}}/build/debug
       run: |
         cat unit_tests_output.txt
-        
+
+    - name: coverage
+      working-directory: ${{github.workspace}}/build/coverage
+      run: |
+        make unit_coverage
 
     # - name: upload artifacts
     #   uses: actions/upload-artifact@v3
