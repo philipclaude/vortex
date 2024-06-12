@@ -610,8 +610,6 @@ void run_simulation(argparse::ArgumentParser& program) {
       return f;
     };
     auto density = [&](const double* x) -> double {
-      // double f = 0.1 * sin(3 * M_PI * x[0]);
-      // return x[1] - 0.5 > f ? density_ratio : 1;
       double f = -0.2 * cos(M_PI * x[0]);
       return x[1] > f ? density_ratio : 1;
     };

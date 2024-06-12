@@ -241,6 +241,4 @@ void PowerParticles<Domain_t>::advect(double dt) {
 template class PowerParticles<SphereDomain>;
 template class PowerParticles<SquareDomain>;
 
-// template void project_point<SquareDomain>(double* x);
-
 }  // namespace vortex
