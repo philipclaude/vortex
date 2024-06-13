@@ -319,6 +319,6 @@ Unless required by applicable law or agreed to in writing, software distributed 
 
 - Philip Caplan ([philipclaude](https://github.com/philipclaude))
 - Otis Milliken ([Hokalaka2](https://github.com/Hokalaka2))
-- Col McDermott ([Col-McDermott] (https://github.com/Col-McDermott))
+- Col McDermott ([Col-McDermott](https://github.com/Col-McDermott))
 - Zeyi Tong ([zeyiiiii](https://github.com/zeyiiiii))
 - Toby Pouler ([tpouler](https://github.com/tpouler))
