@@ -279,7 +279,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
   size_t n_points;
   double earth_area = 4 * M_PI * std::pow(6378, 2);
   if (arg_domain == "sphere" && resolution > 0) {
-    n_points = (int) (earth_area / std::pow(resolution, 2));
+    n_points = (int)(earth_area / std::pow(resolution, 2));
   } else {
     n_points = program.get<int>("--n_points");
   }
@@ -721,9 +721,9 @@ int main(int argc, char** argv) {
       .default_value(10000)
       .scan<'i', int>();
   cmd_voronoi.add_argument("--resolution")
-    .help("an approximate size of the cell in kilometers, only applicable for sphere --domain option")
-    .default_value(0.0)
-    .scan<'g', double>();
+      .help("an approximate size of the cell in kilometers, only applicable for sphere --domain option")
+      .default_value(0.0)
+      .scan<'g', double>();
   cmd_voronoi.add_argument("--n_smooth")
       .help("# iterations of Lloyd relaxation")
       .default_value(1)
@@ -776,9 +776,9 @@ int main(int argc, char** argv) {
       .default_value(10000)
       .scan<'i', int>();
   cmd_sim.add_argument("--resolution")
-    .help("an approximate size of the cell in kilometers, only applicable for sphere --domain option")
-    .default_value(100.0)
-    .scan<'g', double>();
+      .help("an approximate size of the cell in kilometers, only applicable for sphere --domain option")
+      .default_value(0.0)
+      .scan<'g', double>();
   cmd_sim.add_argument("--omega")
       .help("y-component of rotational velocity")
       .default_value(0)
