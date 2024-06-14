@@ -462,12 +462,19 @@ void run_merge(argparse::ArgumentParser& program) {
 
 void run_simulation(argparse::ArgumentParser& program) {
   const int dim = 3;
-  size_t n_points = program.get<int>("--n_particles");
+  auto arg_domain = program.get<std::string>("--domain");
+  auto resolution = program.get<double>("--resolution");
+  size_t n_points;
+  double earth_area = 4 * M_PI * std::pow(6378, 2);
+  if (arg_domain == "sphere" && resolution > 0) {
+    n_points = (int)(earth_area / std::pow(resolution, 2));
+  } else {
+    n_points = program.get<int>("--n_particles");
+  }
   auto corners = program.get<std::vector<double>>("--corners");
 
   Vertices sample(3);
   auto arg_points = program.get<std::string>("--particles");
-  auto arg_domain = program.get<std::string>("--domain");
   auto irand = [](int min, int max) {
     return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
   };
