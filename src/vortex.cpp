@@ -42,7 +42,7 @@ namespace vortex {
 
 namespace {
 
-void run_visualizer(argparse::ArgumentParser &program) {
+void run_visualizer(argparse::ArgumentParser& program) {
   std::string filename = program.get<std::string>("input");
 
   Mesh mesh(3);
@@ -58,7 +58,7 @@ void run_visualizer(argparse::ArgumentParser &program) {
   for (size_t k = 0; k < n_groups; k++)
     site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
   for (size_t k = 0; k < mesh.polygons().n(); k++) {
-    int group = mesh.polygons().group(k); // the group is the site
+    int group = mesh.polygons().group(k);  // the group is the site
     mesh.polygons().set_group(k, site2color[group]);
   }
 
@@ -66,8 +66,8 @@ void run_visualizer(argparse::ArgumentParser &program) {
   Viewer viewer(mesh, 7681);
 }
 
-void apply_mask(const std::string &input, double tmin, double tmax,
-                Mesh &mesh) {
+void apply_mask(const std::string& input, double tmin, double tmax,
+                Mesh& mesh) {
   TextureOptions tex_opts;
   tex_opts.format = TextureFormat::kGrayscale;
   Texture mask(input, tex_opts);
@@ -88,15 +88,14 @@ void apply_mask(const std::string &input, double tmin, double tmax,
 
   for (size_t k = 0; k < mesh.triangles().n(); k++) {
     mesh.triangles().set_group(k, 1);
-    auto *t = mesh.triangles()[k];
+    auto* t = mesh.triangles()[k];
     for (int j = 0; j < 3; j++) {
-      if (mesh.vertices().group(t[j]) == 2)
-        mesh.triangles().set_group(k, 2);
+      if (mesh.vertices().group(t[j]) == 2) mesh.triangles().set_group(k, 2);
     }
   }
 }
 
-void run_mesher(argparse::ArgumentParser &program) {
+void run_mesher(argparse::ArgumentParser& program) {
   TextureOptions tex_opts;
   tex_opts.format = TextureFormat::kGrayscale;
   std::string filename = program.get<std::string>("metric");
@@ -110,13 +109,11 @@ void run_mesher(argparse::ArgumentParser &program) {
   }
   texture.make_periodic();
   std::string output_metric = program.get<std::string>("--output_metric");
-  if (!output_metric.empty())
-    texture.write(output_metric);
+  if (!output_metric.empty()) texture.write(output_metric);
 
   double hmin = program.get<double>("--hmin");
   double hmax = program.get<double>("--hmax");
-  if (hmax < 0)
-    hmax = 2.0 * hmin;
+  if (hmax < 0) hmax = 2.0 * hmin;
   int n_iter = program.get<int>("--num_iter");
   std::string output_filename = program.get<std::string>("--output");
   ASSERT(!output_filename.empty());
@@ -140,17 +137,17 @@ void run_mesher(argparse::ArgumentParser &program) {
   meshb::write(output_mesh, output_filename);
 }
 
-void run_extract(argparse::ArgumentParser &program) {
+void run_extract(argparse::ArgumentParser& program) {
   // read input mesh
   Mesh mesh(3);
-  const auto &input = program.get<std::string>("input");
+  const auto& input = program.get<std::string>("input");
   read_mesh(input, mesh);
 
   //
-  const auto &input_mask = program.get<std::string>("--mask");
+  const auto& input_mask = program.get<std::string>("--mask");
   if (input_mask != "groups") {
     // read the image and apply the mask
-    double tmin = 10, tmax = 255; // TODO make user inputs
+    double tmin = 10, tmax = 255;  // TODO make user inputs
     apply_mask(input_mask, tmin, tmax, mesh);
   }
 
@@ -160,18 +157,17 @@ void run_extract(argparse::ArgumentParser &program) {
   // build a list of boundary edges to process
   std::unordered_set<half_t> edges;
   edges.reserve(hmesh.edges().size());
-  for (auto &e : hmesh.edges()) {
+  for (auto& e : hmesh.edges()) {
     int gl = e.get_face().group();
     int gr = e.get_twin().get_face().group();
-    if (gl < gr)
-      edges.insert(e.index());
+    if (gl < gr) edges.insert(e.index());
   }
   LOG << fmt::format("detected {} edges on boundary", edges.size());
-  auto bnd = edges; // make a copy for separating land + water later
+  auto bnd = edges;  // make a copy for separating land + water later
 
   // utility to add an edge with a group
   Mesh water(3), land(3);
-  auto add_line = [](Mesh &mesh, int *e, int g) {
+  auto add_line = [](Mesh& mesh, int* e, int g) {
     size_t id = mesh.lines().n();
     mesh.lines().add(e);
     mesh.lines().set_group(id, g);
@@ -190,8 +186,7 @@ void run_extract(argparse::ArgumentParser &program) {
     // remove the edge + twin from the set of edges to process
     edges.erase(eit);
     eit = edges.find(hmesh.edges()[first].twin());
-    if (eit != edges.end())
-      edges.erase(eit);
+    if (eit != edges.end()) edges.erase(eit);
 
     // continue to next edge until we return to the first edge
     half_t current = first;
@@ -210,18 +205,15 @@ void run_extract(argparse::ArgumentParser &program) {
       while (true) {
         half_t next = hmesh.edges()[current].get_twin().next();
         int g_next = hmesh.edges()[next].get_face().group();
-        if (g_next != group)
-          break;
+        if (g_next != group) break;
         current = next;
       };
 
       // remove the edge and twin from the list
       eit = edges.find(current);
-      if (eit != edges.end())
-        edges.erase(eit);
+      if (eit != edges.end()) edges.erase(eit);
       eit = edges.find(hmesh.edges()[current].twin());
-      if (eit != edges.end())
-        edges.erase(eit);
+      if (eit != edges.end()) edges.erase(eit);
 
     } while (current != first);
   }
@@ -238,7 +230,7 @@ void run_extract(argparse::ArgumentParser &program) {
     while (!queue.empty()) {
       half_t f = queue.front();
       queue.pop();
-      HalfFace &face = hmesh.faces()[f];
+      HalfFace& face = hmesh.faces()[f];
       face.set_group(i);
       // mesh.polygons().set_group(f, i);
       //  mesh.triangles().set_group(f, i);
@@ -280,14 +272,14 @@ void run_extract(argparse::ArgumentParser &program) {
   meshb::write(land, arg_land);
 }
 
-void run_voronoi(argparse::ArgumentParser &program) {
+void run_voronoi(argparse::ArgumentParser& program) {
   auto arg_domain = program.get<std::string>("--domain");
   auto arg_points = program.get<std::string>("--points");
   auto resolution = program.get<double>("--resolution");
   size_t n_points;
   double earth_area = 4 * M_PI * std::pow(6378, 2);
   if (arg_domain == "sphere" && resolution > 0) {
-    n_points = (int)(earth_area / std::pow(resolution, 2));
+    n_points = (int) (earth_area / std::pow(resolution, 2));
   } else {
     n_points = program.get<int>("--n_points");
   }
@@ -333,8 +325,7 @@ void run_voronoi(argparse::ArgumentParser &program) {
     } else if (arg_domain == "square") {
       double x[3] = {0, 0, 0};
       for (size_t k = 0; k < n_points; k++) {
-        for (int d = 0; d < 2; d++)
-          x[d] = double(rand()) / double(RAND_MAX);
+        for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
         sample.add(x);
       }
     } else
@@ -360,8 +351,7 @@ void run_voronoi(argparse::ArgumentParser &program) {
       sphere_params(x, uv);
       double t;
       texture.sample(uv[0], uv[1], &t);
-      if (t < 50)
-        continue;
+      if (t < 50) continue;
 
       sample.add(&x[0]);
     }
@@ -378,16 +368,14 @@ void run_voronoi(argparse::ArgumentParser &program) {
   if (ordering == "morton")
     sort_points_on_zcurve(sample[0], n_points, dim, order);
   else {
-    for (size_t k = 0; k < n_points; k++)
-      order[k] = k;
+    for (size_t k = 0; k < n_points; k++) order[k] = k;
   }
 
   Vertices points(dim);
   points.reserve(n_points);
   coord_t x[dim];
   for (size_t i = 0; i < n_points; i++) {
-    for (int d = 0; d < dim; d++)
-      x[d] = sample[order[i]][d];
+    for (int d = 0; d < dim; d++) x[d] = sample[order[i]][d];
     points.add(x);
   }
 
@@ -402,7 +390,7 @@ void run_voronoi(argparse::ArgumentParser &program) {
   auto save = program.present<std::string>("--output");
   auto on_sphere = program.get<bool>("--on_sphere");
   auto calculate_voronoi_diagram = [&voronoi, &options, &points, n_smooth, save,
-                                    quiet, verbose, on_sphere](auto &domain) {
+                                    quiet, verbose, on_sphere](auto& domain) {
     int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
       options.store_mesh = (iter == n_iter) && save;
@@ -416,36 +404,32 @@ void run_voronoi(argparse::ArgumentParser &program) {
       // move each site to the centroid of the corresponding cell
       voronoi.smooth(points, on_sphere);
       auto props = voronoi.analyze();
-      if (!quiet)
-        LOG << fmt::format("iter = {}, area = {}", iter, props.area);
+      if (!quiet) LOG << fmt::format("iter = {}, area = {}", iter, props.area);
     }
   };
 
   // calculate!
   if (arg_domain == "sphere") {
     SphereDomain domain;
-    if (n_points <= 10000)
-      domain.set_initialization_fraction(0.7);
+    if (n_points <= 10000) domain.set_initialization_fraction(0.7);
     calculate_voronoi_diagram(domain);
   } else if (arg_domain == "square") {
     SquareDomain domain;
     calculate_voronoi_diagram(domain);
   } else {
-    const auto *p = background_mesh.vertices()[0];
+    const auto* p = background_mesh.vertices()[0];
     size_t np = background_mesh.vertices().n();
-    const auto *t = background_mesh.triangles()[0];
+    const auto* t = background_mesh.triangles()[0];
     size_t nt = background_mesh.triangles().n();
     TriangulationDomain domain(p, np, t, nt);
     calculate_voronoi_diagram(domain);
   }
-  if (save)
-    voronoi.merge();
+  if (save) voronoi.merge();
 
   if (program.present<std::string>("--output")) {
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
     auto arg_output = program.get<std::string>("--output");
-    if (voronoi.polygons().n() > 0)
-      meshb::write(voronoi, arg_output);
+    if (voronoi.polygons().n() > 0) meshb::write(voronoi, arg_output);
   }
   if (program.present<std::string>("--output_points")) {
     Mesh tmp(dim);
@@ -454,7 +438,7 @@ void run_voronoi(argparse::ArgumentParser &program) {
   }
 }
 
-void run_merge(argparse::ArgumentParser &program) {
+void run_merge(argparse::ArgumentParser& program) {
   auto arg_input = program.get<std::string>("input");
   auto arg_output = program.get<std::string>("--output");
   auto combine = program.get<bool>("--combine");
@@ -476,7 +460,7 @@ void run_merge(argparse::ArgumentParser &program) {
   meshb::write(output_mesh, arg_output);
 }
 
-void run_simulation(argparse::ArgumentParser &program) {
+void run_simulation(argparse::ArgumentParser& program) {
   const int dim = 3;
   size_t n_points = program.get<int>("--n_particles");
   auto corners = program.get<std::vector<double>>("--corners");
@@ -530,8 +514,7 @@ void run_simulation(argparse::ArgumentParser &program) {
       sphere_params(x, uv);
       double t;
       texture.sample(uv[0], uv[1], &t);
-      if (t < 50)
-        continue;
+      if (t < 50) continue;
 
       sample.add(&x[0]);
     }
@@ -550,13 +533,12 @@ void run_simulation(argparse::ArgumentParser &program) {
   vertices.reserve(n_points);
   coord_t x[dim];
   for (size_t i = 0; i < n_points; i++) {
-    for (int d = 0; d < dim; d++)
-      x[d] = sample[order[i]][d];
+    for (int d = 0; d < dim; d++) x[d] = sample[order[i]][d];
     vertices.add(x);
   }
 
-  auto run_case = [&](auto &domain, const auto &velocity, const auto &density,
-                      const auto &force) {
+  auto run_case = [&](auto& domain, const auto& velocity, const auto& density,
+                      const auto& force) {
     using Domain_t = typename std::remove_reference<decltype(domain)>::type;
 
     // smooth the initial point distribution with Lloyd relaxation
@@ -571,8 +553,8 @@ void run_simulation(argparse::ArgumentParser &program) {
     for (int iter = 1; iter <= n_iter; ++iter) {
       options.store_mesh = false;
       options.verbose = false;
-      smoother.compute(domain, options); // calculate voronoi diagram
-      smoother.smooth(vertices, false);  // move sites to centroids
+      smoother.compute(domain, options);  // calculate voronoi diagram
+      smoother.smooth(vertices, false);   // move sites to centroids
       for (size_t k = 0; k < vertices.n(); k++)
         project_point<Domain_t>(vertices[k]);
     }
@@ -600,11 +582,9 @@ void run_simulation(argparse::ArgumentParser &program) {
     LOG << fmt::format("hn = {:1.3e}, eps = {:1.3e}, dt = {:1.3e}", hn,
                        solver_opts.epsilon, solver_opts.time_step);
     double force_eps = program.get<double>("--force_epsilon");
-    if (force_eps > 0)
-      solver_opts.epsilon = force_eps;
+    if (force_eps > 0) solver_opts.epsilon = force_eps;
     double force_dt = program.get<double>("--force_time_step");
-    if (force_dt > 0)
-      solver_opts.time_step = force_dt;
+    if (force_dt > 0) solver_opts.time_step = force_dt;
     solver_opts.verbose = false;
     solver_opts.backtrack = false;
     solver_opts.reflection_boundary_condition =
@@ -630,13 +610,13 @@ void run_simulation(argparse::ArgumentParser &program) {
   const auto density_ratio = program.get<double>("--density_ratio");
   if (arg_domain == "rectangle") {
     typedef SquareDomain Domain_t;
-    auto velocity = [](const double *x) -> vec3 { return {0, 0, 0}; };
-    auto force = [](const Particle &p) -> vec3d {
+    auto velocity = [](const double* x) -> vec3 { return {0, 0, 0}; };
+    auto force = [](const Particle& p) -> vec3d {
       vec3d f;
       f[1] -= 9.81 * p.mass;
       return f;
     };
-    auto density = [&](const double *x) -> double {
+    auto density = [&](const double* x) -> double {
       double f = -0.2 * cos(M_PI * x[0]);
       return x[1] > f ? density_ratio : 1;
     };
@@ -646,20 +626,20 @@ void run_simulation(argparse::ArgumentParser &program) {
     typedef SphereDomain Domain_t;
     vec3d omega{0., 0., 0.};
     omega[1] = program.get<double>("--omega");
-    auto velocity = [omega](const double *x) -> vec3d {
+    auto velocity = [omega](const double* x) -> vec3d {
       vec3d p(x);
       vec3d v = cross(omega, p);
       return v;
     };
-    auto force = [omega](const Particle &particle) -> vec3d {
+    auto force = [omega](const Particle& particle) -> vec3d {
       vec3d f;
       double m = particle.mass;
-      const auto &v = particle.velocity;
-      const auto &p = particle.position;
+      const auto& v = particle.velocity;
+      const auto& p = particle.position;
       f = -2 * m * omega[1] * p[1] * cross(p, v);
       return f;
     };
-    auto density = [](const double *x) -> double {
+    auto density = [](const double* x) -> double {
       return std::fabs(x[1]) > 0.25 ? 1 : 10;
     };
     Domain_t domain;
@@ -667,11 +647,11 @@ void run_simulation(argparse::ArgumentParser &program) {
   }
 }
 
-} // namespace
+}  // namespace
 
-} // namespace vortex
+}  // namespace vortex
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   argparse::ArgumentParser program("vortex", "1.0");
 
   argparse::ArgumentParser cmd_viz("viz");
@@ -708,8 +688,9 @@ int main(int argc, char **argv) {
   cmd_extract.add_description("extract ocean and continents meshes");
   cmd_extract.add_argument("input").help("input mesh file (.obj, .meshb)");
   cmd_extract.add_argument("--mask")
-      .help("how to separate continents and oceans: can be an image (e.g. "
-            "oceans_2048.png) or 'groups' to use existing grouping in input")
+      .help(
+          "how to separate continents and oceans: can be an image (e.g. "
+          "oceans_2048.png) or 'groups' to use existing grouping in input")
       .default_value("groups");
   cmd_extract.add_argument("--oceans")
       .help("output mesh file for oceans ([prefer] .meshb or .obj)")
@@ -724,24 +705,25 @@ int main(int argc, char **argv) {
   cmd_voronoi.add_argument("--domain")
       .help("input surface: (.obj or .meshb), sphere or icosahedron");
   cmd_voronoi.add_argument("--n_subdiv")
-      .help("number of subdivisions of the sphere mesh (only applicable to "
-            "icosahedron domain)")
+      .help(
+          "number of subdivisions of the sphere mesh (only applicable to "
+          "icosahedron domain)")
       .default_value(4)
       .scan<'i', int>();
   cmd_voronoi.add_argument("--points")
-      .help("sampling technique to use (random, vertices, or specify mesh file "
-            "to use "
-            "vertices)")
+      .help(
+          "sampling technique to use (random, vertices, or specify mesh file "
+          "to use "
+          "vertices)")
       .default_value("random");
   cmd_voronoi.add_argument("--n_points")
       .help("# Voronoi sites, only applicable for random --points option")
       .default_value(10000)
       .scan<'i', int>();
   cmd_voronoi.add_argument("--resolution")
-      .help("an approximate size of the cell in kilometers, only applicable "
-            "for sphere --domain option")
-      .default_value(0.0)
-      .scan<'g', double>();
+    .help("an approximate size of the cell in kilometers, only applicable for sphere --domain option")
+    .default_value(0.0)
+    .scan<'g', double>();
   cmd_voronoi.add_argument("--n_smooth")
       .help("# iterations of Lloyd relaxation")
       .default_value(1)
@@ -751,8 +733,9 @@ int main(int argc, char **argv) {
   cmd_voronoi.add_argument("--output_points")
       .help("output points filename ([prefer] .meshb or .obj)");
   cmd_voronoi.add_argument("--n_neighbors")
-      .help("number of nearest neighbors to use when calculating the Voronoi "
-            "diagram")
+      .help(
+          "number of nearest neighbors to use when calculating the Voronoi "
+          "diagram")
       .default_value(50)
       .scan<'i', int>();
   cmd_voronoi.add_argument("--verbose")
@@ -772,9 +755,10 @@ int main(int argc, char **argv) {
       "merge nearby vertices in the mesh, renumbering mesh elements");
   cmd_merge.add_argument("input").help("path to input mesh file (.meshb)");
   cmd_merge.add_argument("--combine")
-      .help("combine polygons with the same group and separate them into "
-            "connected components (useful for Voronoi diagrams restricted to a "
-            "triangulation)")
+      .help(
+          "combine polygons with the same group and separate them into "
+          "connected components (useful for Voronoi diagrams restricted to a "
+          "triangulation)")
       .flag();
   cmd_merge.add_argument("--output").help("path to output mesh file (.meshb)");
   program.add_subparser(cmd_merge);
@@ -783,25 +767,26 @@ int main(int argc, char **argv) {
   cmd_sim.add_description("simulate fluid flow");
   cmd_sim.add_argument("--domain").help("simulation domain: rectangle, sphere");
   cmd_sim.add_argument("--particles")
-      .help("sampling technique to use for initial particle positions (random, "
-            "random_oceans)")
+      .help(
+          "sampling technique to use for initial particle positions (random, "
+          "random_oceans)")
       .default_value("random");
   cmd_sim.add_argument("--n_particles")
       .help("# particles to use in the simulation")
       .default_value(10000)
       .scan<'i', int>();
   cmd_sim.add_argument("--resolution")
-      .help("an approximate size of the cell in kilometers, only applicable "
-            "for sphere --domain option")
-      .default_value(100.0)
-      .scan<'g', double>();
+    .help("an approximate size of the cell in kilometers, only applicable for sphere --domain option")
+    .default_value(100.0)
+    .scan<'g', double>();
   cmd_sim.add_argument("--omega")
       .help("y-component of rotational velocity")
       .default_value(0)
       .scan<'g', double>();
   cmd_sim.add_argument("--boundary_reflection")
-      .help("option to add reflection boundary conditions (only for the "
-            "rectangular domain)")
+      .help(
+          "option to add reflection boundary conditions (only for the "
+          "rectangular domain)")
       .flag();
   cmd_sim.add_argument("--density_ratio")
       .default_value(10.0)
@@ -850,7 +835,7 @@ int main(int argc, char **argv) {
 
   try {
     program.parse_args(argc, argv);
-  } catch (const std::runtime_error &err) {
+  } catch (const std::runtime_error& err) {
     std::cerr << err.what() << std::endl;
     std::cerr << program;
     std::exit(1);
