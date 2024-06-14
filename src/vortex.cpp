@@ -722,8 +722,8 @@ int main(int argc, char** argv) {
       .scan<'i', int>();
   cmd_voronoi.add_argument("--resolution")
       .help(
-          "an approximate size of the cell in kilometers, only applicable " 
-          "for sphere --domain option")
+          "an approximate size of the cell in kilometers, only applicable for "
+          "sphere --domain option")
       .default_value(0.0)
       .scan<'g', double>();
   cmd_voronoi.add_argument("--n_smooth")
