@@ -275,7 +275,14 @@ void run_extract(argparse::ArgumentParser& program) {
 void run_voronoi(argparse::ArgumentParser& program) {
   auto arg_domain = program.get<std::string>("--domain");
   auto arg_points = program.get<std::string>("--points");
-  size_t n_points = program.get<int>("--n_points");
+  auto resolution = program.get<double>("--resolution");
+  size_t n_points;
+  double earth_area = 4 * M_PI * std::pow(6378, 2);
+  if (arg_domain == "sphere" && resolution > 0) {
+    n_points = (int)(earth_area / std::pow(resolution, 2));
+  } else {
+    n_points = program.get<int>("--n_points");
+  }
   auto n_smooth = program.get<int>("--n_smooth");
 
   // set up the mesh if using a triangle mesh
@@ -443,7 +450,15 @@ void run_merge(argparse::ArgumentParser& program) {
 
 void run_simulation(argparse::ArgumentParser& program) {
   const int dim = 3;
-  size_t n_points = program.get<int>("--n_particles");
+  auto arg_domain = program.get<std::string>("--domain");
+  auto resolution = program.get<double>("--resolution");
+  size_t n_points;
+  double earth_area = 4 * M_PI * std::pow(6378, 2);
+  if (arg_domain == "sphere" && resolution > 0) {
+    n_points = (int)(earth_area / std::pow(resolution, 2));
+  } else {
+    n_points = program.get<int>("--n_particles");
+  }
   auto corners = program.get<std::vector<double>>("--corners");
 
   Vertices sample(3);
@@ -691,6 +706,12 @@ int main(int argc, char** argv) {
       .help("# Voronoi sites, only applicable for random --points option")
       .default_value(10000)
       .scan<'i', int>();
+  cmd_voronoi.add_argument("--resolution")
+      .help(
+          "an approximate size of the cell in kilometers, only applicable for "
+          "sphere --domain option")
+      .default_value(0.0)
+      .scan<'g', double>();
   cmd_voronoi.add_argument("--n_smooth")
       .help("# iterations of Lloyd relaxation")
       .default_value(1)
@@ -742,6 +763,12 @@ int main(int argc, char** argv) {
       .help("# particles to use in the simulation")
       .default_value(10000)
       .scan<'i', int>();
+  cmd_sim.add_argument("--resolution")
+      .help(
+          "an approximate size of the cell in kilometers, only applicable for "
+          "sphere --domain option")
+      .default_value(0.0)
+      .scan<'g', double>();
   cmd_sim.add_argument("--omega")
       .help("y-component of rotational velocity")
       .default_value(0)
