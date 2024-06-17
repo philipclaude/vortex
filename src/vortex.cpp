@@ -463,7 +463,7 @@ void run_simulation(argparse::ArgumentParser& program) {
 
   Vertices sample(3);
   auto arg_points = program.get<std::string>("--particles");
-  //auto arg_domain = program.get<std::string>("--domain");
+  // auto arg_domain = program.get<std::string>("--domain");
 
   if (arg_points == "random") {
     sample.reserve(n_points);
