@@ -294,10 +294,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
   if (use_mesh)
     LOG << "# triangles in mesh = " << background_mesh.triangles().n();
 
-  auto irand = [](int min, int max) {
-    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
-  };
-
   // TODO, should this program also accept weights for SDOT?
   int dim = 3;
   Vertices sample(3);
@@ -306,20 +302,16 @@ void run_voronoi(argparse::ArgumentParser& program) {
   } else if (arg_points == "random") {
     sample.reserve(n_points);
     if (arg_domain == "sphere") {
-      double x[3];
       for (size_t k = 0; k < n_points; k++) {
-        coord_t theta = 2.0 * M_PI * irand(0, 1);
-        coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
-        x[0] = cos(theta) * sin(phi);
-        x[1] = sin(theta) * sin(phi);
-        x[2] = cos(phi);
-        sample.add(x);
+        vec3d x = SphereDomain::random_point_on_sphere();
+        sample.add(&x[0]);
       }
     } else if (arg_domain == "square") {
-      double x[3] = {0, 0, 0};
+      SquareDomain domain;
       for (size_t k = 0; k < n_points; k++) {
-        for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
-        sample.add(x);
+        auto x = domain.random_point();
+        // for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
+        sample.add(&x[0]);
       }
     } else
       sample_surface(background_mesh, sample, n_points);
@@ -334,11 +326,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
     vec3d x, uv;
     while (sample.n() < n_points) {
-      coord_t theta = 2.0 * M_PI * irand(0, 1);
-      coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
-      x[0] = cos(theta) * sin(phi);
-      x[1] = sin(theta) * sin(phi);
-      x[2] = cos(phi);
+      x = SphereDomain::random_point_on_sphere();
 
       // calculate (u, v) consistent with other algorithms
       sphere_params(x, uv);
@@ -461,20 +449,14 @@ void run_simulation(argparse::ArgumentParser& program) {
   Vertices sample(3);
   auto arg_points = program.get<std::string>("--particles");
   auto arg_domain = program.get<std::string>("--domain");
-  auto irand = [](int min, int max) {
-    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
-  };
+
   if (arg_points == "random") {
     sample.reserve(n_points);
     if (arg_domain == "sphere") {
-      double x[3];
+      SphereDomain domain;
       for (size_t k = 0; k < n_points; k++) {
-        coord_t theta = 2.0 * M_PI * irand(0, 1);
-        coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
-        x[0] = cos(theta) * sin(phi);
-        x[1] = sin(theta) * sin(phi);
-        x[2] = cos(phi);
-        sample.add(x);
+        auto x = SphereDomain::random_point_on_sphere();
+        sample.add(&x[0]);
       }
     } else if (arg_domain == "rectangle") {
       SquareDomain domain({corners[0], corners[1], 0},
@@ -497,11 +479,7 @@ void run_simulation(argparse::ArgumentParser& program) {
 
     vec3d x, uv;
     while (sample.n() < n_points) {
-      coord_t theta = 2.0 * M_PI * irand(0, 1);
-      coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
-      x[0] = cos(theta) * sin(phi);
-      x[1] = sin(theta) * sin(phi);
-      x[2] = cos(phi);
+      x = SphereDomain::random_point_on_sphere();
 
       // calculate (u, v) consistent with other algorithms
       sphere_params(x, uv);

@@ -26,6 +26,12 @@ namespace vortex {
 class Mesh;
 class Vertices;
 
+/// @brief Generates a random number between min and max.
+/// @param min Minimum value.
+/// @param max Maximum value.
+/// @return A random number between min and max.
+double irand(int min, int max);
+
 /// @brief Retrieves the bounding box of a list of points.
 /// @tparam coord_t type of the point coordinates (float or double)
 /// @param points pointer to the point data
