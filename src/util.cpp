@@ -159,7 +159,7 @@ void sample_surface(const Mesh& mesh, Vertices& sites, index_t n) {
 }
 
 double irand(int min, int max) {
-    return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
+  return min + double(rand()) / (double(RAND_MAX) + 1.0) * (max - min);
 }
 
 }  // namespace vortex
