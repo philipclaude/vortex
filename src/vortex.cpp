@@ -317,7 +317,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
       SquareDomain domain;
       for (size_t k = 0; k < n_points; k++) {
         auto x = domain.random_point();
-        // for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
         sample.add(&x[0]);
       }
     } else
