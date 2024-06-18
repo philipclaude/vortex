@@ -205,6 +205,7 @@ INSTANTIATE_VECINC(vecs<3 COMMA double>, vecs<3 COMMA double>)
 
 INSTANTIATE_DOT(double, double, double)
 INSTANTIATE_DOT(float, float, float)
+INSTANTIATE_DOT(int, int, int)
 
 INSTANTIATE_VECSCAMUL_R(double, double, double)
 INSTANTIATE_VECSCAMUL_R(float, float, float)
@@ -219,6 +220,8 @@ INSTANTIATE_VECSCADIV(float, float, float)
 
 INSTANTIATE_NORMALIZE(double)
 INSTANTIATE_NORMALIZE(float)
+
+INSTANTIATE_VECVECMUL(double, double, double)
 
 #undef COMMA
 
