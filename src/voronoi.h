@@ -18,6 +18,7 @@
 //
 #pragma once
 
+#include <absl/container/flat_hash_map.h>
 #include <stlext.h>
 
 #include <cassert>
@@ -27,11 +28,6 @@
 #include "log.h"
 #include "mesh.h"
 #include "util.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wgcc-compat"
-#include <absl/container/flat_hash_map.h>
-#pragma GCC diagnostic pop
 
 namespace vortex {
 

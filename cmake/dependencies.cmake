@@ -30,7 +30,7 @@ set(WITH_GMF_AIO TRUE)
 set(WITH_GMF_FORTRAN FALSE)
 set(WINGS_BUILD_APPS FALSE)
 set(ABSL_PROPAGATE_CXX_STD ON)
-
+set(ABSL_USE_SYSTEM_INCLUDES ON)
 
 add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern/fmt/include)
