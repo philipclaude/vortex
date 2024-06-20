@@ -314,7 +314,6 @@ struct VoronoiDiagramProperties {
 
 struct VoronoiFacetData {
   double volume{0};
-  // vec3 centroid{0, 0, 0};
 };
 
 class VoronoiMesh : public Mesh {
@@ -362,7 +361,7 @@ class VoronoiMesh : public Mesh {
  protected:
   bool save_mesh_{false};
   bool save_facets_{false};
-  std::unordered_map<std::pair<uint64_t, uint64_t>, VoronoiFacetData> facets_;
+  std::unordered_map<std::pair<uint32_t, uint32_t>, VoronoiFacetData> facets_;
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};
   double boundary_area_{0};
