@@ -75,7 +75,6 @@ UT_TEST_CASE(vecs_test) {
   // testing constructors
   // default constructor
   vecs<3, double> v1;
-
   // constructor from an array of values
   double a[3];
   a[0] = .05;
@@ -88,10 +87,10 @@ UT_TEST_CASE(vecs_test) {
   vecs<3, double> v4(v2);
   // constructor copying components of one vector to another (different type)
   vecs<3, double> v5(v3);
-  // contructor copying components of a Mx1 matrix
+  // constructor copying components of a M x 1 matrix
   mats<3, 1, double> m;
   vecs<3, double> v6(m);
-  // using the default constructor and = operator to create a vector by
+  // using the default constructor and "=" operator to create a vector by
   // assigning equality to another vector
   v1 = v2;
   // constructors using initializer lists
@@ -181,7 +180,7 @@ UT_TEST_CASE(vecs_test) {
   UT_ASSERT_NEAR(1., length(ul5), tol);
   UT_ASSERT_NEAR(1., length(ul6), tol);
 
-  // testing cross product for 3-dimensional vectors with double enries
+  // testing cross product for 3-dimensional vectors with double entries
   vecs<3, double> cp1 = cross(vd1, vd2);
   vecs<3, double> cp2 = cross(vd2, vd1);
   vecs<3, double> cp3 = cross(vd2, vd3);
