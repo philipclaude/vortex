@@ -60,6 +60,7 @@ class VoronoiPolygon {
     q_.clear();
     plane_.clear();
     std::fill(bisector_to_site_, bisector_to_site_ + 256, -1);
+    max_radius_ = 0;
   }
 
   uint8_t new_plane(const vec4& p, int64_t n) {
@@ -76,7 +77,7 @@ class VoronoiPolygon {
 
   // calculate the Voronoi cell for site i clipped to the domain k_elem
   VoronoiStatusCode compute(const Domain_t& domain, int dim, size_t site,
-                            Mesh* mesh = nullptr) {
+                            VoronoiMesh& mesh) {
     assert(sites_);
     assert(neighbors_);
     clear();
@@ -89,6 +90,8 @@ class VoronoiPolygon {
     for (size_t j = 1; j < n_neighbors_; j++) {
       // get the next point and weight
       const index_t n = neighbors_[site * n_neighbors_ + j];
+      ASSERT(n < std::numeric_limits<index_t>::max())
+          << "points may have duplicate coordinates";
       const coord_t* zj = sites_ + n * dim;
       const coord_t wj = (weights_) ? weights_[n] : 0.0;
       const vec4 uj(zj, dim);
@@ -99,13 +102,15 @@ class VoronoiPolygon {
       clip_by_plane(b);
 
       // check if no more bisectors contribute to the cell
-      double r = squared_radius(ui);
-      security_radius_reached = 4.01 * r < distance_squared(ui, uj);
+      double sr = squared_radius(ui);
+      max_radius_ = std::sqrt(sr);
+      security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
       if (security_radius_reached) break;
     }
 
     // append to the mesh if necessary
-    if (mesh) append_to_mesh(*mesh, site);
+    if (mesh.save_mesh()) append_to_mesh(mesh, site);
+    if (mesh.save_facets()) save_facets(mesh, site);
 
     // TODO(philip) retrieve more neighbors and keep clipping
     if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
@@ -116,8 +121,8 @@ class VoronoiPolygon {
   VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
                             uint64_t triangle, uint64_t site,
                             ElementVoronoiWorkspace& workspace,
-                            VoronoiCellProperties* properties = nullptr,
-                            Mesh* mesh = nullptr) {
+                            VoronoiCellProperties* properties,
+                            VoronoiMesh& mesh) {
     NOT_POSSIBLE;
     return VoronoiStatusCode::kSuccess;
   }
@@ -175,10 +180,12 @@ class VoronoiPolygon {
 
   void get_properties(VoronoiCellProperties& props, bool reset) const {
     if (reset) props.reset();
+    for (size_t k = 0; k < p_.size(); k++) ASSERT(p_[k].bl != p_[k].br);
     cell_.get_properties(p_, plane_, props);
+    props.rmax = max_radius_;
   }
 
-  bool append_to_mesh(Mesh& mesh, index_t site) const {
+  bool append_to_mesh(VoronoiMesh& mesh, index_t site) const {
     if (p_.size() < 3) return false;
 
     // initialize arrays for Voronoi polygon and Delaunay triangle
@@ -209,9 +216,46 @@ class VoronoiPolygon {
     return true;
   }
 
+  void save_facets(VoronoiMesh& mesh, index_t site_i) const {
+    if (p_.size() < 3) return;
+
+    // last point in the polygon
+    size_t m = p_.size() - 1;
+    vec4 p = cell_.compute(plane_[p_[m].bl], plane_[p_[m].br]);
+    if (p.w == 0.0) p.w = 1.0;
+    p = p / p.w;
+    for (size_t k = 0; k < p_.size(); k++) {
+      vec4 q = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
+      if (q.w == 0.0) q.w = 1.0;
+      q = q / q.w;
+
+      // TODO(philip) use the specialized cell_ to compute geometric quantities
+      double l = length(p.xyz() - q.xyz());
+      // double l = std::acos(dot(p.xyz(), q.xyz()));
+      vec3 c = 0.5 * (p.xyz() + q.xyz());
+
+      // save the vertex for the next iteration
+      p = q;
+
+      // add Delaunay triangle associated with this Voronoi vertex
+      auto site_j = bisector_to_site_[p_[k].bl];
+      ASSERT(p_[k].bl == p_[m].br);
+      m = k;
+      // ASSERT(site_j >= 0);
+      if (site_j < 0) {
+        mesh.n_boundary_facets()++;
+        mesh.boundary_area() += l;
+        continue;
+      }
+      mesh.add(site_i, site_j, l, c);
+    }
+  }
+
   Cell_t& cell() { return cell_; }
   auto& vertices() { return p_; }
   auto& planes() { return plane_; }
+  const auto* sites() const { return sites_; }
+  const auto& bisector_to_site(uint8_t b) { return bisector_to_site_[b]; }
 
  private:
   Cell_t cell_;
@@ -223,6 +267,7 @@ class VoronoiPolygon {
   const coord_t* sites_;
   const coord_t* weights_{nullptr};
   int64_t bisector_to_site_[256];  // 256 since bisectors are uint8_t
+  double max_radius_;
 
   // only CPU
   trees::KdTreeNd<coord_t, index_t>* tree_{nullptr};
@@ -232,7 +277,7 @@ template <>
 VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
     const TriangulationDomain& domain, int dim, uint64_t triangle,
     uint64_t site, ElementVoronoiWorkspace& workspace,
-    VoronoiCellProperties* properties, Mesh* mesh) {
+    VoronoiCellProperties* properties, VoronoiMesh& mesh) {
   assert(sites_);
   assert(neighbors_);
 
@@ -267,11 +312,11 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       clip_by_plane(b);
 
       // check if no more bisectors contribute to the cell
-      double r = squared_radius(ui);
-      if (4.01 * r < distance_squared(ui, uj)) break;
+      double sr = squared_radius(ui);
+      if (4.01 * sr < distance_squared(ui, uj)) break;
     }
     // append to the mesh and properties if necessary
-    if (mesh) append_to_mesh(*mesh, i);
+    if (mesh.save_mesh()) append_to_mesh(mesh, i);
     if (properties) get_properties(properties[i], false);
   }
   return VoronoiStatusCode::kSuccess;

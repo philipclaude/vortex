@@ -24,6 +24,10 @@
 
 namespace vortex {
 
+template <int M, typename T>
+class vecs;
+typedef vecs<3, coord_t> vec3d;
+
 typedef std::array<index_t, 2> Edge;
 
 struct Line {
@@ -42,6 +46,26 @@ struct Triangle {
   static int edges[6];
   static int faces[6];
   typedef Line face_type;
+  static vec3d get_physical_coordinates(const coord_t* pa, const coord_t* pb,
+                                        const coord_t* pc, const coord_t* x);
+  static coord_t area(const coord_t* xa, const coord_t* xb, const coord_t* xc);
+  static coord_t jacobian(const coord_t* pa, const coord_t* pb,
+                          const coord_t* pc, const coord_t* x);
+};
+
+struct SphericalTriangle {
+  static const int dimension = 2;  // topological dimension
+  static const int n_vertices = 3;
+  static const int n_edges = 3;
+  static const int n_faces = 3;
+  static int edges[6];
+  static int faces[6];
+  typedef Line face_type;
+  static vec3d get_physical_coordinates(const coord_t* pa, const coord_t* pb,
+                                        const coord_t* pc, const coord_t* x);
+  static coord_t area(const coord_t* xa, const coord_t* xb, const coord_t* xc);
+  static coord_t jacobian(const coord_t* pa, const coord_t* pb,
+                          const coord_t* pc, const coord_t* x);
 };
 
 struct Quad {

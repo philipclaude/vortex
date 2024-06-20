@@ -19,13 +19,14 @@ UT_TEST_CASE(test1) {
   b(0) = 5.0;
   b(1) = 6.0;
 
-  UT_ASSERT_EQUALS(A.nb_rows(), 2);
-  UT_ASSERT_EQUALS(A.nb_cols(), 2);
+  UT_ASSERT_EQUALS(A.n_rows(), 2);
+  UT_ASSERT_EQUALS(A.n_cols(), 2);
 
-  UT_ASSERT_EQUALS(A.nb_nnz(), 4);
+  UT_ASSERT_EQUALS(A.nnz(), 4);
 
   vecd<double> x(2);
-  A.solve_nl(b, x);
+  A.solve_nl(b, x, 1e-10, false);
+  A.print();
 
   x.print();
 
@@ -147,7 +148,7 @@ UT_TEST_CASE(cg_test) {
   // solve the system
   vecd<double> x(n + 1);
   x.zero();
-  A.solve_nl(b, x, false);
+  A.solve_nl(b, x, 1e-10, false);
   x.print();
 
   // check the error
@@ -166,5 +167,55 @@ UT_TEST_CASE(cg_test) {
   UT_ASSERT(error < 1e-10);
 }
 UT_TEST_CASE_END(cg_test)
+
+UT_TEST_CASE(spmm_test) {
+  // examples from here:
+  // https://www.mathworks.com/help/matlab/math/sparse-matrix-operations.html
+  spmat<double> A(5, 5), B(5, 5);
+
+  A(0, 0) = 1;
+  A(1, 2) = 1;
+  A(2, 3) = 1;
+  A(3, 1) = 1;
+  A(4, 4) = 1;
+
+  B(0, 0) = 11;
+  B(0, 1) = 1;
+  B(1, 0) = 1;
+  B(1, 1) = 22;
+  B(1, 2) = 1;
+  B(2, 1) = 1;
+  B(2, 2) = 33;
+  B(2, 3) = 1;
+  B(3, 2) = 1;
+  B(3, 3) = 44;
+  B(3, 4) = 1;
+  B(4, 3) = 1;
+  B(4, 4) = 55;
+
+  spmat<double> C(5, 5);
+  spmm(A, B, C);
+  const double c1[5][5] = {{11, 1, 0, 0, 0},
+                           {0, 1, 33, 1, 0},
+                           {0, 0, 1, 44, 1},
+                           {1, 22, 1, 0, 0},
+                           {0, 0, 0, 1, 55}};
+  for (int i = 0; i < 5; i++)
+    for (int j = 0; j < 5; j++) UT_ASSERT_EQUALS(C(i, j), c1[i][j]);
+
+  // example 2
+  spmat<double> At(5, 5);
+  C.clear();
+  transpose(A, At);
+  spmm(B, At, C);
+  const double c2[5][5] = {{11, 0, 0, 1, 0},
+                           {1, 1, 0, 22, 0},
+                           {0, 33, 1, 1, 0},
+                           {0, 1, 44, 0, 1},
+                           {0, 0, 1, 0, 55}};
+  for (int i = 0; i < 5; i++)
+    for (int j = 0; j < 5; j++) UT_ASSERT_EQUALS(C(i, j), c2[i][j]);
+}
+UT_TEST_CASE_END(spmm_test)
 
 UT_TEST_SUITE_END(spmat_test_suite)

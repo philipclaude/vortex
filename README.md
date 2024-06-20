@@ -1,6 +1,6 @@
 ### About
 
-`vortex` is a Voronoi mesher, visualizer and fluid simulator for the Earth's oceans and atmosphere. Currently, `vortex` is focused on providing meshing and visualization tools for ocean and atmospheric modeling - the fluid simulations will be implemented in the future. In `vortex`, the distinction between land and water is usually made using an image "texture", similar to how textures are used in computer graphics for normal mapping and for looking up the reflection coefficient on a surface.
+`vortex` is a Voronoi mesher, visualizer and fluid simulator for the Earth's oceans and atmosphere. Currently, `vortex` is focused on providing meshing and visualization tools for ocean and atmospheric modeling - fluid simulations are under active development. In `vortex`, the distinction between land and water is usually made using an image "texture", similar to how textures are used in computer graphics for normal mapping and for looking up the reflection coefficient on a surface.
 
 **Note:** `vortex` currently contains new unpublished research which is why it is a private repository - please do not share the code with anyone. It could be released publicly after the ideas are published.
 
@@ -176,6 +176,41 @@ bin/vortex merge example6.meshb --combine --output example8.meshb
 
 In contrast to visualizing the output meshes from Examples 5 or 6, now the "cell" field should display a single color for the Voronoi cell.
 
+#### 9. Fluid simulations
+
+The next few examples use a technique similar to that of Gallouët-Mérigot (2017) and Lévy (2018, 2021) to simulate fluids using semi-discrete optimal transport (SDOT). At each time step, an SDOT problem is solved to calculate the power diagram weights that preserve cell volumes using a Newton-based method, which requires a handful of power diagram calculations (usually 2-5) at each time step. As the simulations runs, you will see the following information:
+
+```sh
+-------------------------------------------------------------------
+| step | time | dt_max | dt | |rm| | nm | max(dx) | |dx| | max(v) | @X.Y steps / sec.
+-------------------------------------------------------------------
+```
+
+`dt_max` is an estimate for the largest time step that can be used so that particles are always displaced somewhere within their current Voronoi cell and `dt` is the effective step size, which is the minimum of `dt_max` and the user-defined step size (controlled by `--time_step_scale`). The value of `|rm|` is the residual for the mass conservation equation (solving the SDOT problem) and `nm` is the number of Newton-iterations it took to solve this SDOT problem. The remaining values correspond to the norm of the total particle displacement from one time step to the next (and the `max`) as well as the maximum particle velocity.
+
+Currently, the particle simulation results are saved as a series of `.vtk` files containing the particle positions and densities. Not every time step is stored - the number of time steps after which the particles are saved is controlled by the `--save_every` command-line parameter (default is every 50 time steps). The particle data can then be imported into ParaView and animated as the simulation runs.
+
+#### A. Rayleigh-Taylor instability.
+
+The following command will simulate a Rayleigh-Taylor instability within a rectangle in which a high-density fluid is placed on top of a lower-density one:
+
+```sh
+bin/vortex simulate --domain rectangle --corners -1 -3 1 3  --n_particles 50000 --output_directory rt50k --total_time_steps 10000 --density_ratio 3 --epsilon_scale 10 --time_step_scale 0.1
+```
+
+The resulting fluid motion should look like [this](https://drive.google.com/file/d/1aGFSnAb4-hU3VrhjRZgdv3j2yqLOpPuz/view?usp=drive_link).
+
+#### B. Rotating sphere.
+
+This example simulates a band of high density fluid around the equator with 100k particles on a sphere. The particles are given an initial velocity of $\vec{\Omega} \times \vec{p}$ where $\vec{\Omega} = (0, \Omega_y, 0)$ and $\vec{p}$ is the initial position of a particle.
+The simulation is done in a frame of reference that rotates with the sphere, so the Coriolis force is included on the right-hand-side of the momentum equation (no other external forces are applied).
+
+```
+bin/vortex simulate --domain sphere  --n_particles 100000 --output_directory sphere100k --total_time_steps 10000 --density_ratio 10 --epsilon_scale 10 --time_step_scale 0.15 --omega 0.01
+```
+
+This takes approximately 1 second per time step (on a 2022 M1 MacBook Pro) so the full simulation will take about 3  hours to run. The resulting fluid motion should look like [this](https://drive.google.com/file/d/1OnLbWHb4ANTVTb80AoijXW1l_eiDheE0/view?usp=drive_link).
+
 ### Developing
 
 The `main` branch of `vortex` is protected, so every contribution must be made in the form of a pull request (PR). Please create a branch (`git checkout -b [branchname]`) when developing a new feature.
@@ -230,6 +265,32 @@ Note that the half-edge mesh will be created using **all** polygons, triangles a
 
 Please see the member functions and variables for `HalfNode`, `HalfEdge` and `HalfFace` in `src/halfedges.h`. One way to become familiar with this data structure is to study the `HalfMesh::flip`, `HalfMesh::split` or `HalfMesh::collapse` functions, in addition to how they are used in `mesher.cpp`. It may also be useful to look at the `run_extract` function in `src/vortex.cpp`.
 
+#### Checking code coverage.
+
+Code coverage reports let us know how many lines of the `vortex` source code are "covered" by the testing suite. Generating these reports requires a few extra dependencies (`gcov`, `lcov`, and `genhtml` which requires the Perl `GD.pm` module), which are installed by the `dev/setup.sh` script.
+
+Assuming you are starting from the root of the `vortex` repository, create a directory that will automatically be detected for code coverage:
+
+```sh
+mkdir build/coverage
+```
+
+Navigate to this directory, configure and build:
+
+```sh
+cd build/coverage
+cmake ../../
+make unit_coverage
+```
+
+This time, we are running the `unit_coverage` target which will run all of the unit tests and generate code coverage information. Now, display the code coverage results:
+
+```sh
+make coverage_show
+```
+
+and navigate through the `HTML` report to see which lines are being executed.
+
 ### Acknowledgements
 
 Many thanks to the following projects which `vortex` depends on:
@@ -238,8 +299,8 @@ Many thanks to the following projects which `vortex` depends on:
 - `fmtlib`: https://github.com/fmtlib/fmt
 - `libMeshb`: https://github.com/LoicMarechal/libMeshb
 - `morton-nd`: https://github.com/morton-nd/morton-nd
-- `OpenNL`: https://github.com/morton-nd/morton-nd
-- `PCK`: https://github.com/middleburygcl/geogram.psm.Predicates
+- `OpenNL`: https://github.com/BrunoLevy/geogram.psm.OpenNL
+- `PCK`: https://github.com/BrunoLevy/geogram.psm.Predicates
 - `tinyobjloader`: https://github.com/tinyobjloader/tinyobjloader
 - `stb` (via `wings`): https://github.com/nothings/stb
 
@@ -253,3 +314,11 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
    http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+### Contributors
+
+- Philip Caplan ([philipclaude](https://github.com/philipclaude))
+- Otis Milliken ([Hokalaka2](https://github.com/Hokalaka2))
+- Col McDermott ([Col-McDermott](https://github.com/Col-McDermott))
+- Zeyi Tong ([zeyiiiii](https://github.com/zeyiiiii))
+- Toby Pouler ([tpouler](https://github.com/tpouler))

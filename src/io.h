@@ -80,4 +80,23 @@ inline void read_mesh(const std::string& filename, Mesh& mesh) {
     NOT_IMPLEMENTED;
 }
 
+namespace vtk {
+
+/// @brief Writes a .vtk file.
+/// @param vertices Vertices object to write.
+/// @param filename Path to the output .vtk file.
+void write(const Vertices& vertices, const std::string& filename);
+
+}  // namespace vtk
+
+namespace io {
+template <typename T>
+void swap_end(T& var) {
+  // https://stackoverflow.com/questions/10913666/error-writing-binary-vtk-files
+  char* varArray = reinterpret_cast<char*>(&var);
+  for (long i = 0; i < static_cast<long>(sizeof(var) / 2); i++)
+    std::swap(varArray[sizeof(var) - 1 - i], varArray[i]);
+}
+}  // namespace io
+
 }  // namespace vortex

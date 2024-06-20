@@ -18,12 +18,15 @@
 //
 #pragma once
 
+#include <stlext.h>
+
 #include <cassert>
 #include <cstdint>
 
 #include "defs.h"
 #include "log.h"
 #include "mesh.h"
+#include "util.h"
 
 namespace vortex {
 
@@ -82,6 +85,11 @@ class pool {
   }
 #undef SWAP
 
+  void erase(size_t k) {
+    for (size_t i = k + 1; i < index_; i++) data_[i - 1] = data_[i];
+    index_--;
+  }
+
  private:
   T* data_{nullptr};
   size_t index_{0};
@@ -134,6 +142,7 @@ struct vec<T, 3> {
   }
   vec() : x(0), y(0), z(0) {}
   T& operator[](int d) { return *(&x + d); }
+  const T& operator[](int d) const { return *(&x + d); }
 };
 
 template <typename T>
@@ -280,17 +289,20 @@ struct VoronoiDiagramOptions {
   bool interleave_neighbors{false};  // NOT IMPLEMENTED
   bool allow_reattempt{true};        // NOT IMPLEMENTED
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
+  bool store_facet_data{true};
 };
 
 struct VoronoiCellProperties {
   VoronoiCellProperties() { reset(); }
   uint64_t site;         // which site/cell is this for?
-  vec3 moment{0, 0, 0};  // centroid * mass
-  double mass{0};        // mass
+  vec3 moment{0, 0, 0};  // centroid * volume
+  double volume{0};      // volume
   void reset() {
     moment = {0, 0, 0};
-    mass = 0;
+    volume = 0;
   }
+  double rmin{0};
+  double rmax{1e6};
 };
 
 struct VoronoiDiagramProperties {
@@ -300,7 +312,63 @@ struct VoronoiDiagramProperties {
                      // \mathrm{d}\vec{x} + \nu_{site} w_{site} ]
 };
 
-class VoronoiDiagram : public Mesh {
+struct VoronoiFacetData {
+  double volume{0};
+  vec3 centroid{0, 0, 0};
+};
+
+class VoronoiMesh : public Mesh {
+ protected:
+  using Mesh::Mesh;
+
+ public:
+  void allocate(size_t n_sites, int n_facets_per_site = 12) {
+    size_t n_facets = n_sites * n_facets_per_site / 2;
+    facets_.reserve(n_facets);
+  }
+
+  void set_save_mesh(bool x) { save_mesh_ = x; }
+  void set_save_facets(bool x) { save_facets_ = x; }
+
+  bool save_mesh() const { return save_mesh_; }
+  bool save_facets() const { return save_facets_; }
+
+  void add(uint64_t bi, uint64_t bj, double volume, vec3 centroid) {
+    if (bi > bj) std::swap(bi, bj);
+    auto it = facets_.find({bi, bj});
+    if (it == facets_.end()) facets_.insert({{bi, bj}, {volume, centroid}});
+  }
+
+  const auto& facets() const { return facets_; }
+  auto& facets() { return facets_; }
+
+  void append(const VoronoiMesh& mesh) {
+    for (const auto& [b, data] : mesh.facets())
+      add(b[0], b[1], data.volume, data.centroid);
+    n_incomplete_ += mesh.n_incomplete();
+    n_boundary_facets_ += mesh.n_boundary_facets();
+    boundary_area_ += mesh.boundary_area();
+  }
+
+  size_t& n_incomplete() { return n_incomplete_; }
+  size_t n_incomplete() const { return n_incomplete_; }
+
+  size_t& n_boundary_facets() { return n_boundary_facets_; }
+  size_t n_boundary_facets() const { return n_boundary_facets_; }
+
+  double& boundary_area() { return boundary_area_; }
+  double boundary_area() const { return boundary_area_; }
+
+ protected:
+  bool save_mesh_{false};
+  bool save_facets_{false};
+  std::unordered_map<std::array<uint64_t, 2>, VoronoiFacetData> facets_;
+  size_t n_incomplete_{0};
+  size_t n_boundary_facets_{0};
+  double boundary_area_{0};
+};
+
+class VoronoiDiagram : public VoronoiMesh {
  public:
   /// @brief Saves the dimension, number of sites and pointer to site
   /// coordinates.
@@ -308,7 +376,7 @@ class VoronoiDiagram : public Mesh {
   /// @param sites Pointer to the sites.
   /// @param n_sites Number of sites.
   VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
-      : Mesh(3), dim_(dim), sites_(sites), n_sites_(n_sites) {}
+      : VoronoiMesh(3), dim_(dim), sites_(sites), n_sites_(n_sites) {}
   VoronoiDiagram(const VoronoiDiagram&) = delete;
 
   /// @brief Calculates the Voronoi diagram of the saved sites restricted to
@@ -322,6 +390,7 @@ class VoronoiDiagram : public Mesh {
                VoronoiDiagramOptions options = VoronoiDiagramOptions());
 
   const auto& properties() const { return properties_; }
+  auto& properties() { return properties_; }
   auto& status() { return status_; }
   const auto& status() const { return status_; }
   auto& weights() { return weights_; }
@@ -334,6 +403,13 @@ class VoronoiDiagram : public Mesh {
   /// @brief Merge vertices with the same symbolic information (they represent
   /// the same Delaunay triangle).
   void merge();
+
+  double max_radius() const {
+    auto props = *std::max_element(
+        properties_.begin(), properties_.end(),
+        [](const auto& pa, const auto& pb) { return pa.rmax > pb.rmax; });
+    return props.rmax;
+  }
 
  private:
   int dim_;
@@ -350,8 +426,8 @@ class VoronoiDiagram : public Mesh {
 /// @param weights array of weights (sites.n() == weights.size())
 void lift_sites(Vertices& sites, const std::vector<coord_t>& weights);
 
-/// @brief Represents a Voronoi vertex in a single Voronoi cell (not the entire
-/// Voronoi diagram).
+/// @brief Represents a Voronoi vertex in a single Voronoi cell (not the
+/// entire Voronoi diagram).
 struct VoronoiVertex {
   uint8_t bl;  // left bisector
   uint8_t br;  // right bisector
@@ -364,11 +440,12 @@ struct SphericalVoronoiPolygon {
   typedef VoronoiVertex Vertex_t;
   vec3 center;  // this will be the site (see SphereDomain below).
 
-  /// @brief Calculates the polygon vertex coordinates by intersecting the line
-  /// of intersection from two planes (pi, pj) with the sphere.
+  /// @brief Calculates the polygon vertex coordinates by intersecting the
+  /// line of intersection from two planes (pi, pj) with the sphere.
   /// @param pi first plane equation
   /// @param pj second plane equation
-  /// @return coordinates of the intersection point in homogeneous coordinates.
+  /// @return coordinates of the intersection point in homogeneous
+  /// coordinates.
   vec4 compute(const vec4& pi, const vec4& pj) const;
 
   /// @brief Returns the side of a point (intersection of pi, pj and sphere)
@@ -376,11 +453,10 @@ struct SphericalVoronoiPolygon {
   /// @param pi first plane used to compute the intersection point
   /// @param pj second plane used to compute the intersection point
   /// @param p plane equation
-  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const {
-    return plane_side(compute(pi, pj), p);
-  }
+  uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const;
 
-  /// @brief Calculate the contribution of this polygon to the cell properties.
+  /// @brief Calculate the contribution of this polygon to the cell
+  /// properties.
   /// @param polygon array of Voronoi vertices.
   /// @param planes array of plane equations.
   /// @param props properties of a particular Voronoi cell to update.
@@ -406,13 +482,19 @@ struct SphereDomain {
   /// around the site
   void set_initialization_fraction(double x) { initialization_fraction = x; }
 
-  /// @brief Initializes the Voronoi polygon (cell) to a square centered around
-  /// a point (z)
+  /// @brief Initializes the Voronoi polygon (cell) to a square centered
+  /// around a point (z)
   /// @param z point to center the initial square around.
   /// @param cell polygon to initialize in the calculation.
   void initialize(vec4 z, VoronoiPolygon<SphereDomain>& cell) const;
   const double radius{1.0};
   double initialization_fraction{0.1};  // use 0.7 for power diagrams
+
+  static vec3d random_point_on_sphere() {
+    coord_t theta = 2.0 * M_PI * irand(0, 1);
+    coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
+    return {cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi)};
+  }
 };
 
 struct PlanarVoronoiPolygon {
@@ -421,7 +503,8 @@ struct PlanarVoronoiPolygon {
 
   /// @brief Calculates the polygon vertex coordinates as the intersection of
   /// the three planes: (base, pi, pi).
-  /// @return coordinates of the intersection point in homogeneous coordinates.
+  /// @return coordinates of the intersection point in homogeneous
+  /// coordinates.
   vec4 compute(const vec4& pi, const vec4& pj) const;
 
   /// @brief Returns the side of a point (intersection of pi, pj and base)
@@ -431,8 +514,8 @@ struct PlanarVoronoiPolygon {
   /// @param p plane equation
   uint8_t side(const vec4& pi, const vec4& pj, const vec4& p) const;
 
-  /// @brief Initializes the polygon vertices and planes from the cell described
-  /// by a list of points in CCW order.
+  /// @brief Initializes the polygon vertices and planes from the cell
+  /// described by a list of points in CCW order.
   /// @param points pointer to the list of points
   /// @param n_points number of points in the cell (square = 4, triangle = 3)
   /// @param polygon output list of Voronoi polygon vertices
@@ -440,7 +523,8 @@ struct PlanarVoronoiPolygon {
   void initialize(const vec3* points, const size_t n_points,
                   pool<Vertex_t>& polygon, pool<vec4>& planes);
 
-  /// @brief Calculate the contribution of this polygon to the cell properties.
+  /// @brief Calculate the contribution of this polygon to the cell
+  /// properties.
   /// @param polygon array of Voronoi vertices.
   /// @param planes array of plane equations.
   /// @param props properties of a particular Voronoi cell to update.
@@ -454,13 +538,35 @@ struct SquareDomain {
   /// lengths of 1.
   SquareDomain() {}
 
-  /// @brief Copies a square domain
-  SquareDomain(const SquareDomain& domain) {}
+  /// @ brief Initializes a square domain from lower-left and upper-right
+  /// corners.
+  SquareDomain(vec3 pll, vec3 pur) {
+    points_[0] = pll;
+    points_[1] = {pur[0], pll[1], 0};
+    points_[2] = pur;
+    points_[3] = {pll[0], pur[1], 0};
+  }
 
-  /// @brief Initializes the Voronoi polygon (cell) to the entire square domain.
+  double xlength() const { return points_[1][0] - points_[0][0]; }
+  double ylength() const { return points_[2][1] - points_[0][1]; }
+  double area() const { return xlength() * ylength(); }
+
+  /// @brief Copies a square domain
+  SquareDomain(const SquareDomain& domain) {
+    for (int i = 0; i < 4; i++) points_[i] = domain.points_[i];
+  }
+
+  vec3 random_point() const {
+    const double x = points_[0][0] + rand() * xlength() / RAND_MAX;
+    const double y = points_[0][1] + rand() * ylength() / RAND_MAX;
+    return {x, y, 0};
+  }
+
+  /// @brief Initializes the Voronoi polygon (cell) to the entire square
+  /// domain.
   /// @param cell polygon to initialize in the calculation.
   void initialize(vec4 z, VoronoiPolygon<SquareDomain>& cell) const;
-  const vec3 points_[4] = {{0., 0., 0.}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}};
+  vec3 points_[4] = {{0., 0., 0.}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}};
 };
 
 struct TriangulationDomain {

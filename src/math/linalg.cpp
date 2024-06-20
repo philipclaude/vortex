@@ -1440,6 +1440,7 @@ INSTANTIATE_SYMS_FUNC(2, double)
 INSTANTIATE_SYMS_FUNC(3, double)
 #undef INSTANTIATE_SYMS_FUNC
 
+template double det(const mats<3, 3, double>&);
 template double det(const mats<4, 4, double>&);
 template float det(const mats<4, 4, float>&);
 
