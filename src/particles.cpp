@@ -91,12 +91,12 @@ void ParticleSimulation::compute_search_direction(
   //  hessian_(k, k) = 1e-3 * target_volumes[k];
 
   // set up the sparse matrix
-  for (const auto& [b, f] : voronoi_.facets()) {
+  for (const auto& [b, volume] : voronoi_.facets()) {
     size_t site_i = b.first;
     size_t site_j = b.second;
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
-    double delta_ij = 0.5 * f.volume / length(pi - pj);
+    double delta_ij = 0.5 * volume / length(pi - pj);
     hessian_(site_i, site_j) = delta_ij;
     hessian_(site_j, site_i) = delta_ij;
     hessian_(site_i, site_i) -= delta_ij;
