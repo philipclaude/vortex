@@ -29,6 +29,8 @@ endfunction()
 set(WITH_GMF_AIO TRUE)
 set(WITH_GMF_FORTRAN FALSE)
 set(WINGS_BUILD_APPS FALSE)
+set(ABSL_PROPAGATE_CXX_STD ON)
+
 
 add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern/fmt/include)
@@ -42,6 +44,8 @@ add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middleburygcl/ge
 add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middleburygcl/geogram.psm.Predicates" SKIP_CONFIG TRUE)
 add_extern_repository(trees GIT_REPOSITORY "https://github.com/middleburygcl/trees.git" SKIP_CONFIG TRUE)
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middleburygcl/stlext.git" SKIP_CONFIG TRUE)
+add_extern_repository(abseil GIT_REPOSITORY "https://github.com/abseil/abseil-cpp")
+
 
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
@@ -57,6 +61,7 @@ target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
 
 # external repositories
 set(external_libraries fmt argparse vortex_wings)
+set(external_libraries ${external_libraries} absl::hash absl::container_memory absl::flat_hash_set absl::memory)
 
 # OpenGL
 set(GL_LIBRARIES)
@@ -95,6 +100,7 @@ set(VORTEX_EXTERNAL_LIBRARIES ${external_libraries} ${GL_LIBRARIES})
 
 # set all include directories
 set(VORTEX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/extern
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/abseil
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/libmeshb/sources
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenNL/OpenNL_psm
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/PCK

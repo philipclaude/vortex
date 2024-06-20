@@ -28,6 +28,11 @@
 #include "mesh.h"
 #include "util.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wgcc-compat"
+#include <absl/container/flat_hash_map.h>
+#pragma GCC diagnostic pop
+
 namespace vortex {
 
 static constexpr index_t kMaxSite = std::numeric_limits<index_t>::max();
@@ -357,8 +362,9 @@ class VoronoiMesh : public Mesh {
  protected:
   bool save_mesh_{false};
   bool save_facets_{false};
-  using facet_length_t = double;
-  std::unordered_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
+  using facet_length_t = float;
+  // std::unordered_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
+  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};
   double boundary_area_{0};
