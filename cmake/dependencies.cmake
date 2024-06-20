@@ -99,7 +99,7 @@ endif()
 set(VORTEX_EXTERNAL_LIBRARIES ${external_libraries} ${GL_LIBRARIES})
 
 # set all include directories
-set(VORTEX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/extern
+set(VORTEX_INCLUDE_DIRS
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/abseil
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/libmeshb/sources
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenNL/OpenNL_psm
