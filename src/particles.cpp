@@ -92,15 +92,15 @@ void ParticleSimulation::compute_search_direction(
 
   // set up the sparse matrix
   for (const auto& [b, f] : voronoi_.facets()) {
-    size_t site_i = b[0];
-    size_t site_j = b[1];
+    size_t site_i = b.first;   // b[0];
+    size_t site_j = b.second;  // b[1];
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
     double delta_ij = 0.5 * f.volume / length(pi - pj);
-    hessian_(b[0], b[1]) = delta_ij;
-    hessian_(b[1], b[0]) = delta_ij;
-    hessian_(b[0], b[0]) -= delta_ij;
-    hessian_(b[1], b[1]) -= delta_ij;
+    hessian_(site_i, site_j) = delta_ij;
+    hessian_(site_j, site_i) = delta_ij;
+    hessian_(site_i, site_i) -= delta_ij;
+    hessian_(site_j, site_j) -= delta_ij;
   }
 
   // solve for the search direction
@@ -123,8 +123,8 @@ void ParticleSimulation::calculate_properties() {
   // determine the maximum displacement as the min (bisector distance)/2
   const auto& facets = voronoi_.facets();
   for (const auto& [b, _] : facets) {
-    size_t site_i = b[0];
-    size_t site_j = b[1];
+    size_t site_i = b.first;   // b[0];
+    size_t site_j = b.second;  // b[1];
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
     double d = 0.5 * length(pi - pj);
@@ -133,6 +133,7 @@ void ParticleSimulation::calculate_properties() {
   }
 }
 
+#if 0
 template <typename Domain_t>
 void PowerParticles<Domain_t>::build_operators() {
   laplacian_.clear();
@@ -237,6 +238,7 @@ void PowerParticles<Domain_t>::advect(double dt) {
     for (int d = 0; d < 3; d++) particles_(k, d) = x[d];
   }
 }
+#endif
 
 template class PowerParticles<SphereDomain>;
 template class PowerParticles<SquareDomain>;
