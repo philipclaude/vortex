@@ -24,6 +24,7 @@
 
 #include "io.h"
 #include "tester.h"
+#include "elements.h"
 
 using namespace vortex;
 
@@ -89,12 +90,34 @@ UT_TEST_CASE(grid_quad_test) {
 }
 UT_TEST_CASE_END(grid_quad_test)
 
-UT_TEST_CASE(polygon_test) {
-  int n = 10;
-  Grid<Polygon> mesh({n, n});
-  meshb::write(mesh, "polygrid.meshb");
+UT_TEST_CASE(grid_polygon_test) {
+  double tol = 1e-12;
+  for (int nx=1; nx < 11; nx++) {
+    for (int ny=1; ny < 11; ny++) {
+      nx *= 100;
+      ny *= 100;
+      Grid<Polygon> mesh({nx, ny});
+      auto& polygons = mesh.polygons();
+      auto& vertices = mesh.vertices();
+      UT_ASSERT_EQUALS(vertices.n(), (nx+1)*(ny+1));
+      UT_ASSERT_EQUALS(polygons.n(), nx * ny);
+      double total_area = 0.0;
+      for (int k = 0; k < polygons.n(); k++) {
+          const auto& polygon = polygons[k];
+          const auto& vertex_indices = polygons.length(k);
+          for (size_t v = 1; v < vertex_indices - 1; ++v) {
+            const coord_t* p0 = vertices[polygon[0]];
+            const coord_t* p1 = vertices[polygon[v]];
+            const coord_t* p2 = vertices[polygon[v+1]];
+            total_area += Triangle::area(p0, p1, p2);
+          }
+      }
+      UT_ASSERT_NEAR(total_area, 1., tol);
+    }
+  }
 }
-UT_TEST_CASE_END(polygon_test)
+
+UT_TEST_CASE_END(grid_polygon_test)
 
 UT_TEST_CASE(sphere_test) {
   // testing number of triangels in a subdivided icosahedron mesh
