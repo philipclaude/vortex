@@ -299,10 +299,11 @@ Many thanks to the following projects which `vortex` depends on:
 - `fmtlib`: https://github.com/fmtlib/fmt
 - `libMeshb`: https://github.com/LoicMarechal/libMeshb
 - `morton-nd`: https://github.com/morton-nd/morton-nd
+- `nlopt`: https://github.com/stevengj/nlopt
 - `OpenNL`: https://github.com/BrunoLevy/geogram.psm.OpenNL
 - `PCK`: https://github.com/BrunoLevy/geogram.psm.Predicates
-- `tinyobjloader`: https://github.com/tinyobjloader/tinyobjloader
 - `stb` (via `wings`): https://github.com/nothings/stb
+- `tinyobjloader`: https://github.com/tinyobjloader/tinyobjloader
 
 ### License
 
