@@ -122,7 +122,7 @@ UT_TEST_CASE_END(grid_polygon_test)
 UT_TEST_CASE(sphere_test) {
   // testing number of triangels in a subdivided icosahedron mesh
   double tol1 = 1e-10;
-  double tol2 = 5e-2;
+  double tol2 = 5e-3;
   // vectors for area check
   std::vector<double> error;
   std::vector<double> meshsize;
@@ -147,7 +147,7 @@ UT_TEST_CASE(sphere_test) {
     //  abs. val. of straight-sided area against meshsize (approx
     //  sqrt(mesh.triangles().n())) should be very close to 2 in the asymptotic
     //  range
-    if (i > 3) {
+    if (i > 4) {
       double slope = fabs(
           log(error[error.size() - 2] / error[error.size() - 1]) /
           log(meshsize[meshsize.size() - 2] / meshsize[meshsize.size() - 1]));
