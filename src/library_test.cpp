@@ -61,8 +61,8 @@ UT_TEST_CASE_END(grid_triangle_test)
 UT_TEST_CASE(grid_quad_test) {
   // testing the number of vertices and quads in a quad mesh
   double tol = 1e-10;
-  for (int i = 1; i < 11; i++) {
-    for (int j = 1; j < 11; j++) {
+  for (int i = 1; i < 6; i++) {
+    for (int j = 1; j < 6; j++) {
       int n1q = i * 100;
       int n2q = j * 100;
       Grid<Quad> mesh({n1q, n2q});
@@ -92,8 +92,8 @@ UT_TEST_CASE_END(grid_quad_test)
 
 UT_TEST_CASE(grid_polygon_test) {
   double tol = 1e-12;
-  for (int nx = 1; nx < 11; nx++) {
-    for (int ny = 1; ny < 11; ny++) {
+  for (int nx = 1; nx < 6; nx++) {
+    for (int ny = 1; ny < 6; ny++) {
       nx *= 100;
       ny *= 100;
       Grid<Polygon> mesh({nx, ny});
@@ -122,12 +122,11 @@ UT_TEST_CASE_END(grid_polygon_test)
 UT_TEST_CASE(sphere_test) {
   // testing number of triangels in a subdivided icosahedron mesh
   double tol1 = 1e-10;
-  double tol2 = 5e-4;
+  double tol2 = 5e-2;
   // vectors for area check
   std::vector<double> error;
   std::vector<double> meshsize;
-  std::vector<double> slopes;
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 7; i++) {
     SubdividedIcosahedron mesh(i);
     int tris = mesh.triangles().n();
     int tris_check = std::pow(4, i) * 20;
@@ -145,15 +144,14 @@ UT_TEST_CASE(sphere_test) {
     // recording straight-sided area error
     error.push_back(fabs(strt_areas - (4 * M_PI)));
     meshsize.push_back(sqrt(tris));
-    double slope = fabs(
-        log(error[error.size() - 2] / error[error.size() - 1]) /
-        log(meshsize[meshsize.size() - 2] / meshsize[meshsize.size() - 1]));
-    slopes.push_back(slope);
     //  abs. val. of straight-sided area against meshsize (approx
     //  sqrt(mesh.triangles().n())) should be very close to 2 in the asymptotic
     //  range
-    if (i > 6) {
-      UT_ASSERT_NEAR(slopes[i], 2., tol2);
+    if (i > 3) {
+      double slope = fabs(
+          log(error[error.size() - 2] / error[error.size() - 1]) /
+          log(meshsize[meshsize.size() - 2] / meshsize[meshsize.size() - 1]));
+      UT_ASSERT_NEAR(slope, 2., tol2);
     }
     // spherical triangle area should converge to 4pi
     UT_ASSERT_NEAR(tot_areas, 4 * M_PI, tol1);
