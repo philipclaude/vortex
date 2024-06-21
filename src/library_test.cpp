@@ -18,6 +18,10 @@
 //
 #include "library.h"
 
+#include <math.h>
+
+#include <limits>
+
 #include "io.h"
 #include "tester.h"
 
@@ -25,8 +29,65 @@ using namespace vortex;
 
 UT_TEST_SUITE(library_test_suite)
 
-UT_TEST_CASE(grid_triangle_test) {}
+UT_TEST_CASE(grid_triangle_test) {
+  // testing number of vertices and triangles in a triange mesh
+  double tol = 1e-10;
+  for (int i = 1; i < 6; i++) {
+    for (int j = 1; j < 6; j++) {
+      int n1t = i * 100;
+      int n2t = j * 100;
+      Grid<Triangle> mesh({n1t, n2t});
+      int vertst = mesh.vertices().n();
+      int trit = mesh.triangles().n();
+      UT_ASSERT_EQUALS(vertst, ((n1t + 1) * (n2t + 1)));
+      UT_ASSERT_EQUALS(trit, (2 * n1t * n2t));
+      // testing sum area of each triangle
+      double tot_areat = 0;
+      for (int k = 0; k < trit; k++) {
+        auto* t = mesh.triangles()[k];
+        coord_t* p1t = mesh.vertices()[t[0]];
+        coord_t* p2t = mesh.vertices()[t[1]];
+        coord_t* p3t = mesh.vertices()[t[2]];
+        tot_areat += Triangle::area(p1t, p2t, p3t);
+      }
+      // total area should be very close to 1
+      UT_ASSERT_NEAR(1., tot_areat, tol);
+    }
+  }
+}
 UT_TEST_CASE_END(grid_triangle_test)
+
+UT_TEST_CASE(grid_quad_test) {
+  // testing the number of vertices and quads in a quad mesh
+  double tol = 1e-10;
+  for (int i = 1; i < 11; i++) {
+    for (int j = 1; j < 11; j++) {
+      int n1q = i * 100;
+      int n2q = j * 100;
+      Grid<Quad> mesh({n1q, n2q});
+      int vertsq = mesh.vertices().n();
+      int quads = mesh.quads().n();
+      UT_ASSERT_EQUALS(vertsq, ((n1q + 1) * (n2q + 1)));
+      UT_ASSERT_EQUALS(quads, (n1q * n2q));
+      // testing sum area of each quad
+      double tot_areaq = 0;
+      for (int k = 0; k < quads; k++) {
+        auto* t = mesh.quads()[k];
+        coord_t* p1q = mesh.vertices()[t[0]];
+        coord_t* p2q = mesh.vertices()[t[1]];
+        coord_t* p3q = mesh.vertices()[t[2]];
+        coord_t* p4q = mesh.vertices()[t[0]];
+        coord_t* p5q = mesh.vertices()[t[2]];
+        coord_t* p6q = mesh.vertices()[t[3]];
+        tot_areaq += Triangle::area(p1q, p2q, p3q);
+        tot_areaq += Triangle::area(p4q, p5q, p6q);
+      }
+      // total area should be very close to 1
+      UT_ASSERT_NEAR(tot_areaq, 1., tol);
+    }
+  }
+}
+UT_TEST_CASE_END(grid_quad_test)
 
 UT_TEST_CASE(polygon_test) {
   int n = 10;
@@ -36,8 +97,44 @@ UT_TEST_CASE(polygon_test) {
 UT_TEST_CASE_END(polygon_test)
 
 UT_TEST_CASE(sphere_test) {
-  SubdividedIcosahedron mesh(2);
-  meshb::write(mesh, "sphere.meshb");
+  // testing number of triangels in a subdivided icosahedron mesh
+  double tol1 = 1e-10;
+  double tol2 = 5e-4;
+  // vectors for area check
+  std::vector<double> error;
+  std::vector<double> meshsize;
+  std::vector<double> slopes;
+  for (int i = 0; i < 10; i++) {
+    SubdividedIcosahedron mesh(i);
+    int tris = mesh.triangles().n();
+    int tris_check = std::pow(4, i) * 20;
+    UT_ASSERT_EQUALS(tris, tris_check);
+    double tot_areas = 0;
+    double strt_areas = 0;
+    for (int k = 0; k < tris; k++) {
+      auto* t = mesh.triangles()[k];
+      coord_t* p1 = mesh.vertices()[t[0]];
+      coord_t* p2 = mesh.vertices()[t[1]];
+      coord_t* p3 = mesh.vertices()[t[2]];
+      tot_areas += SphericalTriangle::area(p1, p2, p3);
+      strt_areas += Triangle::area(p1, p2, p3);
+    }
+    // recording straight-sided area error
+    error.push_back(fabs(strt_areas - (4 * M_PI)));
+    meshsize.push_back(sqrt(tris));
+    double slope = fabs(
+        log(error[error.size() - 2] / error[error.size() - 1]) /
+        log(meshsize[meshsize.size() - 2] / meshsize[meshsize.size() - 1]));
+    slopes.push_back(slope);
+    //  abs. val. of straight-sided area against meshsize (approx
+    //  sqrt(mesh.triangles().n())) should be very close to 2 in the asymptotic
+    //  range
+    if (i > 6) {
+      UT_ASSERT_NEAR(slopes[i], 2., tol2);
+    }
+    // spherical triangle area should converge to 4pi
+    UT_ASSERT_NEAR(tot_areas, 4 * M_PI, tol1);
+  }
 }
 UT_TEST_CASE_END(sphere_test)
 
