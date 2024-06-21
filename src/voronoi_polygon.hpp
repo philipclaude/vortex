@@ -232,7 +232,6 @@ class VoronoiPolygon {
       // TODO(philip) use the specialized cell_ to compute geometric quantities
       double l = length(p.xyz() - q.xyz());
       // double l = std::acos(dot(p.xyz(), q.xyz()));
-      vec3 c = 0.5 * (p.xyz() + q.xyz());
 
       // save the vertex for the next iteration
       p = q;
@@ -243,11 +242,11 @@ class VoronoiPolygon {
       m = k;
       // ASSERT(site_j >= 0);
       if (site_j < 0) {
-        mesh.n_boundary_facets()++;
-        mesh.boundary_area() += l;
+        // mesh.n_boundary_facets()++;
+        // mesh.boundary_area() += l;
         continue;
       }
-      mesh.add(site_i, site_j, l, c);
+      mesh.add(site_i, site_j, l);
     }
   }
 

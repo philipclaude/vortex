@@ -18,6 +18,7 @@
 //
 #pragma once
 
+#include <absl/container/flat_hash_map.h>
 #include <stlext.h>
 
 #include <cassert>
@@ -312,11 +313,6 @@ struct VoronoiDiagramProperties {
                      // \mathrm{d}\vec{x} + \nu_{site} w_{site} ]
 };
 
-struct VoronoiFacetData {
-  double volume{0};
-  vec3 centroid{0, 0, 0};
-};
-
 class VoronoiMesh : public Mesh {
  protected:
   using Mesh::Mesh;
@@ -333,18 +329,18 @@ class VoronoiMesh : public Mesh {
   bool save_mesh() const { return save_mesh_; }
   bool save_facets() const { return save_facets_; }
 
-  void add(uint64_t bi, uint64_t bj, double volume, vec3 centroid) {
+  void add(uint64_t bi, uint64_t bj, double volume) {
     if (bi > bj) std::swap(bi, bj);
     auto it = facets_.find({bi, bj});
-    if (it == facets_.end()) facets_.insert({{bi, bj}, {volume, centroid}});
+    if (it == facets_.end()) facets_.insert({{bi, bj}, volume});
   }
 
   const auto& facets() const { return facets_; }
   auto& facets() { return facets_; }
 
   void append(const VoronoiMesh& mesh) {
-    for (const auto& [b, data] : mesh.facets())
-      add(b[0], b[1], data.volume, data.centroid);
+    for (const auto& [b, volume] : mesh.facets())
+      add(b.first, b.second, volume);
     n_incomplete_ += mesh.n_incomplete();
     n_boundary_facets_ += mesh.n_boundary_facets();
     boundary_area_ += mesh.boundary_area();
@@ -362,7 +358,9 @@ class VoronoiMesh : public Mesh {
  protected:
   bool save_mesh_{false};
   bool save_facets_{false};
-  std::unordered_map<std::array<uint64_t, 2>, VoronoiFacetData> facets_;
+  using facet_length_t = float;
+  // std::unordered_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
+  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};
   double boundary_area_{0};

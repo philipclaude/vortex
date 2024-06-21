@@ -15,8 +15,8 @@ include(cmake/debug.cmake)
 include(cmake/coverage.cmake)
 
 # setup include directories
-include_directories(${VORTEX_INCLUDE_DIRS})
-set(VORTEX_INCLUDE ${VORTEX_INCLUDE_DIRS})
+include_directories(src extern)
+include_directories(SYSTEM ${VORTEX_INCLUDE_DIRS})
 
 # build the libraries, tests and executables
 add_subdirectory(src)

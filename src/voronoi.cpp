@@ -352,12 +352,6 @@ class SiteThreadBlock : public VoronoiThreadBlock<Domain_t> {
       Base_t::append_to_mesh(mesh);
       append_mesh_lock_->unlock();
     }
-
-    if (mesh.save_facets()) {
-      append_mesh_lock_->lock();
-      mesh.append(*this);
-      append_mesh_lock_->unlock();
-    }
   }
 
  private:
@@ -529,7 +523,7 @@ compute_voronoi:
   size_t n_threads = std::thread::hardware_concurrency();
   if (!options.parallel) n_threads = 1;
   std::mutex append_mesh_lock;
-  allocate(n_sites_);
+  // allocate(n_sites_);
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
   facets_.clear();
@@ -563,7 +557,22 @@ compute_voronoi:
   timer.stop();
   if (options.verbose) {
     LOG << "voronoi computed in " << timer.seconds() << " s.";
-    LOG << fmt::format("detected {} facets", facets_.size());
+  }
+
+  // merge the facets
+  if (options.store_facet_data) {
+    timer.start();
+    size_t n_facets = 0;
+    for (const auto& block : blocks) n_facets += block->facets().size();
+    facets_.reserve(n_facets);
+
+    for (auto& block : blocks) {
+      append(*block);
+    }
+    timer.stop();
+    if (options.verbose)
+      LOG << fmt::format("# facets = {}, (done in {} sec.)", facets_.size(),
+                         timer.seconds());
   }
 
   uint64_t n_incomplete = 0;

@@ -91,16 +91,16 @@ void ParticleSimulation::compute_search_direction(
   //  hessian_(k, k) = 1e-3 * target_volumes[k];
 
   // set up the sparse matrix
-  for (const auto& [b, f] : voronoi_.facets()) {
-    size_t site_i = b[0];
-    size_t site_j = b[1];
+  for (const auto& [b, volume] : voronoi_.facets()) {
+    size_t site_i = b.first;
+    size_t site_j = b.second;
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
-    double delta_ij = 0.5 * f.volume / length(pi - pj);
-    hessian_(b[0], b[1]) = delta_ij;
-    hessian_(b[1], b[0]) = delta_ij;
-    hessian_(b[0], b[0]) -= delta_ij;
-    hessian_(b[1], b[1]) -= delta_ij;
+    double delta_ij = 0.5 * volume / length(pi - pj);
+    hessian_(site_i, site_j) = delta_ij;
+    hessian_(site_j, site_i) = delta_ij;
+    hessian_(site_i, site_i) -= delta_ij;
+    hessian_(site_j, site_j) -= delta_ij;
   }
 
   // solve for the search direction
@@ -123,8 +123,8 @@ void ParticleSimulation::calculate_properties() {
   // determine the maximum displacement as the min (bisector distance)/2
   const auto& facets = voronoi_.facets();
   for (const auto& [b, _] : facets) {
-    size_t site_i = b[0];
-    size_t site_j = b[1];
+    size_t site_i = b.first;
+    size_t site_j = b.second;
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
     double d = 0.5 * length(pi - pj);
@@ -132,113 +132,5 @@ void ParticleSimulation::calculate_properties() {
     if (d < max_displacement_[site_j]) max_displacement_[site_j] = d;
   }
 }
-
-template <typename Domain_t>
-void PowerParticles<Domain_t>::build_operators() {
-  laplacian_.clear();
-
-  const auto& facets = voronoi_.facets();
-  for (int d = 0; d < 3; d++) {
-    div_[d].clear();
-    grad_[d].clear();
-
-    // build the divergence and gradient operators
-    for (const auto& [b, f] : facets) {
-      size_t site_i = b[0];
-      size_t site_j = b[1];
-      vec3d pi(particles_[site_i]);
-      vec3d pj(particles_[site_j]);
-
-      double lij = length(pi - pj);
-      double aij = f.volume;
-      double dij = aij * (pj[d] - f.centroid[d]) / lij;
-      double dji = aij * (pi[d] - f.centroid[d]) / lij;
-      div_[d](b[0], b[1]) = dij;
-      div_[d](b[1], b[0]) = dji;
-      div_[d](b[0], b[0]) -= dij;
-      div_[d](b[1], b[1]) -= dji;
-    }
-
-    // compute gradient = -transpose(D)
-    transpose(div_[d], grad_[d], -1);
-
-    // temporarily divide each row of G by the corresponding mass
-    for (size_t row = 0; row < grad_[d].rows().size(); row++) {
-      for (const auto& [col, _] : grad_[d].rows()[row])
-        grad_[d](row, col) /= particles_.mass()[row];
-    }
-
-    // compute ld = D * inv(diag(m)) * G
-    spmat<double> ld(particles_.n(), particles_.n());
-    spmm(div_[d], grad_[d], ld);
-
-    // add the contribution to the Laplacian
-    for (size_t row = 0; row < ld.rows().size(); row++) {
-      for (const auto& [col, value] : ld.rows()[row])
-        laplacian_(row, col) += ld(row, col);
-    }
-
-    // restore the gradient by undoing the row-wise division by mass
-    for (size_t row = 0; row < grad_[d].rows().size(); row++) {
-      for (const auto& [col, _] : grad_[d].rows()[row])
-        grad_[d](row, col) *= particles_.mass()[row];
-    }
-  }
-}
-
-template <typename Domain_t>
-void PowerParticles<Domain_t>::compute_pressure(double dt) {
-  // accumulate the divergence of the velocity
-  vecd<double> div_v(particles_.n());
-  div_v.zero();
-  for (int d = 0; d < 3; d++) {
-    for (size_t k = 0; k < particles_.n(); k++)
-      aux_vector_[k] = vstar_(k, d) / dt;
-    spmv(div_[d], aux_vector_, aux_rhs_);
-    for (size_t k = 0; k < particles_.n(); k++) div_v[k] += aux_rhs_[k];
-  }
-
-  // solve for pressure
-  laplacian_.solve_nl(div_v, particles_.pressure(), 1e-3, true);
-}
-
-template <typename Domain_t>
-void PowerParticles<Domain_t>::apply_internal_forces(double dt) {
-  // compute the velocity update for each component
-  for (int d = 0; d < 3; d++) {
-    // calculate the pressure gradient
-    vecd<double> gradp(particles_.n());
-    spmv(grad_[d], particles_.pressure(), gradp);
-
-    // update velocity
-    for (size_t k = 0; k < particles_.n(); k++)
-      particles_.velocity()(k, d) =
-          vstar_(k, d) - dt * gradp[k] / particles_.mass()[k];
-  }
-}
-
-template <typename Domain_t>
-void PowerParticles<Domain_t>::advect(double dt) {
-  for (size_t k = 0; k < particles_.n(); k++) {
-    vec3d x;
-    for (int d = 0; d < 3; d++) {
-      x[d] = particles_.centroids()(k, d) + dt * particles_.velocity()(k, d);
-      project_point<Domain_t>(&x[0]);
-
-      if (x[d] < 0) {
-        x[d] = 0;
-        particles_.velocity()(k, d) *= -1;
-      }
-      if (x[d] > 1) {
-        x[d] = 1;
-        particles_.velocity()(k, d) *= -1;
-      }
-    }
-    for (int d = 0; d < 3; d++) particles_(k, d) = x[d];
-  }
-}
-
-template class PowerParticles<SphereDomain>;
-template class PowerParticles<SquareDomain>;
 
 }  // namespace vortex
