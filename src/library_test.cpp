@@ -91,16 +91,18 @@ UT_TEST_CASE(grid_quad_test) {
 UT_TEST_CASE_END(grid_quad_test)
 
 UT_TEST_CASE(grid_polygon_test) {
+  // testing the number of vertices and polygons in a polygon mesh
   double tol = 1e-12;
-  for (int nx = 1; nx < 6; nx++) {
-    for (int ny = 1; ny < 6; ny++) {
-      nx *= 100;
-      ny *= 100;
+  for (int i = 1; i < 6; i++) {
+    for (int j = 1; j < 6; j++) {
+      int nx = i * 100;
+      int ny = j * 100;
       Grid<Polygon> mesh({nx, ny});
       auto& polygons = mesh.polygons();
       auto& vertices = mesh.vertices();
       UT_ASSERT_EQUALS(vertices.n(), (nx + 1) * (ny + 1));
       UT_ASSERT_EQUALS(polygons.n(), nx * ny);
+      // testing sum area of each polygon (actually quad here)
       double total_area = 0.0;
       for (int k = 0; k < polygons.n(); k++) {
         const auto& polygon = polygons[k];
@@ -112,6 +114,7 @@ UT_TEST_CASE(grid_polygon_test) {
           total_area += Triangle::area(p0, p1, p2);
         }
       }
+      // total area should be very close to 1
       UT_ASSERT_NEAR(total_area, 1., tol);
     }
   }
