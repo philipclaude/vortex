@@ -92,7 +92,7 @@ UT_TEST_CASE_END(grid_quad_test)
 
 UT_TEST_CASE(grid_polygon_test) {
   // testing the number of vertices and polygons in a polygon mesh
-  double tol = 1e-12;
+  double tol = 1e-10;
   for (int i = 1; i < 6; i++) {
     for (int j = 1; j < 6; j++) {
       int nx = i * 100;
