@@ -26,7 +26,9 @@
 #include <unordered_set>
 
 #include "elements.h"
+#include "log.h"
 #include "mesh.h"
+#include "neighbors.h"
 #include "stlext.h"
 #include "trees/kdtree.h"
 #include "voronoi_polygon.hpp"
@@ -491,23 +493,52 @@ void VoronoiDiagram::compute(const Domain_t& domain,
                              VoronoiDiagramOptions options) {
   ASSERT(sites_);
   using ThreadBlock_t = SiteThreadBlock<Domain_t>;
+  Timer timer;
 
   // calculate nearest neighbors
   size_t n_neighbors = options.n_neighbors;
   if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
   std::vector<index_t> knn(n_sites_ * n_neighbors);
   std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
-  if (dim_ == 2)
-    tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
-                                    n_neighbors, options);
-  else if (dim_ == 3)
-    tree = get_nearest_neighbors<3>(sites_, n_sites_, sites_, n_sites_, knn,
-                                    n_neighbors, options);
-  else if (dim_ == 4)
-    tree = get_nearest_neighbors<4>(sites_, n_sites_, sites_, n_sites_, knn,
-                                    n_neighbors, options);
-  else
-    NOT_IMPLEMENTED;
+  if (!options.voronoi_neighbors) {
+    if (dim_ == 2)
+      tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
+                                      n_neighbors, options);
+    else if (dim_ == 3)
+      tree = get_nearest_neighbors<3>(sites_, n_sites_, sites_, n_sites_, knn,
+                                      n_neighbors, options);
+    else if (dim_ == 4)
+      tree = get_nearest_neighbors<4>(sites_, n_sites_, sites_, n_sites_, knn,
+                                      n_neighbors, options);
+    else
+      NOT_IMPLEMENTED;
+  } else {
+    timer.start();
+    VoronoiNeighbors neighbors(*this, sites_);
+    size_t n_threads = std::thread::hardware_concurrency();
+    std::vector<NearestNeighborsWorkspace> searches(n_threads,
+                                                    options.n_neighbors);
+    timer.stop();
+    if (options.verbose) LOG << "vtree built in " << timer.seconds() << " s.";
+    timer.start();
+    std::parafor_i(
+        0, n_sites_,
+        [&neighbors, &searches, &knn, &options](size_t tid, size_t k) {
+          neighbors.knearest(k, searches[tid]);
+          const auto& result = searches[tid].sites;
+          size_t m = result.size();
+          if (result.size() > options.n_neighbors) m = options.n_neighbors;
+          for (size_t j = 0; j < m; j++) {
+            knn[options.n_neighbors * k + j] = result.data()[j].first;
+          }
+          for (size_t j = result.size(); j < options.n_neighbors; j++)
+            knn[options.n_neighbors * k + j] =
+                std::numeric_limits<index_t>::max();
+        });
+    timer.stop();
+    if (options.verbose)
+      LOG << "neighbors computed in " << timer.seconds() << " s.";
+  }
 
   // always add sites first for the Delaunay triangulation
   if (options.store_mesh) {
@@ -518,7 +549,6 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   bool set_kdtree = options.interleave_neighbors;
   bool recomputing = false;
 compute_voronoi:
-  Timer timer;
   timer.start();
   size_t n_threads = std::thread::hardware_concurrency();
   if (!options.parallel) n_threads = 1;
@@ -526,7 +556,9 @@ compute_voronoi:
   // allocate(n_sites_);
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
+  set_save_delaunay(options.store_delaunay_triangles);
   facets_.clear();
+  delaunay_.clear();
   std::vector<std::thread> threads;
   std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
   properties_.resize(n_sites_);
@@ -545,6 +577,7 @@ compute_voronoi:
     }
     blocks[k]->set_save_mesh(options.store_mesh);
     blocks[k]->set_save_facets(options.store_facet_data);
+    blocks[k]->set_save_delaunay(options.store_delaunay_triangles);
     if (set_kdtree) blocks[k]->cell().set_kdtree(tree.get());
     size_t m = k * n_sites_per_block;
     size_t n = m + n_sites_per_block;
@@ -565,14 +598,24 @@ compute_voronoi:
     size_t n_facets = 0;
     for (const auto& block : blocks) n_facets += block->facets().size();
     facets_.reserve(n_facets);
-
-    for (auto& block : blocks) {
-      append(*block);
-    }
+    for (auto& block : blocks) append(*block);
     timer.stop();
     if (options.verbose)
       LOG << fmt::format("# facets = {}, (done in {} sec.)", facets_.size(),
                          timer.seconds());
+  }
+
+  // store the delaunay triangles
+  if (options.store_delaunay_triangles) {
+    timer.start();
+    size_t n_triangles = 0;
+    for (const auto& block : blocks) n_triangles += block->delaunay().size();
+    delaunay_.reserve(n_triangles);
+    for (auto& block : blocks) append_triangles(*block);
+    timer.stop();
+    if (options.verbose)
+      LOG << fmt::format("# triangles = {}, (done in {} sec.)",
+                         delaunay_.size(), timer.seconds());
   }
 
   uint64_t n_incomplete = 0;

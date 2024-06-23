@@ -19,6 +19,7 @@
 #pragma once
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
 #include <stlext.h>
 
 #include <cassert>
@@ -291,6 +292,8 @@ struct VoronoiDiagramOptions {
   bool allow_reattempt{true};        // NOT IMPLEMENTED
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
   bool store_facet_data{true};
+  bool store_delaunay_triangles{true};
+  bool voronoi_neighbors{false};
 };
 
 struct VoronoiCellProperties {
@@ -325,18 +328,28 @@ class VoronoiMesh : public Mesh {
 
   void set_save_mesh(bool x) { save_mesh_ = x; }
   void set_save_facets(bool x) { save_facets_ = x; }
+  void set_save_delaunay(bool x) { save_delaunay_ = x; }
 
   bool save_mesh() const { return save_mesh_; }
   bool save_facets() const { return save_facets_; }
+  bool save_delaunay() const { return save_delaunay_; }
 
-  void add(uint64_t bi, uint64_t bj, double volume) {
+  void add(uint32_t bi, uint32_t bj, double volume) {
     if (bi > bj) std::swap(bi, bj);
     auto it = facets_.find({bi, bj});
     if (it == facets_.end()) facets_.insert({{bi, bj}, volume});
   }
 
+  void add_triangle(std::array<uint32_t, 3> triangle) {
+    std::sort(triangle.begin(), triangle.end());
+    delaunay_.insert(triangle);
+  }
+
   const auto& facets() const { return facets_; }
   auto& facets() { return facets_; }
+
+  const auto& delaunay() const { return delaunay_; }
+  auto& delaunay() { return delaunay_; }
 
   void append(const VoronoiMesh& mesh) {
     for (const auto& [b, volume] : mesh.facets())
@@ -344,6 +357,10 @@ class VoronoiMesh : public Mesh {
     n_incomplete_ += mesh.n_incomplete();
     n_boundary_facets_ += mesh.n_boundary_facets();
     boundary_area_ += mesh.boundary_area();
+  }
+
+  void append_triangles(const VoronoiMesh& mesh) {
+    for (const auto& t : mesh.delaunay()) add_triangle(t);
   }
 
   size_t& n_incomplete() { return n_incomplete_; }
@@ -358,9 +375,11 @@ class VoronoiMesh : public Mesh {
  protected:
   bool save_mesh_{false};
   bool save_facets_{false};
+  bool save_delaunay_{false};
   using facet_length_t = float;
   // std::unordered_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   absl::flat_hash_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
+  absl::flat_hash_set<std::array<uint32_t, 3>> delaunay_;
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};
   double boundary_area_{0};
@@ -408,6 +427,8 @@ class VoronoiDiagram : public VoronoiMesh {
         [](const auto& pa, const auto& pb) { return pa.rmax > pb.rmax; });
     return props.rmax;
   }
+
+  uint64_t n_sites() const { return n_sites_; }
 
  private:
   int dim_;
@@ -488,7 +509,7 @@ struct SphereDomain {
   const double radius{1.0};
   double initialization_fraction{0.1};  // use 0.7 for power diagrams
 
-  static vec3d random_point_on_sphere() {
+  static vec3d random_point() {
     coord_t theta = 2.0 * M_PI * irand(0, 1);
     coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
     return {cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi)};

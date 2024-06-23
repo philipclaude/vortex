@@ -15,6 +15,7 @@ set(SOURCES
   math/vec.cpp
   mesh.cpp
   mesher.cpp
+  neighbors.cpp
   numerics.cpp
   particles.cpp
   #predicates.c

@@ -90,8 +90,11 @@ class VoronoiPolygon {
     for (size_t j = 1; j < n_neighbors_; j++) {
       // get the next point and weight
       const index_t n = neighbors_[site * n_neighbors_ + j];
-      ASSERT(n < std::numeric_limits<index_t>::max())
-          << "points may have duplicate coordinates";
+      // TODO(philip) the assertion below should still be there,
+      // find another way to signal that the max n_neighbors_ is reached
+      if (n == std::numeric_limits<index_t>::max()) break;
+      // ASSERT(n < std::numeric_limits<index_t>::max())
+      //     << "points may have duplicate coordinates";
       const coord_t* zj = sites_ + n * dim;
       const coord_t wj = (weights_) ? weights_[n] : 0.0;
       const vec4 uj(zj, dim);
@@ -111,6 +114,7 @@ class VoronoiPolygon {
     // append to the mesh if necessary
     if (mesh.save_mesh()) append_to_mesh(mesh, site);
     if (mesh.save_facets()) save_facets(mesh, site);
+    if (mesh.save_delaunay()) save_delaunay(mesh, site);
 
     // TODO(philip) retrieve more neighbors and keep clipping
     if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
@@ -247,6 +251,21 @@ class VoronoiPolygon {
         continue;
       }
       mesh.add(site_i, site_j, l);
+    }
+  }
+
+  void save_delaunay(VoronoiMesh& mesh, index_t site) const {
+    std::array<uint32_t, 3> t;
+    t[0] = site;
+    for (size_t k = 0; k < p_.size(); k++) {
+      // add Delaunay triangle associated with this Voronoi vertex
+      auto tj = bisector_to_site_[p_[k].bl];
+      auto tk = bisector_to_site_[p_[k].br];
+      if (tj < 0) continue;
+      if (tk < 0) continue;
+      t[1] = tj;
+      t[2] = tk;
+      mesh.add_triangle(t);
     }
   }
 

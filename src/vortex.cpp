@@ -310,7 +310,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
     sample.reserve(n_points);
     if (arg_domain == "sphere") {
       for (size_t k = 0; k < n_points; k++) {
-        vec3d x = SphereDomain::random_point_on_sphere();
+        vec3d x = SphereDomain::random_point();
         sample.add(&x[0]);
       }
     } else if (arg_domain == "square") {
@@ -332,7 +332,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
     vec3d x, uv;
     while (sample.n() < n_points) {
-      x = SphereDomain::random_point_on_sphere();
+      x = SphereDomain::random_point();
 
       // calculate (u, v) consistent with other algorithms
       sphere_params(x, uv);
@@ -468,7 +468,7 @@ void run_simulation(argparse::ArgumentParser& program) {
     sample.reserve(n_points);
     if (arg_domain == "sphere") {
       for (size_t k = 0; k < n_points; k++) {
-        auto x = SphereDomain::random_point_on_sphere();
+        auto x = SphereDomain::random_point();
         sample.add(&x[0]);
       }
     } else if (arg_domain == "rectangle") {
@@ -492,7 +492,7 @@ void run_simulation(argparse::ArgumentParser& program) {
 
     vec3d x, uv;
     while (sample.n() < n_points) {
-      x = SphereDomain::random_point_on_sphere();
+      x = SphereDomain::random_point();
 
       // calculate (u, v) consistent with other algorithms
       sphere_params(x, uv);

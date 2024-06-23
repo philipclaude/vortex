@@ -253,13 +253,24 @@ class array2d {
   void set_first(const std::vector<index_t>& f) { first_ = f; }
   void set_length(const std::vector<uint32_t>& l) { length_ = l; }
 
-  void reserve(int64_t n, int max_item = 10) {
+  /**
+   * @brief Allocates space for all the arrays.
+   *
+   * @param n - number of expected elements.
+   * @param m - only used for Layout_Jagged,
+   *          - if m > 0 this is assumed to be an estimate of the stride,
+   *          - else (m < 0) this is the full capacity to allocate.
+   */
+  void reserve(int64_t n, int64_t m = 10) {
     if (layout_ == Layout_Rectangular) {
       data_.reserve(n * stride_);
     } else {
       first_.reserve(n);
       length_.reserve(n);
-      data_.reserve(10 * n);
+      if (m > 0)
+        data_.reserve(m * n);
+      else
+        data_.reserve(-m);
     }
   }
 
