@@ -29,7 +29,7 @@ using namespace vortex;
 UT_TEST_SUITE(neighbors_test_suite)
 
 UT_TEST_CASE(test1) {
-  SquareDomain domain;
+  SphereDomain domain;
   static const int dim = 3;
   size_t n_sites = 1e7;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
@@ -49,10 +49,9 @@ UT_TEST_CASE(test1) {
     vertices.add(x);
   }
 
-  Timer timer;
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
-  options.n_neighbors = 75;
+  options.n_neighbors = 50;
   options.allow_reattempt = false;
   options.parallel = true;
   int n_iter = 10;
@@ -72,6 +71,7 @@ UT_TEST_CASE(test1) {
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
 
 #if 0
+    Timer timer;
     timer.start();
     VoronoiNeighbors neighbors(voronoi, vertices[0]);
     size_t n_threads = std::thread::hardware_concurrency();

@@ -486,6 +486,26 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbor(
   return ptree;
 }
 
+std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_kdtree(
+    const coord_t* p, uint64_t np, int dim,
+    const VoronoiDiagramOptions& options) {
+  trees::KdTreeOptions kdtree_opts;
+  kdtree_opts.max_dim = options.max_kdtree_axis_dim;
+  if (kdtree_opts.max_dim < 0) kdtree_opts.max_dim = dim;
+  if (dim == 2) {
+    return std::make_shared<trees::KdTree<2, coord_t, index_t>>(p, np,
+                                                                kdtree_opts);
+  } else if (dim == 3) {
+    return std::make_shared<trees::KdTree<3, coord_t, index_t>>(p, np,
+                                                                kdtree_opts);
+  } else if (dim == 4) {
+    return std::make_shared<trees::KdTree<3, coord_t, index_t>>(p, np,
+                                                                kdtree_opts);
+  } else
+    NOT_IMPLEMENTED;
+  return nullptr;
+}
+
 }  // namespace
 
 template <typename Domain_t>
@@ -499,6 +519,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   size_t n_neighbors = options.n_neighbors;
   if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
   std::vector<index_t> knn(n_sites_ * n_neighbors);
+  std::vector<uint16_t> max_neighbors(n_sites_, options.n_neighbors);
   std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
   if (!options.voronoi_neighbors) {
     if (dim_ == 2)
@@ -521,19 +542,23 @@ void VoronoiDiagram::compute(const Domain_t& domain,
     timer.stop();
     if (options.verbose) LOG << "vtree built in " << timer.seconds() << " s.";
     timer.start();
-    std::parafor_i(
-        0, n_sites_, [this, &searches, &knn, &options](size_t tid, size_t k) {
-          neighbors_.knearest(k, searches[tid]);
-          const auto& result = searches[tid].sites;
-          size_t m = result.size();
-          if (result.size() > options.n_neighbors) m = options.n_neighbors;
-          for (size_t j = 0; j < m; j++) {
-            knn[options.n_neighbors * k + j] = result.data()[j].first;
-          }
-          for (size_t j = result.size(); j < options.n_neighbors; j++)
-            knn[options.n_neighbors * k + j] =
-                std::numeric_limits<index_t>::max();
-        });
+    std::parafor_i(0, n_sites_,
+                   [this, &searches, &knn, &options, &max_neighbors](size_t tid,
+                                                                     size_t k) {
+                     neighbors_.knearest(k, searches[tid]);
+                     const auto& result = searches[tid].sites;
+                     size_t m = result.size();
+                     if (result.size() > options.n_neighbors)
+                       m = options.n_neighbors;
+                     for (size_t j = 0; j < m; j++) {
+                       knn[options.n_neighbors * k + j] =
+                           result.data()[j].first;
+                     }
+                     max_neighbors[k] = result.size();
+                   });
+    // still build the kdtree to retrieve neighbors if the cell is incomplete
+    tree = get_kdtree(sites_, n_sites_, dim_, options);
+
     timer.stop();
     if (options.verbose)
       LOG << "neighbors computed in " << timer.seconds() << " s.";
@@ -568,6 +593,8 @@ compute_voronoi:
     blocks.push_back(std::make_shared<ThreadBlock_t>(domain));
     blocks[k]->cell().set_sites(sites_);
     blocks[k]->cell().set_neighbors(knn.data(), n_neighbors);
+    blocks[k]->cell().set_max_neighbors(max_neighbors.data());
+    blocks[k]->cell().set_kdtree(tree.get());
     blocks[k]->set_mesh_lock(&append_mesh_lock);
     blocks[k]->set_properties_ptr(properties_.data());
     blocks[k]->set_status_ptr(status_.data());
