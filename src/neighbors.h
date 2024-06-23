@@ -53,6 +53,12 @@ struct NearestNeighborsWorkspace {
               [](const auto& a, const auto& b) { return a.second < b.second; });
   }
 
+  uint32_t next() {
+    uint32_t n = sites.front().first;
+    sites.pop();
+    return n;
+  }
+
   void add(uint32_t n, uint8_t l, double d) {
     if (d > max_distance) max_distance = d;
     sites.push({n, d});
@@ -60,10 +66,9 @@ struct NearestNeighborsWorkspace {
   }
 
   int n_neighbors;
-  // absl::flat_hash_map<uint32_t, uint8_t> neighbors;
   std::unordered_map<uint32_t, uint8_t> neighbors;
   queue<std::pair<uint32_t, double>> sites;
-  size_t n_avg{0};
+  size_t total_neighbors{0};
   double max_distance{0};
 };
 
@@ -71,11 +76,10 @@ class VoronoiNeighbors {
  public:
   VoronoiNeighbors(const VoronoiDiagram& voronoi, const coord_t* points);
 
+  void build();
   void knearest(uint32_t p, NearestNeighborsWorkspace& search) const;
 
  private:
-  void build();
-
   const VoronoiDiagram& voronoi_;
   const coord_t* points_;
   array2d<uint32_t> ring_;

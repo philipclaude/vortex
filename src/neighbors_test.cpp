@@ -29,8 +29,7 @@ using namespace vortex;
 UT_TEST_SUITE(neighbors_test_suite)
 
 UT_TEST_CASE(test1) {
-  SphereDomain domain;
-  domain.set_initialization_fraction(0.7);
+  SquareDomain domain;
   static const int dim = 3;
   size_t n_sites = 1e7;
   std::vector<coord_t> sites(n_sites * dim, 0.0);

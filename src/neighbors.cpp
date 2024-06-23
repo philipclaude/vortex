@@ -5,10 +5,8 @@
 namespace vortex {
 
 VoronoiNeighbors::VoronoiNeighbors(const VoronoiDiagram& voronoi,
-                                   const coord_t* vertices)
-    : voronoi_(voronoi), points_(vertices), ring_(-1) {
-  build();
-}
+                                   const coord_t* points)
+    : voronoi_(voronoi), points_(points), ring_(-1) {}
 
 void VoronoiNeighbors::build() {
   // count how many vertices are in each vertex one-ring
@@ -21,13 +19,16 @@ void VoronoiNeighbors::build() {
     count[q]++;
   }
 
-  // allocate the rings
-  ring_.reserve(voronoi_.n_sites(), -2 * facets.size());
-  std::vector<uint32_t> ring;
-  for (size_t k = 0; k < voronoi_.n_sites(); k++) {
-    ring.resize(count[k]);
-    ring_.add(ring.data(), ring.size());
+  std::vector<index_t> first(voronoi_.n_sites(), 0);
+  size_t m = count[0];
+  for (size_t k = 1; k < voronoi_.n_sites(); k++) {
+    first[k] = m;
+    m += count[k];
   }
+
+  // allocate the rings
+  ring_.clear();
+  ring_.set(first, count, m);
 
   // save ring data
   std::vector<uint32_t> idx(voronoi_.n_sites(), 0);
@@ -39,23 +40,24 @@ void VoronoiNeighbors::build() {
   }
 }
 
-template <int dim>
-double distance_squared(const double* p, const double* q) {
+double distance_squared(const double* p, const double* q, int dim) {
   double ds = 0;
-  for (int i = 0; i < dim; ++i) ds += (p[i] - q[i]) * (p[i] - q[i]);
+  for (int i = 0; i < dim; ++i) {
+    const double dx = p[i] - q[i];
+    ds += dx * dx;
+  }
   return ds;
 }
 
 void VoronoiNeighbors::knearest(uint32_t p,
                                 NearestNeighborsWorkspace& search) const {
   const int max_level = 2;  // TODO input option
-  static constexpr int dim = 3;
+  const int dim = 3;
 
   search.reset();
   search.add(p, 0, 0);
   while (!search.sites.empty()) {
-    auto site = search.sites.front().first;
-    search.sites.pop();
+    uint32_t site = search.next();
     uint8_t level = search.neighbors.at(site);
     if (level >= max_level) continue;
 
@@ -63,13 +65,13 @@ void VoronoiNeighbors::knearest(uint32_t p,
       auto n = ring_[site][j];
       if (n == p) continue;
       if (search.neighbors.find(n) != search.neighbors.end()) continue;
-      double d = distance_squared<dim>(&points_[dim * p], &points_[dim * n]);
+      double d = distance_squared(&points_[dim * p], &points_[dim * n], dim);
       if (level > 1 && d > search.max_distance) continue;
       search.add(n, level + 1, d);
     }
   }
   search.sort();
-  search.n_avg += search.sites.size();
+  search.total_neighbors += search.sites.size();
 }
 
 }  // namespace vortex

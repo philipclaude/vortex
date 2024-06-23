@@ -514,7 +514,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
       NOT_IMPLEMENTED;
   } else {
     timer.start();
-    VoronoiNeighbors neighbors(*this, sites_);
+    neighbors_.build();
     size_t n_threads = std::thread::hardware_concurrency();
     std::vector<NearestNeighborsWorkspace> searches(n_threads,
                                                     options.n_neighbors);
@@ -522,9 +522,8 @@ void VoronoiDiagram::compute(const Domain_t& domain,
     if (options.verbose) LOG << "vtree built in " << timer.seconds() << " s.";
     timer.start();
     std::parafor_i(
-        0, n_sites_,
-        [&neighbors, &searches, &knn, &options](size_t tid, size_t k) {
-          neighbors.knearest(k, searches[tid]);
+        0, n_sites_, [this, &searches, &knn, &options](size_t tid, size_t k) {
+          neighbors_.knearest(k, searches[tid]);
           const auto& result = searches[tid].sites;
           size_t m = result.size();
           if (result.size() > options.n_neighbors) m = options.n_neighbors;

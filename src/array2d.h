@@ -275,6 +275,21 @@ class array2d {
   }
 
   /**
+   * @brief Sets the complete data for jagged arrays.
+   *
+   * @param first - array of index pointers to first index in each element
+   * @param length - array of number of items in each element
+   * @param m - total number of items (sum of length)
+   */
+  void set(const std::vector<index_t>& first,
+           const std::vector<uint32_t> length, size_t m) {
+    ASSERT(layout_ == Layout_Jagged);
+    first_ = first;
+    length_ = length;
+    data_.resize(m);
+  }
+
+  /**
    * \brief Clears all the data in this array.
    *
    * \param[in] reset_stride - whether stride should be set to 0.
