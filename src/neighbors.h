@@ -74,12 +74,14 @@ struct NearestNeighborsWorkspace {
 
 class VoronoiNeighbors {
  public:
-  VoronoiNeighbors(const VoronoiDiagram& voronoi, const coord_t* points);
+  VoronoiNeighbors(const VoronoiDiagram& voronoi, const coord_t* points,
+                   int dim);
 
   void build();
   void knearest(uint32_t p, NearestNeighborsWorkspace& search) const;
 
  private:
+  const int dim_;
   const VoronoiDiagram& voronoi_;
   const coord_t* points_;
   array2d<uint32_t> ring_;

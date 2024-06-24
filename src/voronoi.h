@@ -293,8 +293,8 @@ struct VoronoiDiagramOptions {
   bool allow_reattempt{true};        // NOT IMPLEMENTED
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
   bool store_facet_data{true};
-  bool store_delaunay_triangles{true};
-  bool voronoi_neighbors{false};
+  bool store_delaunay_triangles{false};
+  bool always_use_kdtree{false};
 };
 
 struct VoronoiCellProperties {
@@ -398,7 +398,7 @@ class VoronoiDiagram : public VoronoiMesh {
         dim_(dim),
         sites_(sites),
         n_sites_(n_sites),
-        neighbors_(*this, sites) {}
+        neighbors_(*this, sites, dim) {}
   VoronoiDiagram(const VoronoiDiagram&) = delete;
 
   /// @brief Calculates the Voronoi diagram of the saved sites restricted to

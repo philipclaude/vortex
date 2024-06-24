@@ -499,7 +499,7 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_kdtree(
     return std::make_shared<trees::KdTree<3, coord_t, index_t>>(p, np,
                                                                 kdtree_opts);
   } else if (dim == 4) {
-    return std::make_shared<trees::KdTree<3, coord_t, index_t>>(p, np,
+    return std::make_shared<trees::KdTree<4, coord_t, index_t>>(p, np,
                                                                 kdtree_opts);
   } else
     NOT_IMPLEMENTED;
@@ -521,7 +521,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   std::vector<index_t> knn(n_sites_ * n_neighbors);
   std::vector<uint16_t> max_neighbors(n_sites_, options.n_neighbors);
   std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
-  if (!options.voronoi_neighbors) {
+  if (facets_.empty() || options.always_use_kdtree) {
     if (dim_ == 2)
       tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
                                       n_neighbors, options);

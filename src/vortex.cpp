@@ -528,7 +528,7 @@ void run_simulation(argparse::ArgumentParser& program) {
     // smooth the initial point distribution with Lloyd relaxation
     VoronoiDiagram smoother(dim, vertices[0], n_points);
     VoronoiDiagramOptions options;
-    options.n_neighbors = 100;
+    options.n_neighbors = 50;
     options.allow_reattempt = false;
     options.parallel = true;
     options.store_facet_data = true;

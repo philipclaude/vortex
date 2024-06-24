@@ -30,7 +30,7 @@ UT_TEST_SUITE(neighbors_test_suite)
 
 UT_TEST_CASE(test1) {
   SphereDomain domain;
-  static const int dim = 3;
+  static const int dim = 4;
   size_t n_sites = 1e7;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
@@ -63,7 +63,7 @@ UT_TEST_CASE(test1) {
     voronoi.polygons().clear();
     voronoi.triangles().clear();
     voronoi.compute(domain, options);
-    options.voronoi_neighbors = true;
+    // options.voronoi_neighbors = true;
 
     // move each site to the centroid of the corresponding cell
     voronoi.smooth(vertices, false);

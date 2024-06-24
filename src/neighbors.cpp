@@ -5,8 +5,8 @@
 namespace vortex {
 
 VoronoiNeighbors::VoronoiNeighbors(const VoronoiDiagram& voronoi,
-                                   const coord_t* points)
-    : voronoi_(voronoi), points_(points), ring_(-1) {}
+                                   const coord_t* points, int dim)
+    : dim_(dim), voronoi_(voronoi), points_(points), ring_(-1) {}
 
 void VoronoiNeighbors::build() {
   // count how many vertices are in each vertex one-ring
@@ -52,7 +52,6 @@ double distance_squared(const double* p, const double* q, int dim) {
 void VoronoiNeighbors::knearest(uint32_t p,
                                 NearestNeighborsWorkspace& search) const {
   const int max_level = 2;  // TODO input option
-  const int dim = 3;
 
   search.reset();
   search.add(p, 0, 0);
@@ -65,7 +64,7 @@ void VoronoiNeighbors::knearest(uint32_t p,
       auto n = ring_[site][j];
       if (n == p) continue;
       if (search.neighbors.find(n) != search.neighbors.end()) continue;
-      double d = distance_squared(&points_[dim * p], &points_[dim * n], dim);
+      double d = distance_squared(&points_[dim_ * p], &points_[dim_ * n], dim_);
       if (level > 1 && d > search.max_distance) continue;
       search.add(n, level + 1, d);
     }
