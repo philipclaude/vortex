@@ -18,6 +18,7 @@
 //
 #pragma once
 
+#include <algorithm>
 #include <unordered_map>
 
 #include "array2d.h"
