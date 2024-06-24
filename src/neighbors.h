@@ -70,6 +70,7 @@ struct NearestNeighborsWorkspace {
   queue<std::pair<uint32_t, double>> sites;
   size_t total_neighbors{0};
   double max_distance{0};
+  int max_level{2};
 };
 
 class VoronoiNeighbors {

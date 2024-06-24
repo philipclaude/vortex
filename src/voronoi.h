@@ -31,6 +31,11 @@
 #include "neighbors.h"
 #include "util.h"
 
+namespace trees {
+template <typename coord_t, typename index_t>
+class KdTreeNd;
+}  // namespace trees
+
 namespace vortex {
 
 static constexpr index_t kMaxSite = std::numeric_limits<index_t>::max();
@@ -612,5 +617,12 @@ struct TriangulationDomain {
   const index_t* triangles{nullptr};
   uint64_t n_triangles{0};
 };
+
+template <int dim>
+std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
+    const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
+    std::vector<index_t>& knn, size_t n_neighbors,
+    const VoronoiDiagramOptions& options,
+    std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree = nullptr);
 
 }  // namespace vortex

@@ -51,14 +51,12 @@ double distance_squared(const double* p, const double* q, int dim) {
 
 void VoronoiNeighbors::knearest(uint32_t p,
                                 NearestNeighborsWorkspace& search) const {
-  const int max_level = 2;  // TODO input option
-
   search.reset();
   search.add(p, 0, 0);
   while (!search.sites.empty()) {
     uint32_t site = search.next();
     uint8_t level = search.neighbors.at(site);
-    if (level >= max_level) continue;
+    if (level >= search.max_level) continue;
 
     for (int j = 0; j < ring_.length(site); j++) {
       auto n = ring_[site][j];

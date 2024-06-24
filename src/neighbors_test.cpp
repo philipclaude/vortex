@@ -35,7 +35,7 @@ UT_TEST_CASE(test1) {
 #endif
   SphereDomain domain;
   static const int dim = 4;
-  size_t n_sites = 1e7;
+  size_t n_sites = 5e4;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
     auto point = domain.random_point();
@@ -53,45 +53,44 @@ UT_TEST_CASE(test1) {
     vertices.add(x);
   }
 
-  VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
-  options.n_neighbors = 100;
+  options.n_neighbors = 50;
   options.parallel = true;
-  int n_iter = 10;
-  for (int iter = 1; iter <= n_iter; ++iter) {
-    options.store_mesh = iter == n_iter;
-    options.verbose = true;
-    voronoi.vertices().clear();
-    voronoi.vertices().set_dim(3);
-    voronoi.polygons().clear();
-    voronoi.triangles().clear();
-    voronoi.compute(domain, options);
-    // options.voronoi_neighbors = true;
+  options.store_mesh = false;
+  options.verbose = true;
 
-    // move each site to the centroid of the corresponding cell
-    voronoi.smooth(vertices, false);
-    auto props = voronoi.analyze();
-    LOG << fmt::format("iter = {}, area = {}", iter, props.area);
+  // build a kdtree for comparison
+  std::vector<index_t> knn(n_sites * options.n_neighbors);
+  auto tree =
+      get_nearest_neighbors<dim>(vertices[0], n_sites, vertices[0], n_sites,
+                                 knn, options.n_neighbors, options);
 
-#if 0
-    Timer timer;
-    timer.start();
-    VoronoiNeighbors neighbors(voronoi, vertices[0]);
-    size_t n_threads = std::thread::hardware_concurrency();
-    std::vector<NearestNeighborsWorkspace2> searches(n_threads,
-                                                     options.n_neighbors);
+  // calculate the voronoi diagram
+  VoronoiDiagram voronoi(dim, vertices[0], n_sites);
+  voronoi.compute(domain, options);
 
-    std::parafor_i(0, n_sites, [&neighbors, &searches](size_t tid, size_t k) {
-      neighbors.knearest2(k, searches[tid]);
-    });
-    timer.stop();
-    size_t n_avg = 0;
-    for (int i = 0; i < n_threads; i++) n_avg += searches[i].n_avg;
-    n_avg /= n_sites;
-    LOG << fmt::format("avg # neighbors = {}, neighbors time = {} sec.", n_avg, timer.seconds());
-#endif
+  Timer timer;
+  timer.start();
+  VoronoiNeighbors neighbors(voronoi, vertices[0], dim);
+  neighbors.build();
+  NearestNeighborsWorkspace search(options.n_neighbors);
+  search.max_level = 10;
+
+  for (size_t k = 0; k < n_sites; k++) {
+    // check the nearest neighbors match those from the kdtree
+    neighbors.knearest(k, search);
+    const auto& result = search.sites;
+
+    size_t m = result.size();
+    if (result.size() > options.n_neighbors) m = options.n_neighbors;
+    for (size_t j = 0; j < m; j++) {
+      UT_ASSERT_EQUALS(knn[options.n_neighbors * k + j],
+                       result.data()[j].first);
+    }
   }
-  meshb::write(voronoi, "voronoi.meshb");
+  timer.stop();
+  size_t n_avg = search.total_neighbors / n_sites;
+  LOG << fmt::format("avg = {}, time = {} sec.", n_avg, timer.seconds());
 }
 UT_TEST_CASE_END(test1)
 

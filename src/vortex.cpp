@@ -371,6 +371,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.n_neighbors = program.get<int>("--n_neighbors");
   options.parallel = true;
   // options.store_facet_data = false;
+  options.always_use_kdtree = program.get<bool>("--force_kdtree");
 
   auto quiet = program.get<bool>("--quiet");
   auto verbose = program.get<bool>("--verbose");
@@ -732,6 +733,11 @@ int main(int argc, char** argv) {
   cmd_voronoi.add_argument("--reorder")
       .help("ordering method (morton, none)")
       .default_value("morton");
+  cmd_voronoi.add_argument("--force_kdtree")
+      .help(
+          "force the use of a kdtree to calculate nearest neighbors (only "
+          "relevant if n_smooth > 1)")
+      .flag();
   program.add_subparser(cmd_voronoi);
 
   argparse::ArgumentParser cmd_merge("merge");

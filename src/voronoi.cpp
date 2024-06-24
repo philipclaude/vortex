@@ -421,42 +421,6 @@ void clip(ThreadBlock_t* block, int dim, size_t m, size_t n,
 }
 
 template <int dim>
-std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
-    const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
-    std::vector<index_t>& knn, size_t n_neighbors,
-    const VoronoiDiagramOptions& options,
-    std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree = nullptr) {
-  Timer timer;
-  trees::KdTreeOptions kdtree_opts;
-  kdtree_opts.max_dim = options.max_kdtree_axis_dim;
-  if (kdtree_opts.max_dim < 0) kdtree_opts.max_dim = dim;
-  using kdtree_t = trees::KdTree<dim, coord_t, index_t>;
-  if (!ptree) {
-    timer.start();
-    ptree = std::make_shared<kdtree_t>(p, np, kdtree_opts);
-    timer.stop();
-    if (options.verbose)
-      LOG << "kdtree created in " << timer.seconds() << " s.";
-  }
-
-  auto* tree = static_cast<kdtree_t*>(ptree.get());
-  timer.start();
-  std::parafor_i(0, nq, [&](int tid, int k) {
-    index_t* neighbors = (index_t*)alloca(n_neighbors * sizeof(index_t));
-    coord_t* distances = (coord_t*)alloca(n_neighbors * sizeof(coord_t));
-    trees::NearestNeighborSearch<index_t, coord_t> search(n_neighbors,
-                                                          neighbors, distances);
-    tree->knearest(&q[k * dim], search);
-    for (size_t j = 0; j < n_neighbors; ++j)
-      knn[k * n_neighbors + j] = neighbors[j];
-  });
-  timer.stop();
-  if (options.verbose)
-    LOG << "nearest neighbors computed in " << timer.seconds() << " s.";
-  return ptree;
-}
-
-template <int dim>
 std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbor(
     const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
     std::vector<index_t>& nn, const VoronoiDiagramOptions& options,
@@ -505,6 +469,42 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_kdtree(
 }
 
 }  // namespace
+
+template <int dim>
+std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
+    const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
+    std::vector<index_t>& knn, size_t n_neighbors,
+    const VoronoiDiagramOptions& options,
+    std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree) {
+  Timer timer;
+  trees::KdTreeOptions kdtree_opts;
+  kdtree_opts.max_dim = options.max_kdtree_axis_dim;
+  if (kdtree_opts.max_dim < 0) kdtree_opts.max_dim = dim;
+  using kdtree_t = trees::KdTree<dim, coord_t, index_t>;
+  if (!ptree) {
+    timer.start();
+    ptree = std::make_shared<kdtree_t>(p, np, kdtree_opts);
+    timer.stop();
+    if (options.verbose)
+      LOG << "kdtree created in " << timer.seconds() << " s.";
+  }
+
+  auto* tree = static_cast<kdtree_t*>(ptree.get());
+  timer.start();
+  std::parafor_i(0, nq, [&](int tid, int k) {
+    index_t* neighbors = (index_t*)alloca(n_neighbors * sizeof(index_t));
+    coord_t* distances = (coord_t*)alloca(n_neighbors * sizeof(coord_t));
+    trees::NearestNeighborSearch<index_t, coord_t> search(n_neighbors,
+                                                          neighbors, distances);
+    tree->knearest(&q[k * dim], search);
+    for (size_t j = 0; j < n_neighbors; ++j)
+      knn[k * n_neighbors + j] = neighbors[j];
+  });
+  timer.stop();
+  if (options.verbose)
+    LOG << "nearest neighbors computed in " << timer.seconds() << " s.";
+  return ptree;
+}
 
 template <typename Domain_t>
 void VoronoiDiagram::compute(const Domain_t& domain,
@@ -815,5 +815,19 @@ template void VoronoiDiagram::compute(const SphereDomain&,
                                       VoronoiDiagramOptions);
 template void VoronoiDiagram::compute(const SquareDomain&,
                                       VoronoiDiagramOptions);
+
+#define INSTANTIATE_NEAREST_NEIGHBORS(DIM)                          \
+  template std::shared_ptr<trees::KdTreeNd<coord_t, index_t>>       \
+  get_nearest_neighbors<DIM>(                                       \
+      const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq, \
+      std::vector<index_t>& knn, size_t n_neighbors,                \
+      const VoronoiDiagramOptions& options,                         \
+      std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree);
+
+INSTANTIATE_NEAREST_NEIGHBORS(2)
+INSTANTIATE_NEAREST_NEIGHBORS(3)
+INSTANTIATE_NEAREST_NEIGHBORS(4)
+
+#undef INSTANTIATE_NEAREST_NEIGHBORS
 
 }  // namespace vortex
