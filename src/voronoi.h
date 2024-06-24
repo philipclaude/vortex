@@ -289,8 +289,6 @@ struct VoronoiDiagramOptions {
   int n_neighbors{50};  // number of nearest neighbors to precompute
   bool verbose{true};   // whether to print timing info during the calculation
   bool parallel{true};  // whether to parallelize the calculation
-  bool interleave_neighbors{false};  // NOT IMPLEMENTED
-  bool allow_reattempt{true};        // NOT IMPLEMENTED
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
   bool store_facet_data{true};
   bool store_delaunay_triangles{false};

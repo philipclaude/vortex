@@ -369,7 +369,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
   VoronoiDiagram voronoi(dim, points[0], n_points);
   VoronoiDiagramOptions options;
   options.n_neighbors = program.get<int>("--n_neighbors");
-  options.allow_reattempt = false;
   options.parallel = true;
   // options.store_facet_data = false;
 
@@ -529,7 +528,6 @@ void run_simulation(argparse::ArgumentParser& program) {
     VoronoiDiagram smoother(dim, vertices[0], n_points);
     VoronoiDiagramOptions options;
     options.n_neighbors = 50;
-    options.allow_reattempt = false;
     options.parallel = true;
     options.store_facet_data = true;
     int n_iter = program.get<int>("--n_smooth");

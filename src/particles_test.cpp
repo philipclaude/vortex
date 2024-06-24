@@ -61,7 +61,6 @@ UT_TEST_CASE(test_square_uniform) {
   VoronoiDiagram smoother(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 100;
-  options.allow_reattempt = false;
   options.parallel = true;
   options.store_facet_data = true;
   int n_iter = 10;
@@ -132,7 +131,6 @@ UT_TEST_CASE(test_sphere_uniform) {
   VoronoiDiagram smoother(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 100;
-  options.allow_reattempt = false;
   options.parallel = true;
   options.store_facet_data = true;
   int n_iter = 10;
@@ -207,7 +205,6 @@ UT_TEST_CASE(test_sphere_nonuniform) {
   VoronoiDiagram smoother(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 100;
-  options.allow_reattempt = false;
   options.parallel = true;
   options.store_facet_data = false;
   int n_iter = 10;

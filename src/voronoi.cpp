@@ -438,7 +438,6 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
     if (options.verbose)
       LOG << "kdtree created in " << timer.seconds() << " s.";
   }
-  if (options.interleave_neighbors) return ptree;
 
   auto* tree = static_cast<kdtree_t*>(ptree.get());
   timer.start();
@@ -474,7 +473,6 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbor(
     if (options.verbose)
       LOG << "kdtree created in " << timer.seconds() << " s.";
   }
-  if (options.interleave_neighbors) return ptree;
 
   auto* tree = static_cast<kdtree_t*>(ptree.get());
   timer.start();
@@ -514,6 +512,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   ASSERT(sites_);
   using ThreadBlock_t = SiteThreadBlock<Domain_t>;
   Timer timer;
+  size_t n_threads = std::thread::hardware_concurrency();
 
   // calculate nearest neighbors
   size_t n_neighbors = options.n_neighbors;
@@ -536,11 +535,10 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   } else {
     timer.start();
     neighbors_.build();
-    size_t n_threads = std::thread::hardware_concurrency();
+    timer.stop();
+    double t_build = timer.seconds();
     std::vector<NearestNeighborsWorkspace> searches(n_threads,
                                                     options.n_neighbors);
-    timer.stop();
-    if (options.verbose) LOG << "vtree built in " << timer.seconds() << " s.";
     timer.start();
     std::parafor_i(0, n_sites_,
                    [this, &searches, &knn, &options, &max_neighbors](size_t tid,
@@ -561,7 +559,9 @@ void VoronoiDiagram::compute(const Domain_t& domain,
 
     timer.stop();
     if (options.verbose)
-      LOG << "neighbors computed in " << timer.seconds() << " s.";
+      LOG << fmt::format(
+          "neighbors computed in {} s. (build = {} s.), total = {} s.",
+          timer.seconds(), t_build, timer.seconds() + t_build);
   }
 
   // always add sites first for the Delaunay triangulation
@@ -570,14 +570,9 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   }
 
   // compute voronoi diagram
-  bool set_kdtree = options.interleave_neighbors;
-  bool recomputing = false;
-compute_voronoi:
   timer.start();
-  size_t n_threads = std::thread::hardware_concurrency();
   if (!options.parallel) n_threads = 1;
   std::mutex append_mesh_lock;
-  // allocate(n_sites_);
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
   set_save_delaunay(options.store_delaunay_triangles);
@@ -587,7 +582,7 @@ compute_voronoi:
   std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
   properties_.resize(n_sites_);
 
-  if (!recomputing) status_.resize(n_sites_, VoronoiStatusCode::kIncomplete);
+  status_.resize(n_sites_, VoronoiStatusCode::kIncomplete);
   size_t n_sites_per_block = n_sites_ / n_threads;
   for (size_t k = 0; k < n_threads; k++) {
     blocks.push_back(std::make_shared<ThreadBlock_t>(domain));
@@ -604,7 +599,6 @@ compute_voronoi:
     blocks[k]->set_save_mesh(options.store_mesh);
     blocks[k]->set_save_facets(options.store_facet_data);
     blocks[k]->set_save_delaunay(options.store_delaunay_triangles);
-    if (set_kdtree) blocks[k]->cell().set_kdtree(tree.get());
     size_t m = k * n_sites_per_block;
     size_t n = m + n_sites_per_block;
     if (k + 1 == n_threads) n = n_sites_;
@@ -649,11 +643,6 @@ compute_voronoi:
     if (s == VoronoiStatusCode::kRadiusNotReached) n_incomplete++;
   }
   if (options.verbose) LOG << fmt::format("n_incomplete = {}", n_incomplete);
-  if (n_incomplete > 0 && options.allow_reattempt) {
-    set_kdtree = true;
-    recomputing = true;
-    goto compute_voronoi;
-  }
 }
 
 template <>
@@ -680,7 +669,6 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
     NOT_IMPLEMENTED;
 
   // compute voronoi diagram
-  // bool set_kdtree = options.interleave_neighbors;
   Timer timer;
   timer.start();
   size_t n_threads = std::thread::hardware_concurrency();

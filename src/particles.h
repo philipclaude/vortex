@@ -154,7 +154,6 @@ class ParticleSimulation {
     VoronoiDiagramOptions voro_opts;
     voro_opts.store_mesh = sim_opts.save_initial_mesh;
     voro_opts.store_facet_data = true;
-    voro_opts.allow_reattempt = false;
     voro_opts.n_neighbors = sim_opts.n_neighbors;
     voro_opts.verbose = false;
     voronoi_.weights().resize(particles_.n(), 0);
@@ -188,7 +187,6 @@ class ParticleSimulation {
     VoronoiDiagramOptions voro_opts;
     voro_opts.store_mesh = false;
     voro_opts.store_facet_data = true;
-    voro_opts.allow_reattempt = false;
     voro_opts.n_neighbors = sim_opts.n_neighbors;
     voro_opts.verbose = false;
 

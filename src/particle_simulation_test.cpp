@@ -105,8 +105,7 @@ UT_TEST_CASE(test1) {
   // smooth the initial point distribution with Lloyd relaxation
   VoronoiDiagram smoother(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
-  options.n_neighbors = 100;
-  options.allow_reattempt = false;
+  options.n_neighbors = 50;
   options.parallel = true;
   options.store_facet_data = true;
   int n_iter = 100;

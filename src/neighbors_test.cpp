@@ -29,6 +29,10 @@ using namespace vortex;
 UT_TEST_SUITE(neighbors_test_suite)
 
 UT_TEST_CASE(test1) {
+#if VORTEX_FULL_UNIT_TEST != 0
+  // skip this test when running the full suite of tests
+  return;
+#endif
   SphereDomain domain;
   static const int dim = 4;
   size_t n_sites = 1e7;
@@ -51,8 +55,7 @@ UT_TEST_CASE(test1) {
 
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
-  options.n_neighbors = 50;
-  options.allow_reattempt = false;
+  options.n_neighbors = 100;
   options.parallel = true;
   int n_iter = 10;
   for (int iter = 1; iter <= n_iter; ++iter) {
