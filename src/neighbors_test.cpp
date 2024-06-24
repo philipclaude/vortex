@@ -29,10 +29,6 @@ using namespace vortex;
 UT_TEST_SUITE(neighbors_test_suite)
 
 UT_TEST_CASE(test1) {
-#if VORTEX_FULL_UNIT_TEST != 0
-  // skip this test when running the full suite of tests
-  return;
-#endif
   SphereDomain domain;
   static const int dim = 4;
   size_t n_sites = 5e4;
