@@ -52,6 +52,9 @@ class VoronoiPolygon {
     neighbors_ = neighbors;
     n_neighbors_ = n_neighbors;
   }
+  void set_max_neighbors(const uint16_t* max_neighbors) {
+    max_neighbors_ = max_neighbors;
+  }
 
   void set_kdtree(trees::KdTreeNd<coord_t, index_t>* tree) { tree_ = tree; }
 
@@ -84,12 +87,19 @@ class VoronoiPolygon {
     const coord_t* zi = sites_ + site * dim;
     const coord_t wi = (weights_) ? weights_[site] : 0.0;
     const vec4 ui(zi, dim);
+
+    // store the neighbors
+    size_t n_neighbors = max_neighbors_[site];
+    for (size_t j = 0; j < n_neighbors; j++)
+      neighbor_data_[j] = neighbors_[site * n_neighbors_ + j];
+
+  clip:
     domain.initialize(ui, *this);
     bool security_radius_reached = false;
 
-    for (size_t j = 1; j < n_neighbors_; j++) {
+    for (size_t j = 1; j < n_neighbors; j++) {
       // get the next point and weight
-      const index_t n = neighbors_[site * n_neighbors_ + j];
+      const index_t n = neighbor_data_[j];
       ASSERT(n < std::numeric_limits<index_t>::max())
           << "points may have duplicate coordinates";
       const coord_t* zj = sites_ + n * dim;
@@ -111,9 +121,22 @@ class VoronoiPolygon {
     // append to the mesh if necessary
     if (mesh.save_mesh()) append_to_mesh(mesh, site);
     if (mesh.save_facets()) save_facets(mesh, site);
+    if (mesh.save_delaunay()) save_delaunay(mesh, site);
 
     // TODO(philip) retrieve more neighbors and keep clipping
-    if (!security_radius_reached) return VoronoiStatusCode::kRadiusNotReached;
+    if (!security_radius_reached) {
+      if (!tree_ || n_neighbors >= 256)
+        return VoronoiStatusCode::kRadiusNotReached;
+
+      index_t n_tmp[256];
+      coord_t d_tmp[256];
+      n_neighbors = 256;
+      trees::NearestNeighborSearch<index_t, coord_t> search(n_neighbors, n_tmp,
+                                                            d_tmp);
+      tree_->knearest(zi, search);
+      for (size_t j = 0; j < n_neighbors; ++j) neighbor_data_[j] = n_tmp[j];
+      goto clip;
+    }
 
     return VoronoiStatusCode::kSuccess;
   }
@@ -250,6 +273,21 @@ class VoronoiPolygon {
     }
   }
 
+  void save_delaunay(VoronoiMesh& mesh, index_t site) const {
+    std::array<uint32_t, 3> t;
+    t[0] = site;
+    for (size_t k = 0; k < p_.size(); k++) {
+      // add Delaunay triangle associated with this Voronoi vertex
+      auto tj = bisector_to_site_[p_[k].bl];
+      auto tk = bisector_to_site_[p_[k].br];
+      if (tj < 0) continue;
+      if (tk < 0) continue;
+      t[1] = tj;
+      t[2] = tk;
+      mesh.add_triangle(t);
+    }
+  }
+
   Cell_t& cell() { return cell_; }
   auto& vertices() { return p_; }
   auto& planes() { return plane_; }
@@ -262,10 +300,12 @@ class VoronoiPolygon {
   pool<Vertex_t> q_;
   pool<vec4> plane_;
   const index_t* neighbors_;
+  const uint16_t* max_neighbors_;
   uint32_t n_neighbors_{0};
   const coord_t* sites_;
   const coord_t* weights_{nullptr};
   int64_t bisector_to_site_[256];  // 256 since bisectors are uint8_t
+  int64_t neighbor_data_[256];
   double max_radius_;
 
   // only CPU

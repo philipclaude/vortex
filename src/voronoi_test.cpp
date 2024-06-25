@@ -119,7 +119,6 @@ UT_TEST_CASE(test_square) {
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
-  options.allow_reattempt = false;
   options.parallel = true;
   int n_iter = 20;
   auto& weights = voronoi.weights();
@@ -230,7 +229,6 @@ UT_TEST_CASE(test_sphere) {
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
-  options.allow_reattempt = false;
   options.parallel = true;
   options.store_facet_data = true;
   int n_iter = 20;
@@ -329,7 +327,6 @@ UT_TEST_CASE(test_sphere_triangulation) {
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
-  options.allow_reattempt = false;
   options.parallel = true;
   int n_iter = 5;
   for (int iter = 1; iter <= n_iter; ++iter) {

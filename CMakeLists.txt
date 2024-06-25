@@ -7,6 +7,7 @@ project(vortex)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #set(CMAKE_CXX_FLAGS "-std=c++17")
+set_property(GLOBAL PROPERTY TARGET_MESSAGES OFF)
 
 include(cmake/dependencies.cmake)
 include(cmake/setup.cmake)
