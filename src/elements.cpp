@@ -26,6 +26,7 @@ namespace vortex {
 int Quad::faces[8] = {0, 1, 1, 2, 2, 3, 3, 0};
 int Triangle::faces[6] = {1, 2, 2, 0, 0, 1};
 int Triangle::edges[6] = {0, 1, 1, 2, 2, 0};
+const vec3d Triangle::center{1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
 
 vec3d Triangle::get_physical_coordinates(const coord_t* pa, const coord_t* pb,
                                          const coord_t* pc, const coord_t* x) {
@@ -45,6 +46,50 @@ coord_t Triangle::jacobian(const coord_t* pa, const coord_t* pb,
                            const coord_t* pc, const coord_t* x) {
   vec3d a(pa), b(pb), c(pc);
   return length(cross(b - a, c - a));
+}
+
+void Triangle::get_refcoord_gradient(coord_t s, coord_t t, const coord_t* pa,
+                                     const coord_t* pb, const coord_t* pc,
+                                     vec3d& grads, vec3d& gradt) {
+  // basis function derivatives
+  vec3d dphi_ds{-1, 1, 0};
+  vec3d dphi_dt{-1, 0, 1};
+
+  // build jacobian (transpose) of transformation
+  const coord_t* p[3] = {pa, pb, pc};
+  vec3d dx_ds{0, 0, 0}, dx_dt{0, 0, 0};
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      dx_ds[j] += dphi_ds[i] * p[i][j];
+      dx_dt[j] += dphi_dt[i] * p[i][j];
+    }
+  }
+
+  vec3d n = cross(dx_ds, dx_dt);
+  mats<3, 3, double> j;
+  for (int i = 0; i < 3; i++) {
+    j(0, i) = dx_ds[i];
+    j(1, i) = dx_dt[i];
+    j(2, i) = n[i];
+  }
+
+  auto jinv = inverse(j);
+  for (int i = 0; i < 3; i++) {
+    grads[i] = jinv(i, 0);
+    gradt[i] = jinv(i, 1);
+  }
+}
+
+void Triangle::get_basis_gradient(coord_t s, coord_t t, const coord_t* pa,
+                                  const coord_t* pb, const coord_t* pc,
+                                  vec3d& grad_fa, vec3d& grad_fb,
+                                  vec3d& grad_fc) {
+  vec3d grads, gradt;
+  Triangle::get_refcoord_gradient(s, t, pa, pb, pc, grads, gradt);
+
+  grad_fa = -1.0 * grads - 1.0 * gradt;
+  grad_fb = grads;
+  grad_fc = gradt;
 }
 
 vec3d SphericalTriangle::get_physical_coordinates(const coord_t* pa,

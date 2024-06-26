@@ -299,6 +299,36 @@ void write(const Mesh& mesh, const std::string& filename, bool twod) {
   write_polygons(fid, mesh);
   GmfCloseMesh(fid);
 }
+
+template <int n>
+void write_sol(const std::vector<std::array<double, n>>& sol, bool at_vertices,
+               const std::string& filename) {
+  int dim = 3;
+  int version = 3;
+
+  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, version, dim);
+  ASSERT(fid);
+
+  int location = (at_vertices) ? GmfSolAtVertices : GmfSolAtTriangles;
+
+  int soltab[GmfMaxTyp];
+  if (n == 1)
+    soltab[0] = GmfSca;
+  else
+    soltab[0] = GmfVec;
+  GmfSetKwd(fid, location, sol.size(), 1, soltab);
+  for (size_t k = 0; k < sol.size(); k++) {
+    GmfSetLin(fid, location, &sol[k]);
+  }
+  GmfCloseMesh(fid);
+}
+
+template void write_sol<1>(const std::vector<std::array<double, 1>>& sol,
+                           bool at_vertices, const std::string& filename);
+template void write_sol<2>(const std::vector<std::array<double, 2>>& sol,
+                           bool at_vertices, const std::string& filename);
+template void write_sol<3>(const std::vector<std::array<double, 3>>& sol,
+                           bool at_vertices, const std::string& filename);
 }  // namespace meshb
 
 namespace obj {

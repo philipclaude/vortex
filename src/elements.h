@@ -51,6 +51,15 @@ struct Triangle {
   static coord_t area(const coord_t* xa, const coord_t* xb, const coord_t* xc);
   static coord_t jacobian(const coord_t* pa, const coord_t* pb,
                           const coord_t* pc, const coord_t* x);
+  static void get_refcoord_gradient(coord_t s, coord_t t, const coord_t* pa,
+                                    const coord_t* pb, const coord_t* pc,
+                                    vec3d& grads, vec3d& gradt);
+
+  static void get_basis_gradient(coord_t s, coord_t t, const coord_t* pa,
+                                 const coord_t* pb, const coord_t* pc,
+                                 vec3d& grad_fa, vec3d& grad_fb,
+                                 vec3d& grad_fc);
+  static const vec3d center;
 };
 
 struct SphericalTriangle {
