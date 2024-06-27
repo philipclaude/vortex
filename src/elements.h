@@ -55,6 +55,7 @@ struct Triangle {
                                     const coord_t* pb, const coord_t* pc,
                                     vec3d& grads, vec3d& gradt);
 
+  static void get_basis(coord_t s, coord_t t, double* basis);
   static void get_basis_gradient(coord_t s, coord_t t, const coord_t* pa,
                                  const coord_t* pb, const coord_t* pc,
                                  vec3d& grad_fa, vec3d& grad_fb,

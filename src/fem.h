@@ -29,44 +29,37 @@ namespace vortex {
 
 class BoundaryConditions {
  public:
+  using DirichletFunction = std::function<double(const vec3d& x)>;
+  BoundaryConditions() {
+    dirichlet_ = [](const vec3d& x) { return 0.0; };
+  }
   void read(const std::string& filename);
   auto& bc_map() { return bc_map_; }
   const auto& bc_map() const { return bc_map_; }
 
+  void set_dirichlet_bcs(const DirichletFunction& f) { dirichlet_ = f; }
+  const auto& dirichlet() const { return dirichlet_; }
+
  private:
   std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t> bc_map_;
+  DirichletFunction dirichlet_;
 };
 
-class PoissonSolver {
+struct PoissonSolverOptions {
+  double tol{1e-10};
+  bool need_gradient{true};
+};
+
+class PoissonSolverBase {
  public:
   using Triangles_t = Topology<Triangle>;
-  PoissonSolver(const Vertices& vertices, const Triangles_t& triangles)
+  PoissonSolverBase(const Vertices& vertices, const Triangles_t& triangles)
       : vertices_(vertices),
         triangles_(triangles),
         laplacian_(vertices.n(), vertices.n()),
         rhs_(vertices.n()),
         sol_(vertices.n()),
         grad_sol_(triangles.n()) {}
-
-  virtual ~PoissonSolver() {}
-
-  virtual void apply_boundary_conditions() = 0;
-
-  template <typename Element_t>
-  void build();
-
-  template <typename Element_t>
-  void solve() {
-    build<Element_t>();
-    apply_boundary_conditions();
-    laplacian_.solve_nl(rhs_, sol_, 1e-10, true);
-    calculate_solution_gradient<Element_t>();
-  }
-
-  template <typename Element_t>
-  void calculate_solution_gradient();
-
-  void write(const std::string& prefix) const;
 
  protected:
   const Vertices& vertices_;
@@ -77,16 +70,79 @@ class PoissonSolver {
   vecd<vec3d> grad_sol_;
 };
 
-class PotentialFlowSolver : public PoissonSolver {
+template <typename Element_t>
+class PoissonSolver : public PoissonSolverBase {
+ public:
+  using Triangles_t = Topology<Triangle>;
+
+  PoissonSolver(const Vertices& vertices, const Triangles_t& triangles)
+      : PoissonSolverBase(vertices, triangles) {}
+
+  virtual ~PoissonSolver() {}
+  virtual void set_rhs() = 0;
+
+  void build();
+
+  void solve(PoissonSolverOptions opts) {
+    build();
+    set_rhs();
+    laplacian_.solve_nl(rhs_, sol_, opts.tol, true);
+    if (opts.need_gradient) calculate_solution_gradient();
+  }
+
+  void calculate_solution_gradient();
+
+  void write(const std::string& prefix) const;
+
+  const auto& solution() const { return sol_; }
+
+  // calculates L2 error between the computed and exact solution
+  using ExactSolution = std::function<double(const vec3d& x)>;
+  double calculate_error(const ExactSolution& u_exact) const;
+};
+
+template <typename Element_t>
+class PotentialFlowSolver : public PoissonSolver<Element_t> {
+  using Base_t = PoissonSolver<Element_t>;
+  using Triangles_t = typename Base_t::Triangles_t;
+  using Base_t::laplacian_;
+  using Base_t::rhs_;
+  using Base_t::sol_;
+  using Base_t::triangles_;
+  using Base_t::vertices_;
+
  public:
   PotentialFlowSolver(const Vertices& vertices, const Triangles_t& triangles,
                       double uinf);
-  void apply_boundary_conditions();
+  void set_rhs();
 
   auto& bcs() { return bcs_; }
 
  private:
   double uinf_{2.0};
+  BoundaryConditions bcs_;
+};
+
+template <typename Element_t>
+class SquarePoissonSolver : public PoissonSolver<Element_t> {
+  using Base_t = PoissonSolver<Element_t>;
+  using Triangles_t = typename Base_t::Triangles_t;
+  using Base_t::laplacian_;
+  using Base_t::rhs_;
+  using Base_t::sol_;
+  using Base_t::triangles_;
+  using Base_t::vertices_;
+
+ public:
+  using ForcingFunction = std::function<double(const vec3d& x)>;
+  SquarePoissonSolver(const Vertices& vertices, const Triangles_t& triangles);
+  void setup();
+  void set_rhs();
+  void set_force(const ForcingFunction& f) { force_ = f; }
+  auto& bcs() { return bcs_; }
+
+ private:
+  ForcingFunction force_;
   BoundaryConditions bcs_;
 };
 

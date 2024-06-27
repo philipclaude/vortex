@@ -23,6 +23,7 @@
 #include "io.h"
 #include "math/vec.hpp"
 #include "mesh.h"
+#include "quadrature.hpp"
 
 namespace vortex {
 
@@ -40,7 +41,7 @@ void BoundaryConditions::read(const std::string& filename) {
 }
 
 template <typename Element_t>
-void PoissonSolver::build() {
+void PoissonSolver<Element_t>::build() {
   laplacian_.clear();
   for (size_t k = 0; k < triangles_.n(); k++) {
     const auto* t = triangles_[k];
@@ -55,6 +56,7 @@ void PoissonSolver::build() {
     Element_t::get_basis_gradient(u, v, pa, pb, pc, ga, gb, gc);
     double area = Element_t::area(pa, pb, pc);
 
+    // evaluate \int_{triangle} dv . dw
     mats<3, 3, double> M;
     M(0, 0) = dot(ga, ga);
     M(0, 1) = dot(ga, gb);
@@ -71,7 +73,7 @@ void PoissonSolver::build() {
 }
 
 template <typename Element_t>
-void PoissonSolver::calculate_solution_gradient() {
+void PoissonSolver<Element_t>::calculate_solution_gradient() {
   for (size_t k = 0; k < triangles_.n(); k++) {
     const auto* t = triangles_[k];
     const auto* pa = vertices_[t[0]];
@@ -86,7 +88,41 @@ void PoissonSolver::calculate_solution_gradient() {
   }
 }
 
-void PoissonSolver::write(const std::string& prefix) const {
+template <typename Element_t>
+double PoissonSolver<Element_t>::calculate_error(
+    const ExactSolution& u_exact) const {
+  TriangleQuadrature<Triangle> quad(4);
+  double error = 0;
+  for (size_t k = 0; k < triangles_.n(); k++) {
+    const auto* t = triangles_[k];
+    const auto* pa = vertices_[t[0]];
+    const auto* pb = vertices_[t[1]];
+    const auto* pc = vertices_[t[2]];
+    double ua = sol_[t[0]];
+    double ub = sol_[t[1]];
+    double uc = sol_[t[2]];
+
+    double integral = 0;
+    for (size_t k = 0; k < quad.points().size(); k++) {
+      const vec2d& qk = quad.points()[k];
+      vec3d point = Triangle::get_physical_coordinates(pa, pb, pc, &qk[0]);
+      double ue = u_exact(point);
+
+      vec3d basis;
+      Triangle::get_basis(qk[0], qk[1], &basis[0]);
+      double uh = basis[0] * ua + basis[1] * ub + basis[2] * uc;
+
+      integral += quad.weights()[k] * (ue - uh) * (ue - uh);
+    }
+    double dj = 2.0 * Element_t::area(pa, pb, pc);
+
+    error += integral * dj;
+  }
+  return std::sqrt(error);
+}
+
+template <typename Element_t>
+void PoissonSolver<Element_t>::write(const std::string& prefix) const {
   std::vector<std::array<double, 1>> s(sol_.m());
   for (size_t k = 0; k < s.size(); k++) s[k] = {sol_[k]};
   meshb::write_sol<1>(s, true, prefix + ".sol");
@@ -109,18 +145,19 @@ void PoissonSolver::write(const std::string& prefix) const {
   meshb::write_sol<3>(velocity, true, prefix + "-velocity.sol");
 }
 
-PotentialFlowSolver::PotentialFlowSolver(const Vertices& vertices,
-                                         const Triangles_t& triangles,
-                                         double uinf)
-    : PoissonSolver(vertices, triangles), uinf_(uinf) {}
+template <typename Element_t>
+PotentialFlowSolver<Element_t>::PotentialFlowSolver(
+    const Vertices& vertices, const Triangles_t& triangles, double uinf)
+    : PoissonSolver<Element_t>(vertices, triangles), uinf_(uinf) {}
 
-void PotentialFlowSolver::apply_boundary_conditions() {
+template <typename Element_t>
+void PotentialFlowSolver<Element_t>::set_rhs() {
   for (const auto& [edge, bnd] : bcs_.bc_map()) {
     auto e0 = edge.first;
     auto e1 = edge.second;
 
-    vec3d x0(vertices_[e0], 2);
-    vec3d x1(vertices_[e1], 2);
+    vec3d x0(vertices_[e0]);
+    vec3d x1(vertices_[e1]);
     double ds = length(x1 - x0);
     double s = 0;
     if (bnd == 3)
@@ -132,7 +169,81 @@ void PotentialFlowSolver::apply_boundary_conditions() {
   }
 }
 
-template void PoissonSolver::build<Triangle>();
-template void PoissonSolver::calculate_solution_gradient<Triangle>();
+template <typename Element_t>
+SquarePoissonSolver<Element_t>::SquarePoissonSolver(
+    const Vertices& vertices, const Triangles_t& triangles)
+    : PoissonSolver<Element_t>(vertices, triangles) {
+  force_ = [](const vec3d& x) { return 0.0; };
+}
+
+template <typename Element_t>
+void SquarePoissonSolver<Element_t>::setup() {
+  std::unordered_set<std::pair<uint32_t, uint32_t>> edges;
+  for (size_t k = 0; k < triangles_.n(); k++) {
+    const auto* t = triangles_[k];
+    for (int j = 0; j < 3; j++) {
+      uint32_t p = t[j];
+      uint32_t q = (j == 2) ? t[0] : t[j + 1];
+      if (p > q) std::swap(p, q);
+      auto it = edges.find({p, q});
+      if (it == edges.end()) {
+        edges.insert({p, q});
+      } else
+        edges.erase(it);
+    }
+  }
+
+  const int bc_id = 1;
+  for (auto& e : edges) bcs_.bc_map().insert({e, bc_id});
+}
+
+template <typename Element_t>
+void SquarePoissonSolver<Element_t>::set_rhs() {
+  // integrate the forcing term over the mesh: \int_{mesh} basis * f
+  TriangleQuadrature<Triangle> quad(4);  // TODO user-option for quad order
+  for (size_t k = 0; k < triangles_.n(); k++) {
+    const auto* t = triangles_[k];
+    const auto* pa = vertices_[t[0]];
+    const auto* pb = vertices_[t[1]];
+    const auto* pc = vertices_[t[2]];
+
+    // integrate over the triangle
+    vec3d integral{0, 0, 0};
+    vec3d basis;
+    for (size_t k = 0; k < quad.points().size(); k++) {
+      const auto& qk = quad.points()[k];
+      vec3d point = Element_t::get_physical_coordinates(pa, pb, pc, &qk[0]);
+      Triangle::get_basis(qk[0], qk[1], &basis[0]);
+      integral = integral + quad.weights()[k] * basis * force_(point);
+    }
+    double dj = 2.0 * Element_t::area(pa, pb, pc);  // jacobian determinant
+    integral = integral * dj;
+
+    // add the contribution to the rhs
+    for (int j = 0; j < 3; j++) rhs_[t[j]] += integral[j];
+  }
+
+  // set the dirichlet boundary conditions
+  for (const auto& [edge, _] : bcs_.bc_map()) {
+    auto e0 = edge.first;
+    auto e1 = edge.second;
+
+    // zero out the row for this DOF, then set diagonal term to 1
+    laplacian_.rows()[e0].clear();
+    laplacian_(e0, e0) = 1;
+    laplacian_.rows()[e1].clear();
+    laplacian_(e1, e1) = 1;
+
+    // evaluate and set the dirichlet BC
+    vec3d p0(vertices_[e0]);
+    vec3d p1(vertices_[e1]);
+    rhs_[e0] = bcs_.dirichlet()(p0);
+    rhs_[e1] = bcs_.dirichlet()(p1);
+  }
+}
+
+template class PoissonSolver<Triangle>;
+template class PotentialFlowSolver<Triangle>;
+template class SquarePoissonSolver<Triangle>;
 
 }  // namespace vortex

@@ -137,6 +137,7 @@ class spmat {
   }
 
   const auto& rows() const { return rows_; }
+  auto& rows() { return rows_; }
 
   void clear() {
     for (auto& row : rows_) row.clear();

@@ -20,25 +20,76 @@
 
 #include "io.h"
 #include "library.h"
-#include "math/mat.hpp"
+#include "math/vec.hpp"
+#include "quadrature.h"
 #include "tester.h"
 
 using namespace vortex;
 
 UT_TEST_SUITE(fem_test_suite)
 
+UT_TEST_CASE(square_poisson_solver_test) {
+  std::vector<int> n = {10, 100, 250, 500};
+  std::vector<double> h(n.size());
+  std::vector<double> e(n.size());
+
+  for (size_t k = 0; k < n.size(); k++) {
+    Grid<Triangle> mesh({n[k], n[k]});
+
+    SquarePoissonSolver<Triangle> solver(mesh.vertices(), mesh.triangles());
+    solver.setup();
+    solver.set_force([](const vec3d& p) {
+      return 2.0 * (M_PI * M_PI) * sin(M_PI * p[0]) * sin(M_PI * p[1]);
+    });
+
+    auto u_exact = [](const vec3d& x) {
+      return sin(M_PI * x[0]) * sin(M_PI * x[1]);
+    };
+    solver.bcs().set_dirichlet_bcs(u_exact);
+
+    PoissonSolverOptions options;
+    solver.solve(options);
+    if (n[k] <= 100) {
+      solver.write("square");
+      meshb::write(mesh, "square.meshb");
+    }
+
+    double error = solver.calculate_error(u_exact);
+    LOG << fmt::format("error = {}", error);
+    e[k] = error;
+    h[k] = std::sqrt(mesh.vertices().n());
+  }
+
+  auto m = n.size() - 1;
+  double slope = -std::log(e[m] / e[m - 1]) / std::log(h[m] / h[m - 1]);
+  LOG << fmt::format("slope = {}", slope);
+  UT_ASSERT_NEAR(slope, 2.0, 0.05);
+}
+UT_TEST_CASE_END(square_poisson_solver_test)
+
 UT_TEST_CASE(potential_flow_test) {
   Mesh mesh(3);
-  const std::string name = "airfoil";
-  obj::read(name + ".obj", mesh);
+  const std::string name = "circle";
+  meshb::read(name + ".meshb", mesh);
 
-  PotentialFlowSolver solver(mesh.vertices(), mesh.triangles(), 2.0);
+  double R = 0.4;
+  double uinf = 2.0;
+  PotentialFlowSolver<Triangle> solver(mesh.vertices(), mesh.triangles(), uinf);
   solver.bcs().read(name + ".bc");
 
-  solver.solve<Triangle>();
-
-  meshb::write(mesh, name + ".meshb");
+  PoissonSolverOptions options;
+  solver.solve(options);
   solver.write(name);
+
+  auto u_exact = [&](const vec3d& x) {
+    vec3d p(x);
+    double r = length(p);
+    double theta = atan2(x[1], x[0]);
+    return uinf * r * (1 + R * R / (r * r)) * cos(theta);
+  };
+
+  double error = solver.calculate_error(u_exact);
+  LOG << fmt::format("error = {}", error);
 }
 UT_TEST_CASE_END(potential_flow_test)
 

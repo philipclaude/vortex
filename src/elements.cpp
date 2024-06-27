@@ -80,6 +80,12 @@ void Triangle::get_refcoord_gradient(coord_t s, coord_t t, const coord_t* pa,
   }
 }
 
+void Triangle::get_basis(coord_t s, coord_t t, double* basis) {
+  basis[0] = 1 - s - t;
+  basis[1] = s;
+  basis[2] = t;
+}
+
 void Triangle::get_basis_gradient(coord_t s, coord_t t, const coord_t* pa,
                                   const coord_t* pb, const coord_t* pc,
                                   vec3d& grad_fa, vec3d& grad_fb,
