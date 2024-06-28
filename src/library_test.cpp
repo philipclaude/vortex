@@ -163,9 +163,20 @@ UT_TEST_CASE(sphere_test) {
 UT_TEST_CASE_END(sphere_test)
 
 UT_TEST_CASE(circle_square_test) {
-  int n = 20;
-  CircleInSquare mesh(0.1, n, n);
+  int n = 50;
+  double r = 0.1;
+  CircleInSquare mesh(r, n, 2 * n);
   meshb::write(mesh, "circle_square.meshb");
+
+  double area = 0;
+  for (int k = 0; k < mesh.triangles().n(); k++) {
+    auto* t = mesh.triangles()[k];
+    coord_t* p1 = mesh.vertices()[t[0]];
+    coord_t* p2 = mesh.vertices()[t[1]];
+    coord_t* p3 = mesh.vertices()[t[2]];
+    area += Triangle::area(p1, p2, p3);
+  }
+  UT_ASSERT_NEAR(area, 4.0 - M_PI * r * r, 1e-4);
 }
 UT_TEST_CASE_END(circle_square_test)
 
