@@ -21,6 +21,7 @@
 #include <fstream>
 
 #include "io.h"
+#include "math/mat.hpp"
 #include "math/vec.hpp"
 #include "mesh.h"
 #include "quadrature.hpp"
@@ -43,6 +44,9 @@ void BoundaryConditions::read(const std::string& filename) {
 template <typename Element_t>
 void PoissonSolver<Element_t>::build() {
   laplacian_.clear();
+  const bool project_gradients_{false};
+  Timer timer;
+  timer.start();
   for (size_t k = 0; k < triangles_.n(); k++) {
     const auto* t = triangles_[k];
     const auto* pa = vertices_[t[0]];
@@ -55,6 +59,21 @@ void PoissonSolver<Element_t>::build() {
     vec3d ga, gb, gc;
     Element_t::get_basis_gradient(u, v, pa, pb, pc, ga, gb, gc);
     double area = Element_t::area(pa, pb, pc);
+
+    // project the gradients
+    if (project_gradients_) {
+      mats<3, 3, double> P;
+      P.eye();
+      vec3d a(pa);
+      vec3d b(pb);
+      vec3d c(pc);
+      vec3d n = cross(b - a, c - a);
+      for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) P(i, j) -= n[i] * n[j];
+      ga = P * ga;
+      gb = P * gb;
+      gc = P * gc;
+    }
 
     // evaluate \int_{triangle} dv . dw
     mats<3, 3, double> M;
@@ -70,6 +89,8 @@ void PoissonSolver<Element_t>::build() {
     for (int i = 0; i < 3; i++)
       for (int j = 0; j < 3; j++) laplacian_(t[i], t[j]) += M(i, j) * area;
   }
+  timer.stop();
+  LOG << fmt::format("assembly time = {}", timer.seconds());
 }
 
 template <typename Element_t>
@@ -122,7 +143,18 @@ double PoissonSolver<Element_t>::calculate_error(
 }
 
 template <typename Element_t>
-void PoissonSolver<Element_t>::write(const std::string& prefix) const {
+double PoissonSolver<Element_t>::calculate_error_rms(
+    const ExactSolution& u_exact) const {
+  double error = 0;
+  for (size_t k = 0; k < sol_.m(); k++) {
+    vec3d p(vertices_[k]);
+    double ue = u_exact(p);
+    error += (sol_[k] - ue) * (sol_[k] - ue);
+  }
+  return std::sqrt(error / sol_.m());
+}
+
+void PoissonSolverBase::write(const std::string& prefix) const {
   std::vector<std::array<double, 1>> s(sol_.m());
   for (size_t k = 0; k < s.size(); k++) s[k] = {sol_[k]};
   meshb::write_sol<1>(s, true, prefix + ".sol");
@@ -170,14 +202,14 @@ void PotentialFlowSolver<Element_t>::set_rhs() {
 }
 
 template <typename Element_t>
-SquarePoissonSolver<Element_t>::SquarePoissonSolver(
+GeneralPoissonSolver<Element_t>::GeneralPoissonSolver(
     const Vertices& vertices, const Triangles_t& triangles)
     : PoissonSolver<Element_t>(vertices, triangles) {
   force_ = [](const vec3d& x) { return 0.0; };
 }
 
 template <typename Element_t>
-void SquarePoissonSolver<Element_t>::setup() {
+void GeneralPoissonSolver<Element_t>::setup() {
   std::unordered_set<std::pair<uint32_t, uint32_t>> edges;
   for (size_t k = 0; k < triangles_.n(); k++) {
     const auto* t = triangles_[k];
@@ -198,7 +230,7 @@ void SquarePoissonSolver<Element_t>::setup() {
 }
 
 template <typename Element_t>
-void SquarePoissonSolver<Element_t>::set_rhs() {
+void GeneralPoissonSolver<Element_t>::set_rhs() {
   // integrate the forcing term over the mesh: \int_{mesh} basis * f
   TriangleQuadrature<Triangle> quad(4);  // TODO user-option for quad order
   for (size_t k = 0; k < triangles_.n(); k++) {
@@ -244,6 +276,6 @@ void SquarePoissonSolver<Element_t>::set_rhs() {
 
 template class PoissonSolver<Triangle>;
 template class PotentialFlowSolver<Triangle>;
-template class SquarePoissonSolver<Triangle>;
+template class GeneralPoissonSolver<Triangle>;
 
 }  // namespace vortex

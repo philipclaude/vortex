@@ -48,6 +48,7 @@ class BoundaryConditions {
 struct PoissonSolverOptions {
   double tol{1e-10};
   bool need_gradient{true};
+  bool has_rhs{true};
 };
 
 class PoissonSolverBase {
@@ -60,6 +61,10 @@ class PoissonSolverBase {
         rhs_(vertices.n()),
         sol_(vertices.n()),
         grad_sol_(triangles.n()) {}
+
+  const auto& laplacian() const { return laplacian_; }
+  const auto& solution() const { return sol_; }
+  void write(const std::string& prefix) const;
 
  protected:
   const Vertices& vertices_;
@@ -85,20 +90,21 @@ class PoissonSolver : public PoissonSolverBase {
 
   void solve(PoissonSolverOptions opts) {
     build();
-    set_rhs();
+    if (opts.has_rhs) set_rhs();
+    Timer timer;
+    timer.start();
     laplacian_.solve_nl(rhs_, sol_, opts.tol, true);
+    timer.stop();
+    LOG << fmt::format("solve time = {}", timer.seconds());
     if (opts.need_gradient) calculate_solution_gradient();
   }
 
   void calculate_solution_gradient();
 
-  void write(const std::string& prefix) const;
-
-  const auto& solution() const { return sol_; }
-
   // calculates L2 error between the computed and exact solution
   using ExactSolution = std::function<double(const vec3d& x)>;
   double calculate_error(const ExactSolution& u_exact) const;
+  double calculate_error_rms(const ExactSolution& u_exact) const;
 };
 
 template <typename Element_t>
@@ -115,7 +121,6 @@ class PotentialFlowSolver : public PoissonSolver<Element_t> {
   PotentialFlowSolver(const Vertices& vertices, const Triangles_t& triangles,
                       double uinf);
   void set_rhs();
-
   auto& bcs() { return bcs_; }
 
  private:
@@ -124,7 +129,7 @@ class PotentialFlowSolver : public PoissonSolver<Element_t> {
 };
 
 template <typename Element_t>
-class SquarePoissonSolver : public PoissonSolver<Element_t> {
+class GeneralPoissonSolver : public PoissonSolver<Element_t> {
   using Base_t = PoissonSolver<Element_t>;
   using Triangles_t = typename Base_t::Triangles_t;
   using Base_t::laplacian_;
@@ -135,7 +140,7 @@ class SquarePoissonSolver : public PoissonSolver<Element_t> {
 
  public:
   using ForcingFunction = std::function<double(const vec3d& x)>;
-  SquarePoissonSolver(const Vertices& vertices, const Triangles_t& triangles);
+  GeneralPoissonSolver(const Vertices& vertices, const Triangles_t& triangles);
   void setup();
   void set_rhs();
   void set_force(const ForcingFunction& f) { force_ = f; }

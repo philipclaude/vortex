@@ -36,7 +36,7 @@ UT_TEST_CASE(square_poisson_solver_test) {
   for (size_t k = 0; k < n.size(); k++) {
     Grid<Triangle> mesh({n[k], n[k]});
 
-    SquarePoissonSolver<Triangle> solver(mesh.vertices(), mesh.triangles());
+    GeneralPoissonSolver<Triangle> solver(mesh.vertices(), mesh.triangles());
     solver.setup();
     solver.set_force([](const vec3d& p) {
       return 2.0 * (M_PI * M_PI) * sin(M_PI * p[0]) * sin(M_PI * p[1]);
@@ -55,7 +55,7 @@ UT_TEST_CASE(square_poisson_solver_test) {
     }
 
     double error = solver.calculate_error(u_exact);
-    LOG << fmt::format("error = {}", error);
+    LOG << fmt::format("nt = {} error = {}", mesh.triangles().n(), error);
     e[k] = error;
     h[k] = std::sqrt(mesh.vertices().n());
   }
@@ -82,8 +82,7 @@ UT_TEST_CASE(potential_flow_test) {
   solver.write(name);
 
   auto u_exact = [&](const vec3d& x) {
-    vec3d p(x);
-    double r = length(p);
+    double r = length(x);
     double theta = atan2(x[1], x[0]);
     return uinf * r * (1 + R * R / (r * r)) * cos(theta);
   };
@@ -92,5 +91,36 @@ UT_TEST_CASE(potential_flow_test) {
   LOG << fmt::format("error = {}", error);
 }
 UT_TEST_CASE_END(potential_flow_test)
+
+UT_TEST_CASE(sphere_test) {
+  SubdividedIcosahedron mesh(6);
+  LOG << mesh.triangles().n();
+
+  GeneralPoissonSolver<Triangle> solver(mesh.vertices(), mesh.triangles());
+  solver.setup();
+  double t = 1;
+  double a = 6;
+  solver.set_force(
+      [t, a](const vec3d& p) { return a * std::exp(-a * t) * p[0] * p[1]; });
+  auto u_exact = [t, a](const vec3d& p) {
+    return std::exp(-a * t) * p[0] * p[1];
+  };
+
+  PoissonSolverOptions options;
+  options.need_gradient = false;
+  options.tol = 1e-10;
+  Timer timer;
+  timer.start();
+  solver.solve(options);
+  timer.stop();
+  if (mesh.vertices().n() < 1e7) {
+    solver.write("sphere");
+    meshb::write(mesh, "sphere.meshb");
+  }
+
+  double error = solver.calculate_error(u_exact);
+  LOG << fmt::format("error = {}, time = {} s.", error, timer.seconds());
+}
+UT_TEST_CASE_END(sphere_test)
 
 UT_TEST_SUITE_END(fem_test_suite)
