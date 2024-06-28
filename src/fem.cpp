@@ -41,6 +41,16 @@ void BoundaryConditions::read(const std::string& filename) {
   LOG << fmt::format("read {} boundary edges", bc_map_.size());
 }
 
+void BoundaryConditions::import(const Topology<Line>& lines) {
+  for (size_t k = 0; k < lines.n(); k++) {
+    int e0 = lines[k][0];
+    int e1 = lines[k][1];
+    int bnd = lines.group(k);
+    bc_map_.insert({{e0, e1}, bnd});
+  }
+  LOG << fmt::format("imported {} boundary edges", bc_map_.size());
+}
+
 template <typename Element_t>
 void PoissonSolver<Element_t>::build() {
   laplacian_.clear();

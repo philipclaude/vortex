@@ -68,24 +68,51 @@ UT_TEST_CASE(square_poisson_solver_test) {
 UT_TEST_CASE_END(square_poisson_solver_test)
 
 UT_TEST_CASE(potential_flow_test) {
-  Mesh mesh(3);
-  const std::string name = "circle";
-  meshb::read(name + ".meshb", mesh);
+  const std::string name = "circle-square";
+  bool external = name == "airfoil" || name == "circle";
+  double R = external ? 0.4 : 0.01;
+  int n = 40;
+  CircleInSquare mesh(R, 2 * n, n);
 
-  double R = 0.4;
+  if (external) {
+    mesh.vertices().clear();
+    mesh.triangles().clear();
+    mesh.lines().clear();
+    meshb::read(name + ".meshb", mesh);
+  }
+
   double uinf = 2.0;
   PotentialFlowSolver<Triangle> solver(mesh.vertices(), mesh.triangles(), uinf);
-  solver.bcs().read(name + ".bc");
+  if (external) {
+    solver.bcs().read(name + ".bc");
+  } else {
+    solver.bcs().import(mesh.lines());
+  }
 
   PoissonSolverOptions options;
+  options.max_linear_solver_iterations = 1000;
   solver.solve(options);
   solver.write(name);
+  meshb::write(mesh, name + ".meshb");
 
   auto u_exact = [&](const vec3d& x) {
     double r = length(x);
     double theta = atan2(x[1], x[0]);
     return uinf * r * (1 + R * R / (r * r)) * cos(theta);
   };
+
+  // find a point on the circle and translate the solution
+  double offset = std::numeric_limits<double>::max();
+  for (size_t k = 0; k < mesh.vertices().n(); k++) {
+    vec3d p(mesh.vertices()[k]);
+    if (std::fabs(length(p) - R) < 1e-10) {
+      offset = solver.solution()[k] - u_exact(p);
+    }
+  }
+  LOG << fmt::format("offset = {}", offset);
+  for (size_t k = 0; k < mesh.vertices().n(); k++) {
+    solver.solution()[k] -= offset;
+  }
 
   double error = solver.calculate_error(u_exact);
   LOG << fmt::format("error = {}", error);

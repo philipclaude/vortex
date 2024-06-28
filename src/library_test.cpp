@@ -162,4 +162,11 @@ UT_TEST_CASE(sphere_test) {
 }
 UT_TEST_CASE_END(sphere_test)
 
+UT_TEST_CASE(circle_square_test) {
+  int n = 20;
+  CircleInSquare mesh(0.1, n, n);
+  meshb::write(mesh, "circle_square.meshb");
+}
+UT_TEST_CASE_END(circle_square_test)
+
 UT_TEST_SUITE_END(library_test_suite)

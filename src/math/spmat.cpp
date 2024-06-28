@@ -8,14 +8,14 @@
 namespace vortex {
 
 template <>
-void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x, double tol,
-                             bool symmetric) const {
+void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x,
+                             SparseSolverOptions opts) const {
   ASSERT(b.m() == n_rows());
 
   nlNewContext();
   nlSolverParameteri(NL_NB_VARIABLES, NLint(n_rows()));
   nlSolverParameteri(NL_NB_SYSTEMS, 1);
-  if (symmetric) {
+  if (opts.symmetric) {
     nlSolverParameteri(NL_SOLVER, NL_CG);
     nlSolverParameteri(NL_SYMMETRIC, NL_TRUE);
   } else {
@@ -23,8 +23,8 @@ void spmat<double>::solve_nl(const vecd<double>& b, vecd<double>& x, double tol,
     nlSolverParameteri(NL_SYMMETRIC, NL_FALSE);
   }
   nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_JACOBI);
-  nlSolverParameterd(NL_THRESHOLD, tol);
-  nlSolverParameteri(NL_MAX_ITERATIONS, 100);
+  nlSolverParameterd(NL_THRESHOLD, opts.tol);
+  nlSolverParameteri(NL_MAX_ITERATIONS, opts.max_iterations);
 
   nlBegin(NL_SYSTEM);
   nlBegin(NL_MATRIX);

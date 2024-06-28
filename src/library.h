@@ -61,4 +61,10 @@ class SubdividedIcosahedron : public Mesh {
   void subdivide();
 };
 
+class CircleInSquare : public Mesh {
+ public:
+  CircleInSquare(double r, int nr, int nt) : Mesh(3) { build(r, nr, nt); }
+  void build(double r, int nr, int nt);
+};
+
 }  // namespace vortex

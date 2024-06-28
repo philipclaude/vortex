@@ -34,6 +34,7 @@ class BoundaryConditions {
     dirichlet_ = [](const vec3d& x) { return 0.0; };
   }
   void read(const std::string& filename);
+  void import(const Topology<Line>& lines);
   auto& bc_map() { return bc_map_; }
   const auto& bc_map() const { return bc_map_; }
 
@@ -49,6 +50,7 @@ struct PoissonSolverOptions {
   double tol{1e-10};
   bool need_gradient{true};
   bool has_rhs{true};
+  int max_linear_solver_iterations{100};
 };
 
 class PoissonSolverBase {
@@ -63,6 +65,7 @@ class PoissonSolverBase {
         grad_sol_(triangles.n()) {}
 
   const auto& laplacian() const { return laplacian_; }
+  auto& solution() { return sol_; }
   const auto& solution() const { return sol_; }
   void write(const std::string& prefix) const;
 
@@ -93,7 +96,11 @@ class PoissonSolver : public PoissonSolverBase {
     if (opts.has_rhs) set_rhs();
     Timer timer;
     timer.start();
-    laplacian_.solve_nl(rhs_, sol_, opts.tol, true);
+    SparseSolverOptions linear_opts;
+    linear_opts.tol = opts.tol;
+    linear_opts.symmetric = true;
+    linear_opts.max_iterations = opts.max_linear_solver_iterations;
+    laplacian_.solve_nl(rhs_, sol_, linear_opts);
     timer.stop();
     LOG << fmt::format("solve time = {}", timer.seconds());
     if (opts.need_gradient) calculate_solution_gradient();

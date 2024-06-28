@@ -12,6 +12,12 @@
 
 namespace vortex {
 
+struct SparseSolverOptions {
+  double tol{1e-10};
+  bool symmetric{true};
+  int max_iterations{100};
+};
+
 /*
  * Represents a sparse matrix in which the values stored are any type T.
  */
@@ -71,8 +77,7 @@ class spmat {
    * \param[inout] x - solution vector
    * \param[in]    symmetric - option to specify if the matrix is symmetric
    */
-  void solve_nl(const vecd<T>& b, vecd<T>& x, double tol,
-                bool symmetric = true) const;
+  void solve_nl(const vecd<T>& b, vecd<T>& x, SparseSolverOptions opts) const;
 
   /**
    * \brief Solves A * x = b using the Jacobi method.
