@@ -88,9 +88,8 @@ void read_edges(int64_t fid, Mesh& mesh) {
     ASSERT(status == 1);
 
     for (int j = 0; j < 2; j++) edge[j] = data[j] - 1;
-
     mesh.lines().add(edge);
-    mesh.lines().set_group(k, data[2]);
+    mesh.lines().set_group(k, data[2] - 1);
   }
 }
 
@@ -112,11 +111,8 @@ void read_triangles(int64_t fid, Mesh& mesh) {
     ASSERT(status == 1);
 
     for (int j = 0; j < 3; j++) triangle[j] = data[j] - 1;
-    if (data[3] == 0) {
-      // triangle[0] = triangle[1] = triangle[2] = 0;
-    }
     mesh.triangles().add(triangle);
-    mesh.triangles().set_group(k, data[3]);
+    mesh.triangles().set_group(k, data[3] - 1);
   }
 }
 
@@ -138,9 +134,8 @@ void read_quads(int64_t fid, Mesh& mesh) {
     ASSERT(status == 1);
 
     for (int j = 0; j < 4; j++) quad[j] = data[j] - 1;
-
     mesh.quads().add(quad);
-    mesh.quads().set_group(k, data[4]);
+    mesh.quads().set_group(k, data[4] - 1);
   }
 }
 

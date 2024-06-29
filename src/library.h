@@ -61,10 +61,21 @@ class SubdividedIcosahedron : public Mesh {
   void subdivide();
 };
 
-class CircleInSquare : public Mesh {
+/// @brief Represents a circle mapped to a square.
+/// http://squircular.blogspot.com/2015/09/mapping-circle-to-square.html
+class Squircle : public Mesh {
  public:
-  CircleInSquare(double r, int nr, int nt) : Mesh(3) { build(r, nr, nt); }
-  void build(double r, int nr, int nt);
+  /// @brief Constructs the circle-in-square mesh.
+  /// @param r radius of the inner circle.
+  /// @param nr number of divisions in the radial direction.
+  /// @param nt number of divisions in theta direction from 0 - PI.
+  /// @param half whether to create a domain in [0, PI] (true) or [0, 2 * PI].
+  Squircle(double r, int nr, int nt, bool half = false) : Mesh(3) {
+    build(r, nr, nt, half);
+  }
+
+ private:
+  void build(double r, int nr, int nt, bool half);
 };
 
 }  // namespace vortex

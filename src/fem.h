@@ -94,15 +94,11 @@ class PoissonSolver : public PoissonSolverBase {
   void solve(PoissonSolverOptions opts) {
     build();
     if (opts.has_rhs) set_rhs();
-    Timer timer;
-    timer.start();
     SparseSolverOptions linear_opts;
     linear_opts.tol = opts.tol;
     linear_opts.symmetric = true;
     linear_opts.max_iterations = opts.max_linear_solver_iterations;
     laplacian_.solve_nl(rhs_, sol_, linear_opts);
-    timer.stop();
-    LOG << fmt::format("solve time = {}", timer.seconds());
     if (opts.need_gradient) calculate_solution_gradient();
   }
 

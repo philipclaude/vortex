@@ -68,23 +68,34 @@ UT_TEST_CASE(square_poisson_solver_test) {
 UT_TEST_CASE_END(square_poisson_solver_test)
 
 UT_TEST_CASE(potential_flow_test) {
-  const std::string name = "circle-square";
+  const std::string name = "airfoil";  //"circle-square";
   bool external = name == "airfoil" || name == "circle";
-  double R = external ? 0.4 : 0.01;
+  double R = 0.01;
   int n = 40;
-  CircleInSquare mesh(R, 2 * n, n);
+  Squircle mesh(R, 2 * n, n, true);
 
-  if (external) {
+  if (name == "airfoil" || name == "circle") {
     mesh.vertices().clear();
     mesh.triangles().clear();
     mesh.lines().clear();
     meshb::read(name + ".meshb", mesh);
+    R = 0.4;
   }
 
   double uinf = 2.0;
   PotentialFlowSolver<Triangle> solver(mesh.vertices(), mesh.triangles(), uinf);
-  if (external) {
+  if (false && external) {
     solver.bcs().read(name + ".bc");
+    mesh.lines().clear();
+    for (const auto& [edge, bnd] : solver.bcs().bc_map()) {
+      uint32_t line[2] = {edge.first, edge.second};
+      size_t ne = mesh.lines().n();
+      mesh.lines().add(line);
+      mesh.lines().set_group(ne, bnd);
+    }
+    solver.bcs().bc_map().clear();
+    solver.bcs().import(mesh.lines());
+
   } else {
     solver.bcs().import(mesh.lines());
   }
@@ -92,8 +103,8 @@ UT_TEST_CASE(potential_flow_test) {
   PoissonSolverOptions options;
   options.max_linear_solver_iterations = 1000;
   solver.solve(options);
-  solver.write(name);
-  meshb::write(mesh, name + ".meshb");
+  solver.write("potential");
+  meshb::write(mesh, "potential.meshb");
 
   auto u_exact = [&](const vec3d& x) {
     double r = length(x);
@@ -121,7 +132,7 @@ UT_TEST_CASE_END(potential_flow_test)
 
 UT_TEST_CASE(sphere_test) {
   SubdividedIcosahedron mesh(6);
-  LOG << mesh.triangles().n();
+  LOG << fmt::format("# triangles = {}", mesh.triangles().n());
 
   GeneralPoissonSolver<Triangle> solver(mesh.vertices(), mesh.triangles());
   solver.setup();
