@@ -33,7 +33,6 @@ class BoundaryConditions {
   BoundaryConditions() {
     dirichlet_ = [](const vec3d& x) { return 0.0; };
   }
-  void read(const std::string& filename);
   void import(const Topology<Line>& lines);
   auto& bc_map() { return bc_map_; }
   const auto& bc_map() const { return bc_map_; }

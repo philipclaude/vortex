@@ -28,19 +28,6 @@
 
 namespace vortex {
 
-void BoundaryConditions::read(const std::string& filename) {
-  std::ifstream file(filename);
-  std::string line;
-  while (!file.eof()) {
-    std::getline(file, line);
-    int e0, e1, bnd;
-    int n_items = sscanf(line.c_str(), "%d %d %d", &e0, &e1, &bnd);
-    if (n_items <= 0) continue;
-    bc_map_.insert({{e0, e1}, bnd});
-  }
-  LOG << fmt::format("read {} boundary edges", bc_map_.size());
-}
-
 void BoundaryConditions::import(const Topology<Line>& lines) {
   for (size_t k = 0; k < lines.n(); k++) {
     int e0 = lines[k][0];
@@ -55,8 +42,6 @@ template <typename Element_t>
 void PoissonSolver<Element_t>::build() {
   laplacian_.clear();
   const bool project_gradients_{false};
-  Timer timer;
-  timer.start();
   for (size_t k = 0; k < triangles_.n(); k++) {
     const auto* t = triangles_[k];
     const auto* pa = vertices_[t[0]];
@@ -99,8 +84,6 @@ void PoissonSolver<Element_t>::build() {
     for (int i = 0; i < 3; i++)
       for (int j = 0; j < 3; j++) laplacian_(t[i], t[j]) += M(i, j) * area;
   }
-  timer.stop();
-  LOG << fmt::format("assembly time = {}", timer.seconds());
 }
 
 template <typename Element_t>
