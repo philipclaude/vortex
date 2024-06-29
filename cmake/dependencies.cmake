@@ -52,7 +52,7 @@ execute_process(COMMAND patch -u -b --quiet ${CMAKE_CURRENT_SOURCE_DIR}/extern/w
 															-i ${CMAKE_CURRENT_SOURCE_DIR}/extern/patches/wings.cpp.patch)
 execute_process(COMMAND patch -u -b --quiet ${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/wings.h
 															-i ${CMAKE_CURRENT_SOURCE_DIR}/extern/patches/wings.h.patch)
-add_custom_target(checkout_wings COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/extern/wings && git checkout .)
+add_custom_target(checkout_wings COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/extern/wings && git checkout wings.h wings.cpp)
 
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
