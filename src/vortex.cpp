@@ -63,7 +63,11 @@ void run_visualizer(argparse::ArgumentParser& program) {
   }
 
   mesh.fields().set_defaults(mesh);
-  Viewer viewer(mesh, 7681);
+
+  // TODO parse program parameters
+  ParticleAnimationParameters particle_params;
+
+  Viewer viewer(mesh, particle_params, 7681);
 }
 
 void apply_mask(const std::string& input, double tmin, double tmax,

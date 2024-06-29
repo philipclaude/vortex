@@ -1,0 +1,66 @@
+--- wings.cpp	2024-06-29 12:56:22.000000000 -0400
++++ wings.cpp.new	2024-06-29 12:56:16.000000000 -0400
+@@ -852,6 +852,8 @@
+ 
+           // parse the mouse control
+           ClientInput input;
++          int tmin = 0;
++          int tmax = 1;
+           if (message[0] == 'M') {
+             input.type = InputType::MouseMotion;
+             input.x = std::atoi(message.substr(3, 5).c_str());
+@@ -883,28 +885,35 @@
+               input.type = InputType::KeyValueStr;
+               input.svalue = &message[3];
+             }
++          } else if (message[0] == 'A') {
++            tmin = std::atoi(message.substr(3, 9).c_str());
++            tmax = std::atoi(message.substr(12, 9).c_str());
++            input.type = InputType::AnimationRequest;
+           }
+ 
+-          context_->enter_render_section();
+-          std::string msg;
+-          bool updated = scene_.render(input, idx_, &msg);
+-          if (updated) {
+-            // convert the scene pixels to a jpeg
+-            bytes_.resize(scene_.pixels().size());
+-            n_bytes_ = 0;
+-            // std::cout << "w = " << scene_.width() << " h = " <<
+-            // scene_.height()
+-            //           << std::endl;
+-            stbi_flip_vertically_on_write(1);
+-            stbi_write_jpg_to_func(custom_stbi_write_mem, this, scene_.width(),
+-                                   scene_.height(), scene_.channels(),
+-                                   scene_.pixels().data(), scene_.quality());
+-
+-            base64::encode(bytes_.c_str(), n_bytes_, img_);
+-            sendmessage(img_, RFC6455_OP_TEXT);
+-            if (!msg.empty()) sendmessage(msg, RFC6455_OP_TEXT);
++          for (int t = tmin; t < tmax; ++t) {
++            context_->enter_render_section();
++            std::string msg;
++            input.time = t;
++            bool updated = scene_.render(input, idx_, &msg);
++            if (updated) {
++              // convert the scene pixels to a jpeg
++              bytes_.resize(scene_.pixels().size());
++              n_bytes_ = 0;
++              // std::cout << "w = " << scene_.width() << " h = " <<
++              // scene_.height()
++              //           << std::endl;
++              stbi_flip_vertically_on_write(1);
++              stbi_write_jpg_to_func(
++                  custom_stbi_write_mem, this, scene_.width(), scene_.height(),
++                  scene_.channels(), scene_.pixels().data(), scene_.quality());
++
++              base64::encode(bytes_.c_str(), n_bytes_, img_);
++              sendmessage(img_, RFC6455_OP_TEXT);
++              if (!msg.empty()) sendmessage(msg, RFC6455_OP_TEXT);
++            }
++            context_->leave_render_section();
+           }
+-          context_->leave_render_section();
+         }
+       }
+     }

@@ -265,6 +265,16 @@
             />
             <label class="form-check-label" for="checkbox-earth">image</label>
           </div>
+          &nbsp;
+          <div style="display: inline-block">
+            <button
+              class="btn btn-primary"
+              id="animate-particles"
+              onclick="animateParticles();"
+            >
+              animate
+            </button>
+          </div>
           <div class="form-check" style="display: inline-block">
             <select
               class="form-select"
@@ -562,6 +572,15 @@
       img.setAttribute("height", h);
       ws.send("KIH" + h);
       setQuality(); // request an image update
+    };
+
+    const animateParticles = () => {
+      const tmin = 0;
+      const tmax = 10; // TODO add inputs for tmin, tmax
+      const a = ("00000000" + tmin).slice(-9);
+      const b = ("00000000" + tmax).slice(-9);
+      const msg = "A" + a + b;
+      ws.send(msg);
     };
 
     window.onload = () => {

@@ -1,0 +1,29 @@
+--- wings.h	2024-06-29 12:56:22.000000000 -0400
++++ wings.h.new	2024-06-29 12:56:11.000000000 -0400
+@@ -38,7 +38,8 @@
+   KeyValueFloat,
+   KeyValueStr,
+   KeyPressed,
+-  KeyReleased
++  KeyReleased,
++  AnimationRequest
+ };
+ 
+ // Client input passed to the Scene::render function.
+@@ -53,6 +54,7 @@
+   float fvalue{0.0f};
+   int ivalue{0};
+   const char* svalue{nullptr};
++  int time{0};
+ };
+ 
+ // Possible rendering context types.
+@@ -62,7 +64,7 @@
+ struct RenderingContext {
+   // Creates a rendering context of a specific type.
+   RenderingContext(RenderingContextType _type) : type(_type) {}
+-  virtual ~RenderingContext(){};
++  virtual ~RenderingContext() {};
+ 
+   // Prints information about the rendering context in use,
+   // such as version number and supported extensions.

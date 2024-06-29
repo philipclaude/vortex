@@ -18,20 +18,66 @@
 //
 #pragma once
 
+#include <map>
 #include <memory>
+#include <string>
+#include <vector>
+
+#define GL_GLEXT_PROTOTYPES
+#ifdef __APPLE__
+#define __gl_h_
+#define GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/OpenGL.h>
+#include <OpenGL/gl3.h>
+#else
+#include <GL/gl.h>
+#endif
+
+#define VORTEX_GL_VERSION_MAJOR 3
+#define VORTEX_GL_VERSION_MINOR 3
+
+#ifndef VORTEX_SOURCE_DIR
+#define VORTEX_SOURCE_DIR "./"
+#endif
 
 namespace wings {
 class RenderingServer;
-}
+class ShaderProgram;
+}  // namespace wings
 
 namespace vortex {
 
+struct ParticleAnimationParameters {
+  std::string points_prefix;
+  std::string velocity_prefix;
+  std::string density_prefix;
+  std::string pressure_prefix;
+  std::vector<double> time;
+
+  bool active() const { return !points_prefix.empty(); }
+};
+
 class Mesh;
 class MeshScene;
-class ShaderLibrary;
+
+class ShaderLibrary {
+ public:
+  void create();
+
+  void add(const std::string& name, const std::string& prefix,
+           const std::vector<std::string>& macros, bool with_gs = false);
+
+  const wings::ShaderProgram& operator[](const std::string& name) const;
+
+ private:
+  std::map<std::string, wings::ShaderProgram> shaders_;
+};
+
 class Viewer {
  public:
-  Viewer(const Mesh& mesh, int port);
+  Viewer(const Mesh& mesh, const ParticleAnimationParameters& particle_params,
+         int port);
   ~Viewer();
 
  private:
