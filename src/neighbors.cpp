@@ -93,13 +93,13 @@ void VoronoiNeighbors::knearest(uint32_t p,
   search.total_neighbors += search.sites.size();
 }
 
-SphereNeighbors::SphereNeighbors(const coord_t* points, size_t n_points,
-                                 int dim, int ns)
+SphereQuadtree::SphereQuadtree(const coord_t* points, size_t n_points, int dim,
+                               int ns)
     : points_(points), n_points_(n_points), dim_(dim), mesh_(ns) {
   setup();
 }
 
-SphereNeighbors::Subdivision::Subdivision(int ns)
+SphereQuadtree::Subdivision::Subdivision(int ns)
     : Mesh(3), children(4), n_levels(ns + 1) {
   // initial octahedron
   using T = Octahedron;
@@ -164,7 +164,7 @@ SphereNeighbors::Subdivision::Subdivision(int ns)
   }
 }
 
-void SphereNeighbors::setup() {
+void SphereQuadtree::setup() {
   size_t t0 = t_first(mesh_.n_levels - 1);
   size_t t1 = t_last(mesh_.n_levels - 1);
   size_t n_triangles = t1 - t0;
@@ -199,7 +199,7 @@ void SphereNeighbors::setup() {
   }
 }
 
-void SphereNeighbors::build() {
+void SphereQuadtree::build() {
   // utility to determine if a point is inside a spherical triangle
   auto intriangle = [](const vec3d& v0, const vec3d& v1, const vec3d& v2,
                        const vec3d& v) {
@@ -267,8 +267,8 @@ void SphereNeighbors::build() {
   LOG << fmt::format("# pts avg = {}, min = {}, max = {}", m_avg, m_min, m_max);
 }
 
-void SphereNeighbors::knearest(uint32_t p,
-                               SphereNeighborsWorkspace& search) const {
+void SphereQuadtree::knearest(uint32_t p,
+                              SphereQuadtreeWorkspace& search) const {
   search.reset();
 
   // get the triangle containing this point

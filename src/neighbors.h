@@ -109,8 +109,8 @@ class VoronoiNeighbors {
   array2d<uint32_t> ring_;
 };
 
-struct SphereNeighborsWorkspace {
-  SphereNeighborsWorkspace(int n) : n_neighbors(n) {}
+struct SphereQuadtreeWorkspace {
+  SphereQuadtreeWorkspace(int n) : n_neighbors(n) {}
   void reset() {
     neighbors.clear();
     max_distance = 0;
@@ -140,9 +140,9 @@ struct SphereNeighborsWorkspace {
   int n_neighbors;
 };
 
-class SphereNeighbors {
+class SphereQuadtree {
  public:
-  SphereNeighbors(const coord_t* points, size_t n_points, int dim, int ns);
+  SphereQuadtree(const coord_t* points, size_t n_points, int dim, int ns);
 
   void setup();
   void build();

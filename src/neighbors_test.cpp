@@ -129,7 +129,7 @@ UT_TEST_CASE(test2) {
 
   Timer timer;
   timer.start();
-  SphereNeighbors neighbors(vertices[0], vertices.n(), dim, ns);
+  SphereQuadtree neighbors(vertices[0], vertices.n(), dim, ns);
   timer.stop();
   LOG << fmt::format("setup time for ns = {}, nt = {}: {} s.", ns,
                      neighbors.n_triangles(), timer.seconds());
@@ -142,8 +142,7 @@ UT_TEST_CASE(test2) {
 
   timer.start();
   size_t n_threads = std::thread::hardware_concurrency();
-  std::vector<SphereNeighborsWorkspace> searches(n_threads,
-                                                 options.n_neighbors);
+  std::vector<SphereQuadtreeWorkspace> searches(n_threads, options.n_neighbors);
   std::vector<size_t> nn(n_sites);
   std::parafor_i(0, n_sites, [&](int tid, size_t k) {
     auto& search = searches[tid];
