@@ -47,18 +47,23 @@ class Grid : public Mesh {
   const std::vector<int>& sizes_;  // number of sizes in each direction
 };
 
-/// @brief Represents a subdivided icosahedron mesh.
-class SubdividedIcosahedron : public Mesh {
- public:
-  /// @brief Constructs a subdivided icosahedron mesh.
-  /// @param n number of subdivisions.
-  SubdividedIcosahedron(int n = 0) : Mesh(3) { build(n); }
 
-  static const int n_icosahedron_triangles = 20;
+template <typename S>
+class SubdividedSphere : public Mesh {
+ public:
+  SubdividedSphere(int n = 0) : Mesh(3) { build(n); }
 
  private:
   void build(int n);
   void subdivide();
+};
+
+/// @brief Represents a subdivided icosahedron mesh.
+class SubdividedIcosahedron : public SubdividedSphere<Icosahedron> {
+ public:
+  /// @brief Constructs a subdivided icosahedron mesh.
+  /// @param n number of subdivisions.
+  SubdividedIcosahedron(int n = 0) : SubdividedSphere<Icosahedron>(n) {}
 };
 
 }  // namespace vortex

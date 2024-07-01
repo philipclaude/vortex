@@ -18,6 +18,10 @@
 //
 #include "neighbors.h"
 
+#include <stlext.h>
+
+#include "library.h"
+#include "math/vec.hpp"
 #include "voronoi.h"
 
 namespace vortex {
@@ -87,6 +91,202 @@ void VoronoiNeighbors::knearest(uint32_t p,
   }
   search.sort();
   search.total_neighbors += search.sites.size();
+}
+
+SphereNeighbors::SphereNeighbors(const coord_t* points, size_t n_points,
+                                 int dim, int ns)
+    : points_(points), n_points_(n_points), dim_(dim), mesh_(ns) {
+  setup();
+}
+
+SphereNeighbors::Subdivision::Subdivision(int ns)
+    : Mesh(3), children(4), n_levels(ns + 1) {
+  // initial octahedron
+  using T = Octahedron;
+  for (int i = 0; i < T::n_vertices; i++) vertices_.add(T::coordinates[i]);
+  for (int i = 0; i < T::n_faces; i++) {
+    triangles_.add(T::faces[i]);
+    triangles_.set_group(i, 0);
+  }
+
+  triangles_.reserve(T::n_faces * std::pow(4, ns));
+  children.reserve(T::n_faces * std::pow(4, ns));
+  std::unordered_map<Edge, index_t> edges;
+  int n_triangles0 = 0;
+  for (int j = 0; j < ns; j++) {
+    // perform the subdivision
+    edges.clear();
+    int n_triangles = triangles_.n();
+    for (size_t k = n_triangles0; k < n_triangles; k++) {
+      int edge_indices[3];
+      for (int j = 0; j < 3; j++) {
+        index_t e0 = triangles_(k, j);
+        index_t e1 = triangles_(k, j == 2 ? 0 : j + 1);
+
+        index_t idx;
+        auto it = edges.find({e1, e0});
+        if (it == edges.end()) {
+          // create a new point on this edge
+          vec3d p0(vertices_[e0]);
+          vec3d p1(vertices_[e1]);
+          vec3d q = normalize(0.5 * (p0 + p1));
+
+          idx = vertices_.n();
+          vertices_.add(q.data());
+          edges.insert({{e0, e1}, idx});
+        } else {
+          idx = it->second;
+          edges.erase(it);
+        }
+        edge_indices[j] = idx;
+      }
+
+      // create the four new triangles from the subdivision
+      index_t t0 = triangles_(k, 0);
+      index_t t1 = triangles_(k, 1);
+      index_t t2 = triangles_(k, 2);
+      index_t e0 = edge_indices[0];
+      index_t e1 = edge_indices[1];
+      index_t e2 = edge_indices[2];
+
+      index_t new_triangles[4][3] = {
+          {t0, e0, e2}, {e0, t1, e1}, {e2, e1, t2}, {e0, e1, e2}};
+      int c[4];
+      size_t nt = triangles_.n();
+      for (int i = 0; i < 4; i++) {
+        triangles_.add(new_triangles[i]);
+        triangles_.set_group(nt + i, j + 1);  // subdivision level
+        c[i] = nt + i;
+      }
+      children.add(c);  // save the children of the current triangle
+    }
+    n_triangles0 = n_triangles;
+  }
+}
+
+void SphereNeighbors::setup() {
+  size_t t0 = t_first(mesh_.n_levels - 1);
+  size_t t1 = t_last(mesh_.n_levels - 1);
+  size_t n_triangles = t1 - t0;
+  LOG << fmt::format("n_triangles = {}", n_triangles);
+  ASSERT(n_triangles == 8 * std::pow(4, mesh_.n_levels - 1));
+
+  std::unordered_map<uint32_t, std::vector<uint32_t>> v2t;
+  for (size_t k = t0; k < t1; k++) {
+    for (int j = 0; j < 3; j++) {
+      auto v = mesh_.triangles()(k, j);
+      auto it = v2t.find(v);
+      if (it == v2t.end())
+        v2t.insert({v, {uint32_t(k)}});
+      else
+        v2t[v].push_back(k);
+    }
+  }
+
+  std::unordered_set<uint32_t> stri;
+  std::vector<uint32_t> vtri;
+  search_triangles_.reserve(n_triangles);
+  for (size_t k = t0; k < t1; k++) {
+    stri.clear();
+    for (int j = 0; j < 3; j++) {
+      for (auto t : v2t[mesh_.triangles()[k][j]]) stri.insert(t);
+    }
+    vtri.clear();
+    for (auto t : stri) {
+      vtri.push_back(t);
+    }
+    search_triangles_.insert({k, vtri});
+  }
+}
+
+void SphereNeighbors::build() {
+  // utility to determine if a point is inside a spherical triangle
+  auto intriangle = [](const vec3d& v0, const vec3d& v1, const vec3d& v2,
+                       const vec3d& v) {
+    return dot(cross(v0, v1), v) >= 0 && dot(cross(v1, v2), v) >= 0 &&
+           dot(cross(v2, v0), v) >= 0;
+  };
+
+  // build the point2triangle info
+  point2triangle_.resize(n_points_);
+  int last_level = mesh_.n_levels - 1;
+  std::parafor_i(0, n_points_, [&](int tid, size_t k) {
+    // first determine if we are in the first four or last four triangles
+    int c[4] = {0, 1, 2, 3};
+    vec3d p(points_ + dim_ * k);
+    if (p[2] < 0) {
+      for (int i = 0; i < 4; i++) c[i] += 4;
+    }
+
+    int level = 0;
+    while (true) {
+      int child = -1;
+      for (int i = 0; i < 4; i++) {
+        const auto* t = mesh_.triangles()[c[i]];
+        vec3d v0(mesh_.vertices()[t[0]]);
+        vec3d v1(mesh_.vertices()[t[1]]);
+        vec3d v2(mesh_.vertices()[t[2]]);
+        if (intriangle(v0, v1, v2, p)) {
+          child = c[i];
+          break;
+        }
+      }
+      ASSERT(child >= 0);
+
+      level = mesh_.triangles().group(child);
+      if (level == last_level) {
+        point2triangle_[k] = child;
+        break;
+      }
+
+      // save the triangles for the next level
+      for (int i = 0; i < 4; i++) c[i] = mesh_.children[child][i];
+    }
+  });
+
+  // convert to triangle2point
+  int t0 = t_first(last_level);
+  int t1 = t_last(last_level);
+  size_t n_triangles = t1 - t0;
+  triangle2points_.clear();
+  triangle2points_.reserve(n_triangles);
+  for (size_t k = t0; k < t1; k++) triangle2points_.insert({k, {}});
+  for (size_t k = 0; k < point2triangle_.size(); k++) {
+    triangle2points_[point2triangle_[k]].push_back(k);
+  }
+
+  double m_avg = 0;
+  int m_max = 0;
+  int m_min = n_points_ + 1;
+  for (const auto& [_, pts] : triangle2points_) {
+    m_avg += pts.size();
+    if (pts.size() > m_max) m_max = pts.size();
+    if (pts.size() < m_min) m_min = pts.size();
+  }
+  m_avg /= triangle2points_.size();
+  LOG << fmt::format("# pts avg = {}, min = {}, max = {}", m_avg, m_min, m_max);
+}
+
+void SphereNeighbors::knearest(uint32_t p,
+                               SphereNeighborsWorkspace& search) const {
+  search.reset();
+
+  // get the triangle containing this point
+  auto t = point2triangle_[p];
+
+  // loop through all the triangles in the first layer around this triangle
+  const auto& triangles = search_triangles_.at(t);
+  for (int k = 0; k < triangles.size(); k++) {
+    // loop through all the points in this triangle
+    const auto& points = triangle2points_.at(triangles[k]);
+    for (int j = 0; j < points.size(); j++) {
+      double d = distance_squared(points_ + dim_ * p,
+                                  points_ + dim_ * points[j], dim_);
+      search.add(points[j], d);
+    }
+  }
+  ASSERT(search.neighbors.size() > 0);
+  search.sort();
 }
 
 }  // namespace vortex

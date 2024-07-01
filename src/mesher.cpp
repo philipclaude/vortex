@@ -456,9 +456,8 @@ void EarthMesher::generate(MeshingParameters params) {
   double h_avg = params.h_max;  // 0.5 * (params.h_min + params.h_max);
   double at = std::sqrt(3.0) * h_avg * h_avg / 4.0;
   int n_triangles = std::floor(4.0 * M_PI / at);
-  int n_level = int(
-      std::log(n_triangles / SubdividedIcosahedron::n_icosahedron_triangles) /
-      std::log(4.0));
+  int n_level =
+      int(std::log(n_triangles / Icosahedron::n_faces) / std::log(4.0));
   LOG << fmt::format("initializing sphere mesh with {} subdivisions", n_level);
   SubdividedIcosahedron sphere(n_level);
 

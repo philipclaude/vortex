@@ -18,16 +18,21 @@
 //
 #pragma once
 
+#include <absl/container/flat_hash_map.h>
+
 #include <algorithm>
+#include <cmath>
+#include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include "array2d.h"
 #include "defs.h"
+#include "mesh.h"
 
 namespace vortex {
 
 class VoronoiDiagram;
-class Vertices;
 
 template <typename T>
 class queue {
@@ -102,6 +107,78 @@ class VoronoiNeighbors {
   const VoronoiDiagram& voronoi_;
   const coord_t* points_;
   array2d<uint32_t> ring_;
+};
+
+struct SphereNeighborsWorkspace {
+  SphereNeighborsWorkspace(int n) : n_neighbors(n) {}
+  void reset() {
+    neighbors.clear();
+    max_distance = 0;
+  }
+
+  void sort() {
+    if (neighbors.size() < n_neighbors) {
+      std::sort(
+          neighbors.begin(), neighbors.end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+      n_neighbors = neighbors.size();
+    } else {
+      std::partial_sort(
+          neighbors.begin(), neighbors.begin() + n_neighbors, neighbors.end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    }
+  }
+
+  void add(uint32_t n, double d) {
+    // if (neighbors.size() > 50 && d > max_distance) return;
+    // if (d > max_distance) max_distance = d;
+    neighbors.push_back({n, d});
+  }
+
+  double max_distance;
+  std::vector<std::pair<uint32_t, double>> neighbors;
+  int n_neighbors;
+};
+
+class SphereNeighbors {
+ public:
+  SphereNeighbors(const coord_t* points, size_t n_points, int dim, int ns);
+
+  void setup();
+  void build();
+  void knearest(uint32_t p, SphereNeighborsWorkspace& search) const;
+
+  size_t n_triangles() const { return search_triangles_.size(); }
+  const auto& mesh() const { return mesh_; }
+
+ private:
+  struct Subdivision : public Mesh {
+    Subdivision(int ns);
+    array2d<uint32_t> children;
+    int n_levels;
+  };
+
+  // TODO make a lookup table for this
+  // 8 * \sum_{i = 0}^n 4^i
+  size_t t_first(int ns) {
+    return Octahedron::n_faces * (std::pow(4, ns) - 1) / 3;
+  }
+  size_t t_last(int ns) {
+    return Octahedron::n_faces * (std::pow(4, ns + 1) - 1) / 3;
+  }
+
+  const coord_t* points_;
+  size_t n_points_;
+  int dim_;
+  std::vector<uint32_t> point2triangle_;
+#if 1
+  std::unordered_map<uint32_t, std::vector<uint32_t>> triangle2points_;
+  std::unordered_map<uint32_t, std::vector<uint32_t>> search_triangles_;
+#else
+  absl::flat_hash_map<uint32_t, std::vector<uint32_t>> triangle2points_;
+  absl::flat_hash_map<uint32_t, std::vector<uint32_t>> search_triangles_;
+#endif
+  Subdivision mesh_;
 };
 
 }  // namespace vortex
