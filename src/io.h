@@ -38,6 +38,10 @@ void read(const std::string& filename, Mesh& mesh);
 /// @param twod whether we are writing vertices in 2d.
 void write(const Mesh& mesh, const std::string& filename, bool twod = false);
 
+template <int n>
+void write_sol(const std::vector<std::array<double, n>>& sol, bool at_vertices,
+               const std::string& filename);
+
 }  // namespace meshb
 
 namespace obj {

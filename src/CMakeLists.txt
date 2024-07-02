@@ -2,6 +2,7 @@
 set(SOURCES
   array2d.cpp
   elements.cpp
+  fem.cpp
   field.cpp
   graphics.cpp
   halfedges.cpp
