@@ -255,6 +255,51 @@ UT_TEST_CASE(vecs_test) {
     UT_ASSERT_NEAR(div2[i], vd2[i] / -6.23, tol);
     UT_ASSERT_NEAR(div3[i], vd3[i] / 0.5, tol);
   }
+
+  // Testing outter product
+  vecs<3, double> uo1 = {1., 2., 3.};
+  vecs<3, double> vo1 = {4., 5., 6.};
+  mats<3, 3, double> o1 = outer(uo1, vo1);
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      UT_ASSERT_EQUALS(o1(i, j), uo1(i) * vo1(j));
+    }
+  }
+
+  vecs<3, double> uo2 = {23.556, 2.79, 0.9332};
+  vecs<6, double> vo2 = {-4.6, -5.442, 6.804, 13.21, 16.781, 100.100};
+  mats<3, 6, double> o2 = outer(uo2, vo2);
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 6; j++) {
+      UT_ASSERT_EQUALS(o2(i, j), uo2(i) * vo2(j));
+    }
+  }
+
+  vecs<4, double> uo3 = {1.21, 4.54, 7.87, 89.89};
+  vecs<2, double> vo3 = {-10000.6, -312.1688883};
+  mats<4, 2, double> o3 = outer(uo3, vo3);
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 2; j++) {
+      UT_ASSERT_EQUALS(o3(i, j), uo3(i) * vo3(j));
+    }
+  }
+  // Manual tests
+  vecs<2, double> uo4 = {2., 2.};
+  vecs<2, double> vo4 = {5., 5.};
+  mats<2, 2, double> o4 = outer(uo4, vo4);
+  UT_ASSERT_EQUALS(o1(0, 0), 4.);
+  UT_ASSERT_EQUALS(o1(0, 1), 5.);
+  UT_ASSERT_EQUALS(o1(0, 2), 6.);
+  UT_ASSERT_EQUALS(o1(1, 0), 8.);
+  UT_ASSERT_EQUALS(o1(1, 1), 10.);
+  UT_ASSERT_EQUALS(o1(1, 2), 12.);
+  UT_ASSERT_EQUALS(o1(2, 0), 12.);
+  UT_ASSERT_EQUALS(o1(2, 1), 15.);
+  UT_ASSERT_EQUALS(o1(2, 2), 18.);
+  UT_ASSERT_EQUALS(o4(0, 0), 10.);
+  UT_ASSERT_EQUALS(o4(0, 1), 10.);
+  UT_ASSERT_EQUALS(o4(1, 0), 10.);
+  UT_ASSERT_EQUALS(o4(1, 1), 10.);
 }
 UT_TEST_CASE_END(vecs_test)
 

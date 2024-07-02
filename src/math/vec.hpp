@@ -158,6 +158,25 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
   }
 
 /**
+ * \brief Computes the outter product uv^T between two static vectors.
+ * \param[in] u - vector (vecs)
+ * \param[in] v - vector (vecs)
+ *
+ * \return outter product uv^T (an matrix)
+ */
+#define INSTANTIATE_OUTER(R, S, T)                                \
+  template <int M, int N>                                         \
+  mats<M, N, T> outer(const vecs<M, R>& u, const vecs<N, S>& v) { \
+    mats<M, N, T> O;                                              \
+    for (int i = 0; i < M; i++) {                                 \
+      for (int j = 0; j < N; j++) {                               \
+        O(i, j) = u(i) * v(j);                                    \
+      }                                                           \
+    }                                                             \
+    return O;                                                     \
+  }
+
+/**
  * \brief Computes the length (length) of a static vector
  *
  * \param[in] u - vector to compute the length of
@@ -206,6 +225,7 @@ INSTANTIATE_VECINC(vecs<3 COMMA double>, vecs<3 COMMA double>)
 INSTANTIATE_DOT(double, double, double)
 INSTANTIATE_DOT(float, float, float)
 INSTANTIATE_DOT(int, int, int)
+INSTANTIATE_OUTER(double, double, double)
 
 INSTANTIATE_VECSCAMUL_R(double, double, double)
 INSTANTIATE_VECSCAMUL_R(float, float, float)
