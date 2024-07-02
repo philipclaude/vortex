@@ -168,7 +168,6 @@ void SphereQuadtree::setup() {
   size_t t0 = t_first(mesh_.n_levels - 1);
   size_t t1 = t_last(mesh_.n_levels - 1);
   size_t n_triangles = t1 - t0;
-  LOG << fmt::format("n_triangles = {}", n_triangles);
   ASSERT(n_triangles == 8 * std::pow(4, mesh_.n_levels - 1));
 
   std::unordered_map<uint32_t, std::vector<uint32_t>> v2t;
@@ -184,18 +183,20 @@ void SphereQuadtree::setup() {
   }
 
   std::unordered_set<uint32_t> stri;
-  std::vector<uint32_t> vtri;
-  search_triangles_.reserve(n_triangles);
+  std::array<int32_t, 13> vtri;
+  search_triangles_.resize(n_triangles);
   for (size_t k = t0; k < t1; k++) {
     stri.clear();
     for (int j = 0; j < 3; j++) {
       for (auto t : v2t[mesh_.triangles()[k][j]]) stri.insert(t);
     }
-    vtri.clear();
+
+    std::fill(vtri.begin(), vtri.end(), -1);
+    int i = 0;
     for (auto t : stri) {
-      vtri.push_back(t);
+      vtri[i++] = t - t0;
     }
-    search_triangles_.insert({k, vtri});
+    search_triangles_[k - t0] = vtri;
   }
 }
 
@@ -207,9 +208,13 @@ void SphereQuadtree::build() {
            dot(cross(v2, v0), v) >= 0;
   };
 
+  int last_level = mesh_.n_levels - 1;
+  int t0 = t_first(last_level);
+  int t1 = t_last(last_level);
+  size_t n_triangles = t1 - t0;
+
   // build the point2triangle info
   point2triangle_.resize(n_points_);
-  int last_level = mesh_.n_levels - 1;
   std::parafor_i(0, n_points_, [&](int tid, size_t k) {
     // first determine if we are in the first four or last four triangles
     int c[4] = {0, 1, 2, 3};
@@ -235,7 +240,7 @@ void SphereQuadtree::build() {
 
       level = mesh_.triangles().group(child);
       if (level == last_level) {
-        point2triangle_[k] = child;
+        point2triangle_[k] = child - t0;
         break;
       }
 
@@ -245,26 +250,11 @@ void SphereQuadtree::build() {
   });
 
   // convert to triangle2point
-  int t0 = t_first(last_level);
-  int t1 = t_last(last_level);
-  size_t n_triangles = t1 - t0;
   triangle2points_.clear();
-  triangle2points_.reserve(n_triangles);
-  for (size_t k = t0; k < t1; k++) triangle2points_.insert({k, {}});
+  triangle2points_.resize(n_triangles);
   for (size_t k = 0; k < point2triangle_.size(); k++) {
     triangle2points_[point2triangle_[k]].push_back(k);
   }
-
-  double m_avg = 0;
-  int m_max = 0;
-  int m_min = n_points_ + 1;
-  for (const auto& [_, pts] : triangle2points_) {
-    m_avg += pts.size();
-    if (pts.size() > m_max) m_max = pts.size();
-    if (pts.size() < m_min) m_min = pts.size();
-  }
-  m_avg /= triangle2points_.size();
-  LOG << fmt::format("# pts avg = {}, min = {}, max = {}", m_avg, m_min, m_max);
 }
 
 void SphereQuadtree::knearest(uint32_t p,
@@ -275,17 +265,17 @@ void SphereQuadtree::knearest(uint32_t p,
   auto t = point2triangle_[p];
 
   // loop through all the triangles in the first layer around this triangle
-  const auto& triangles = search_triangles_.at(t);
+  const auto& triangles = search_triangles_[t];
   for (int k = 0; k < triangles.size(); k++) {
     // loop through all the points in this triangle
-    const auto& points = triangle2points_.at(triangles[k]);
+    if (triangles[k] < 0) break;
+    const auto& points = triangle2points_[triangles[k]];
     for (int j = 0; j < points.size(); j++) {
       double d = distance_squared(points_ + dim_ * p,
                                   points_ + dim_ * points[j], dim_);
       search.add(points[j], d);
     }
   }
-  ASSERT(search.neighbors.size() > 0);
   search.sort();
 }
 

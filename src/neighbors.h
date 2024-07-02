@@ -18,8 +18,6 @@
 //
 #pragma once
 
-#include <absl/container/flat_hash_map.h>
-
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -33,6 +31,8 @@
 namespace vortex {
 
 class VoronoiDiagram;
+
+#define MAX_NEIGHBOR_CAPACITY 250
 
 template <typename T>
 class queue {
@@ -70,8 +70,16 @@ struct NearestNeighborsWorkspace {
   }
 
   void sort() {
-    std::sort(sites.data().begin(), sites.data().end(),
-              [](const auto& a, const auto& b) { return a.second < b.second; });
+    if (sites.size() <= n_neighbors) {
+      std::sort(
+          sites.data().begin(), sites.data().end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    } else {
+      std::partial_sort(
+          sites.data().begin(), sites.data().begin() + n_neighbors,
+          sites.data().end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    }
   }
 
   uint32_t next() {
@@ -86,7 +94,7 @@ struct NearestNeighborsWorkspace {
     neighbors.insert({n, l});
   }
 
-  int n_neighbors;
+  const int n_neighbors;
   std::unordered_map<uint32_t, uint8_t> neighbors;
   queue<std::pair<uint32_t, double>> sites;
   size_t total_neighbors{0};
@@ -111,33 +119,31 @@ class VoronoiNeighbors {
 
 struct SphereQuadtreeWorkspace {
   SphereQuadtreeWorkspace(int n) : n_neighbors(n) {}
-  void reset() {
-    neighbors.clear();
-    max_distance = 0;
-  }
+
+  void reset() { count = 0; }
 
   void sort() {
-    if (neighbors.size() < n_neighbors) {
+    if (size() < n_neighbors) {
       std::sort(
-          neighbors.begin(), neighbors.end(),
+          neighbors, neighbors + size(),
           [](const auto& a, const auto& b) { return a.second < b.second; });
-      n_neighbors = neighbors.size();
     } else {
       std::partial_sort(
-          neighbors.begin(), neighbors.begin() + n_neighbors, neighbors.end(),
+          neighbors, neighbors + n_neighbors, neighbors + size(),
           [](const auto& a, const auto& b) { return a.second < b.second; });
     }
   }
 
+  size_t size() const { return count; }
+
   void add(uint32_t n, double d) {
-    // if (neighbors.size() > 50 && d > max_distance) return;
-    // if (d > max_distance) max_distance = d;
-    neighbors.push_back({n, d});
+    if (count >= MAX_NEIGHBOR_CAPACITY) return;
+    neighbors[count++] = {n, d};
   }
 
-  double max_distance;
-  std::vector<std::pair<uint32_t, double>> neighbors;
-  int n_neighbors;
+  std::pair<uint32_t, double> neighbors[MAX_NEIGHBOR_CAPACITY];
+  const int n_neighbors{0};
+  int count{0};
 };
 
 class SphereQuadtree {
@@ -146,7 +152,7 @@ class SphereQuadtree {
 
   void setup();
   void build();
-  void knearest(uint32_t p, SphereNeighborsWorkspace& search) const;
+  void knearest(uint32_t p, SphereQuadtreeWorkspace& search) const;
 
   size_t n_triangles() const { return search_triangles_.size(); }
   const auto& mesh() const { return mesh_; }
@@ -158,7 +164,6 @@ class SphereQuadtree {
     int n_levels;
   };
 
-  // TODO make a lookup table for this
   // 8 * \sum_{i = 0}^n 4^i
   size_t t_first(int ns) {
     return Octahedron::n_faces * (std::pow(4, ns) - 1) / 3;
@@ -171,13 +176,8 @@ class SphereQuadtree {
   size_t n_points_;
   int dim_;
   std::vector<uint32_t> point2triangle_;
-#if 1
-  std::unordered_map<uint32_t, std::vector<uint32_t>> triangle2points_;
-  std::unordered_map<uint32_t, std::vector<uint32_t>> search_triangles_;
-#else
-  absl::flat_hash_map<uint32_t, std::vector<uint32_t>> triangle2points_;
-  absl::flat_hash_map<uint32_t, std::vector<uint32_t>> search_triangles_;
-#endif
+  std::vector<std::vector<uint32_t>> triangle2points_;
+  std::vector<std::array<int32_t, 13>> search_triangles_;
   Subdivision mesh_;
 };
 

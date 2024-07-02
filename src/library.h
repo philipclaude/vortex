@@ -47,7 +47,6 @@ class Grid : public Mesh {
   const std::vector<int>& sizes_;  // number of sizes in each direction
 };
 
-
 template <typename S>
 class SubdividedSphere : public Mesh {
  public:
