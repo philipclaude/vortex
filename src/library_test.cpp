@@ -140,10 +140,10 @@ UT_TEST_CASE(sphere_test) {
       double tot_areas = 0;
       double strt_areas = 0;
       for (int k = 0; k < tris; k++) {
-        auto* t = mesh.triangles()[k];
-        coord_t* p1 = mesh.vertices()[t[0]];
-        coord_t* p2 = mesh.vertices()[t[1]];
-        coord_t* p3 = mesh.vertices()[t[2]];
+        const auto* t = mesh.triangles()[k];
+        const coord_t* p1 = mesh.vertices()[t[0]];
+        const coord_t* p2 = mesh.vertices()[t[1]];
+        const coord_t* p3 = mesh.vertices()[t[2]];
         tot_areas += SphericalTriangle::area(p1, p2, p3);
         strt_areas += Triangle::area(p1, p2, p3);
       }
