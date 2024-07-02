@@ -105,7 +105,11 @@ void ParticleSimulation::compute_search_direction(
 
   // solve for the search direction
   // a tolerance of 1e-3 should give a good enough direction
-  hessian_.solve_nl(gradient_, dw_, 1e-3, true);
+  SparseSolverOptions opts;
+  opts.tol = 1e-3;
+  opts.symmetric = true;
+  opts.max_iterations = 100;
+  hessian_.solve_nl(gradient_, dw_, opts);
 }
 
 void ParticleSimulation::calculate_properties() {

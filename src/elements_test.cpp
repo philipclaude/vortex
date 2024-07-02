@@ -17,6 +17,7 @@
 //  limitations under the License.
 //
 #include "library.h"
+#include "math/mat.hpp"
 #include "math/vec.hpp"
 #include "quadrature.h"
 #include "tester.h"
@@ -51,5 +52,36 @@ UT_TEST_CASE(spherical_triangle_jacobian_tests) {
   UT_ASSERT(error_approx < 1e-4);
 }
 UT_TEST_CASE_END(spherical_triangle_jacobian_tests)
+
+UT_TEST_CASE(linear_triangle_refcoord_grad_test) {
+  const double tol = 1e-12;
+  Grid<Triangle> mesh({10, 10});
+  for (size_t elem = 0; elem < mesh.triangles().n(); elem++) {
+    const auto* t = mesh.triangles()[elem];
+    const auto* a = mesh.vertices()[t[0]];
+    const auto* b = mesh.vertices()[t[1]];
+    const auto* c = mesh.vertices()[t[2]];
+
+    vec3d grads, gradt;
+    Triangle::get_refcoord_gradient(0, 0, a, b, c, grads, gradt);
+
+    // there should be no z-component to the gradient
+    UT_ASSERT_NEAR(grads[2], 0, tol);
+    UT_ASSERT_NEAR(gradt[2], 0, tol);
+
+    // in 2d, grad(s,t) = d(s,t)/d(x,t) is the inverse of the jacobian
+    mats<2, 2, double> j;
+    j(0, 0) = b[0] - a[0];
+    j(0, 1) = c[0] - a[0];
+    j(1, 0) = b[1] - a[1];
+    j(1, 1) = c[1] - a[1];
+    auto jinv = inverse(j);
+    for (int i = 0; i < 2; i++) {
+      UT_ASSERT_NEAR(jinv(0, i), grads[i], tol);
+      UT_ASSERT_NEAR(jinv(1, i), gradt[i], tol);
+    }
+  }
+}
+UT_TEST_CASE_END(linear_triangle_refcoord_grad_test)
 
 UT_TEST_SUITE_END(elements_test_suite)
