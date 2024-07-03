@@ -65,7 +65,7 @@ void PoissonSolver<Element_t>::build() {
       vec3d n = cross(b - a, c - a);
       // for (int i = 0; i < 3; i++)
       //   for (int j = 0; j < 3; j++) P(i, j) -= n[i] * n[j];
-      P -= outer(n, n);
+      P = P - outer(n, n);
       ga = P * ga;
       gb = P * gb;
       gc = P * gc;
