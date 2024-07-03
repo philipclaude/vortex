@@ -256,7 +256,7 @@ UT_TEST_CASE(vecs_test) {
     UT_ASSERT_NEAR(div3[i], vd3[i] / 0.5, tol);
   }
 
-  // Testing outter product
+  // Testing outer product
   vecs<3, double> uo1 = {1., 2., 3.};
   vecs<3, double> vo1 = {4., 5., 6.};
   mats<3, 3, double> o1 = outer(uo1, vo1);

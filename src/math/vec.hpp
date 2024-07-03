@@ -130,7 +130,7 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
   }
 
 /**
- * \brief Computes the vector-scalar multiplication x * a
+ * \brief Computes the vector-scalar division x / a
  */
 #define INSTANTIATE_VECSCADIV(R, S, T)                    \
   template <int M>                                        \
@@ -158,11 +158,11 @@ vecd<typename result_of<R, S>::type> operator*(const vecd<R>& x, const S& y) {
   }
 
 /**
- * \brief Computes the outter product uv^T between two static vectors.
+ * \brief Computes the outer product uv^T between two static vectors.
  * \param[in] u - vector (vecs)
  * \param[in] v - vector (vecs)
  *
- * \return outter product uv^T (an matrix)
+ * \return outer product uv^T (an matrix)
  */
 #define INSTANTIATE_OUTER(R, S, T)                                \
   template <int M, int N>                                         \

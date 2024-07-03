@@ -152,6 +152,7 @@ matd<typename result_of<R, S>::type> operator-(const matd<R>& A,
 #define INSTANTIATE_MATSCADIV(R, S, T)                          \
   template <int M, int N>                                       \
   mats<M, N, T> operator/(const mats<M, N, R>& A, const S& b) { \
+    ASSERT(b != 0) << "divide by zero";                         \
     mats<M, N, T> C;                                            \
     for (int i = 0; i < M; i++)                                 \
       for (int j = 0; j < N; j++) C(i, j) = A(i, j) / b;        \
