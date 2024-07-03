@@ -213,11 +213,10 @@ void SphereQuadtree::setup() {
 
 void SphereQuadtree::build() {
   // utility to determine if a point is inside a spherical triangle
-  const double eps = 1e-13;
-  auto intriangle = [eps](const vec3d& v0, const vec3d& v1, const vec3d& v2,
-                          const vec3d& v) {
-    return dot(cross(v0, v1), v) > -eps && dot(cross(v1, v2), v) > -eps &&
-           dot(cross(v2, v0), v) > -eps;
+  auto intriangle = [](const vec3d& v0, const vec3d& v1, const vec3d& v2,
+                       const vec3d& v) {
+    return dot(cross(v0, v1), v) >= 0 && dot(cross(v1, v2), v) >= 0 &&
+           dot(cross(v2, v0), v) >= 0;
   };
 
   int last_level = mesh_.n_levels - 1;
@@ -267,6 +266,15 @@ void SphereQuadtree::build() {
   triangle2points_.resize(n_triangles);
   for (size_t k = 0; k < point2triangle_.size(); k++) {
     triangle2points_[point2triangle_[k]].push_back(k);
+  }
+
+  // gather statistics
+  min_leaf_size_ = std::numeric_limits<int>::max();
+  max_leaf_size_ = 0;
+  for (const auto& pts : triangle2points_) {
+    size_t n = pts.size();
+    if (n < min_leaf_size_) min_leaf_size_ = n;
+    if (n > max_leaf_size_) max_leaf_size_ = n;
   }
 }
 

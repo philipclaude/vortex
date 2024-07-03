@@ -156,6 +156,9 @@ class SphereQuadtree {
   size_t n_triangles() const { return search_triangles_.size(); }
   const auto& mesh() const { return mesh_; }
 
+  int min_leaf_size() const { return min_leaf_size_; }
+  int max_leaf_size() const { return max_leaf_size_; }
+
  private:
   struct Subdivision : public Mesh {
     Subdivision(int np, int ns);
@@ -178,6 +181,8 @@ class SphereQuadtree {
   std::vector<std::vector<uint32_t>> triangle2points_;
   std::vector<std::array<int32_t, 13>> search_triangles_;
   Subdivision mesh_;
+  int min_leaf_size_;
+  int max_leaf_size_;
 };
 
 }  // namespace vortex

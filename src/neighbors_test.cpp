@@ -59,10 +59,11 @@ UT_TEST_CASE(test1) {
   options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
 
   // build a kdtree for comparison
+  VoronoiStatistics stats;
   std::vector<index_t> knn(n_sites * options.n_neighbors);
   auto tree =
       get_nearest_neighbors<dim>(vertices[0], n_sites, vertices[0], n_sites,
-                                 knn, options.n_neighbors, options);
+                                 knn, options.n_neighbors, options, stats);
 
   // calculate the voronoi diagram
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
@@ -128,11 +129,12 @@ UT_TEST_CASE(test2) {
   if (n_sites > 1e6) options.n_neighbors = 10;
 
   // build a kdtree for comparison
+  VoronoiStatistics stats;
   std::vector<index_t> knn;
   knn.resize(n_sites * options.n_neighbors);
   auto tree =
       get_nearest_neighbors<dim>(vertices[0], n_sites, vertices[0], n_sites,
-                                 knn, options.n_neighbors, options);
+                                 knn, options.n_neighbors, options, stats);
 
   int m = 10;
   int ns = std::min(
