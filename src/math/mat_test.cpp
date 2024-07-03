@@ -234,7 +234,7 @@ UT_TEST_CASE(mats_test) {
       m6(i, j) = i + j;
     }
   }
-  m6 = m6 / 0.;
+  m6 = m6 / 3.;
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 3; j++) {
       UT_ASSERT_EQUALS(m6(i, j), (i + j) / 3.);
