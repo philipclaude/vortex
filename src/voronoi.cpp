@@ -506,6 +506,14 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
   return ptree;
 }
 
+VoronoiDiagram::VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
+    : VoronoiMesh(3),
+      dim_(dim),
+      sites_(sites),
+      n_sites_(n_sites),
+      neighbors_(*this, sites, dim),
+      quadtree_(sites, n_sites, dim) {}
+
 template <typename Domain_t>
 void VoronoiDiagram::compute(const Domain_t& domain,
                              VoronoiDiagramOptions options) {
@@ -514,13 +522,21 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   Timer timer;
   size_t n_threads = std::thread::hardware_concurrency();
 
+  auto alg = options.neighbor_algorithm;
+  bool is_sphere = std::is_same<Domain_t, SphereDomain>::value;
+  bool use_kdtree = alg == NearestNeighborAlgorithm::kKdtree;
+  bool use_bfs = alg == NearestNeighborAlgorithm::kVoronoiBFS;
+  bool use_quadtree =
+      alg == NearestNeighborAlgorithm::kSphereQuadtree && is_sphere;
+  if (use_bfs && facets_.empty()) use_kdtree = true;
+
   // calculate nearest neighbors
   size_t n_neighbors = options.n_neighbors;
   if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
   std::vector<index_t> knn(n_sites_ * n_neighbors);
   std::vector<uint16_t> max_neighbors(n_sites_, options.n_neighbors);
   std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
-  if (facets_.empty() || options.always_use_kdtree) {
+  if (use_kdtree) {
     if (dim_ == 2)
       tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
                                       n_neighbors, options);
@@ -532,7 +548,37 @@ void VoronoiDiagram::compute(const Domain_t& domain,
                                       n_neighbors, options);
     else
       NOT_IMPLEMENTED;
-  } else {
+  } else if (use_quadtree) {
+    timer.start();
+    quadtree_.build();
+    timer.stop();
+    double t_build = timer.seconds();
+    std::vector<SphereQuadtreeWorkspace> searches(n_threads,
+                                                  options.n_neighbors);
+    timer.start();
+    std::parafor_i(0, n_sites_,
+                   [this, &searches, &knn, &options, &max_neighbors](size_t tid,
+                                                                     size_t k) {
+                     quadtree_.knearest(k, searches[tid]);
+                     const auto& result = searches[tid].neighbors;
+                     size_t m = searches[tid].size();
+                     if (searches[tid].size() > options.n_neighbors)
+                       m = options.n_neighbors;
+                     ASSERT(result[0].first == k);
+                     for (size_t j = 0; j < m; j++) {
+                       knn[options.n_neighbors * k + j] = result[j].first;
+                     }
+                     max_neighbors[k] = m;
+                   });
+    // still build the kdtree to retrieve neighbors if the cell is incomplete
+    tree = get_kdtree(sites_, n_sites_, dim_, options);
+
+    timer.stop();
+    if (options.verbose)
+      LOG << fmt::format(
+          "neighbors computed in {} s. (build = {} s.), total = {} s.",
+          timer.seconds(), t_build, timer.seconds() + t_build);
+  } else if (use_bfs) {
     timer.start();
     neighbors_.build();
     timer.stop();
@@ -548,6 +594,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
                      size_t m = result.size();
                      if (result.size() > options.n_neighbors)
                        m = options.n_neighbors;
+                     ASSERT(result.data()[0].first == k);
                      for (size_t j = 0; j < m; j++) {
                        knn[options.n_neighbors * k + j] =
                            result.data()[j].first;
@@ -562,6 +609,9 @@ void VoronoiDiagram::compute(const Domain_t& domain,
       LOG << fmt::format(
           "neighbors computed in {} s. (build = {} s.), total = {} s.",
           timer.seconds(), t_build, timer.seconds() + t_build);
+  } else {
+    LOG << "unknown nearest neighbor algorithm";
+    NOT_POSSIBLE;
   }
 
   // always add sites first for the Delaunay triangulation

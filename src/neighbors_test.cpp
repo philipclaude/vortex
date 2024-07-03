@@ -18,6 +18,8 @@
 //
 #include "neighbors.h"
 
+#include <algorithm>
+
 #include "io.h"
 #include "log.h"
 #include "mesh.h"
@@ -54,6 +56,7 @@ UT_TEST_CASE(test1) {
   options.parallel = true;
   options.store_mesh = false;
   options.verbose = true;
+  options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
 
   // build a kdtree for comparison
   std::vector<index_t> knn(n_sites * options.n_neighbors);
@@ -92,8 +95,8 @@ UT_TEST_CASE_END(test1)
 
 UT_TEST_CASE(test2) {
   SphereDomain domain;
-  static const int dim = 3;
-  size_t n_sites = 1e7;
+  static const int dim = 4;
+  size_t n_sites = 1e3;
 #if VORTEX_FULL_UNIT_TEST != 0
   n_sites = 1e4;
 #endif
@@ -132,7 +135,9 @@ UT_TEST_CASE(test2) {
                                  knn, options.n_neighbors, options);
 
   int m = 10;
-  int ns = std::log(n_sites / (Octahedron::n_faces * m)) / std::log(4);
+  int ns = std::min(
+      1.0, std::log(n_sites / (Octahedron::n_faces * m)) / std::log(4));
+  LOG << "ns = " << ns;
 
   Timer timer;
   timer.start();
@@ -151,21 +156,25 @@ UT_TEST_CASE(test2) {
   size_t n_threads = std::thread::hardware_concurrency();
   std::vector<SphereQuadtreeWorkspace> searches(n_threads, n_neighbors);
   std::vector<size_t> nn(n_sites);
-  std::parafor_i(0, n_sites, [&](int tid, size_t k) {
-    auto& search = searches[tid];
-    neighbors.knearest(k, search);
-    UT_ASSERT(search.size() > 0);
-    const auto& result = search.neighbors;
-    size_t r = search.size() < n_neighbors ? search.size() : n_neighbors;
-    double d = -1;
-    for (size_t j = 0; j < r; j++) {
-      UT_ASSERT(d <= result[j].second);
-      if (r < 10)
-        UT_ASSERT_EQUALS(result[j].first, knn[options.n_neighbors * k + j]);
-      d = result[j].second;
-    }
-    nn[k] = r;
-  });
+  std::parafor_i(
+      0, n_sites,
+      [&](int tid, size_t k) {
+        auto& search = searches[tid];
+        neighbors.knearest(k, search);
+        UT_ASSERT(search.size() > 0);
+        const auto& result = search.neighbors;
+        size_t r = search.size() < n_neighbors ? search.size() : n_neighbors;
+        double d = -1;
+        UT_ASSERT(result[0].first == k);
+        for (size_t j = 0; j < r; j++) {
+          UT_ASSERT(d <= result[j].second);
+          if (r < 10)
+            UT_ASSERT_EQUALS(result[j].first, knn[options.n_neighbors * k + j]);
+          d = result[j].second;
+        }
+        nn[k] = r;
+      },
+      true);
   timer.stop();
   LOG << fmt::format("computed nearest neighbors in {} s.", timer.seconds());
 

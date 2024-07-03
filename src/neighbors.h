@@ -118,37 +118,36 @@ class VoronoiNeighbors {
 };
 
 struct SphereQuadtreeWorkspace {
-  SphereQuadtreeWorkspace(int n) : n_neighbors(n) {}
+  SphereQuadtreeWorkspace(int n) : n_neighbors(n) {
+    neighbors.reserve(MAX_NEIGHBOR_CAPACITY);
+    reset();
+  }
 
-  void reset() { count = 0; }
+  void reset() { neighbors.clear(); }
 
   void sort() {
     if (size() < n_neighbors) {
       std::sort(
-          neighbors, neighbors + size(),
+          neighbors.begin(), neighbors.end(),
           [](const auto& a, const auto& b) { return a.second < b.second; });
     } else {
       std::partial_sort(
-          neighbors, neighbors + n_neighbors, neighbors + size(),
+          neighbors.begin(), neighbors.begin() + n_neighbors, neighbors.end(),
           [](const auto& a, const auto& b) { return a.second < b.second; });
     }
   }
 
-  size_t size() const { return count; }
+  size_t size() const { return neighbors.size(); }
 
-  void add(uint32_t n, double d) {
-    if (count >= MAX_NEIGHBOR_CAPACITY) return;
-    neighbors[count++] = {n, d};
-  }
+  void add(uint32_t n, double d) { neighbors.emplace_back(n, d); }
 
-  std::pair<uint32_t, double> neighbors[MAX_NEIGHBOR_CAPACITY];
+  std::vector<std::pair<uint32_t, double>> neighbors;
   const int n_neighbors{0};
-  int count{0};
 };
 
 class SphereQuadtree {
  public:
-  SphereQuadtree(const coord_t* points, size_t n_points, int dim, int ns);
+  SphereQuadtree(const coord_t* points, size_t n_points, int dim, int ns = -1);
 
   void setup();
   void build();
@@ -159,17 +158,17 @@ class SphereQuadtree {
 
  private:
   struct Subdivision : public Mesh {
-    Subdivision(int ns);
+    Subdivision(int np, int ns);
     array2d<uint32_t> children;
     int n_levels;
   };
 
   // 8 * \sum_{i = 0}^n 4^i
-  size_t t_first(int ns) {
-    return Octahedron::n_faces * (std::pow(4, ns) - 1) / 3;
+  size_t t_first(int n) {
+    return Octahedron::n_faces * (std::pow(4, n) - 1) / 3;
   }
-  size_t t_last(int ns) {
-    return Octahedron::n_faces * (std::pow(4, ns + 1) - 1) / 3;
+  size_t t_last(int n) {
+    return Octahedron::n_faces * (std::pow(4, n + 1) - 1) / 3;
   }
 
   const coord_t* points_;

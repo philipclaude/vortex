@@ -371,7 +371,11 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.n_neighbors = program.get<int>("--n_neighbors");
   options.parallel = true;
   // options.store_facet_data = false;
-  options.always_use_kdtree = program.get<bool>("--force_kdtree");
+  // options.always_use_kdtree = program.get<bool>("--force_kdtree");
+  if (arg_domain == "sphere") {
+    options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
+    options.store_facet_data = false;
+  }
 
   auto quiet = program.get<bool>("--quiet");
   auto verbose = program.get<bool>("--verbose");

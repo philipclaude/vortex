@@ -283,6 +283,12 @@ inline vec4 plane_equation(const vec4& ui, const vec4& uj, const coord_t& wi,
   return {n.x, n.y, n.z, -dot(n, m.xyz())};
 }
 
+enum class NearestNeighborAlgorithm : uint8_t {
+  kKdtree,
+  kVoronoiBFS,
+  kSphereQuadtree
+};
+
 struct VoronoiDiagramOptions {
   bool store_mesh{false};  // should the mesh be stored? (this makes the Voronoi
                            // diagram calculation slower).
@@ -297,7 +303,8 @@ struct VoronoiDiagramOptions {
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
   bool store_facet_data{true};
   bool store_delaunay_triangles{false};
-  bool always_use_kdtree{false};
+  NearestNeighborAlgorithm neighbor_algorithm{
+      NearestNeighborAlgorithm::kVoronoiBFS};
 };
 
 struct VoronoiCellProperties {
@@ -381,7 +388,6 @@ class VoronoiMesh : public Mesh {
   bool save_facets_{false};
   bool save_delaunay_{false};
   using facet_length_t = float;
-  // std::unordered_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   absl::flat_hash_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   absl::flat_hash_set<std::array<uint32_t, 3>> delaunay_;
   size_t n_incomplete_{0};
@@ -396,12 +402,7 @@ class VoronoiDiagram : public VoronoiMesh {
   /// @param dim Dimension of the sites (should be 2, 3 or 4).
   /// @param sites Pointer to the sites.
   /// @param n_sites Number of sites.
-  VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
-      : VoronoiMesh(3),
-        dim_(dim),
-        sites_(sites),
-        n_sites_(n_sites),
-        neighbors_(*this, sites, dim) {}
+  VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites);
   VoronoiDiagram(const VoronoiDiagram&) = delete;
 
   /// @brief Calculates the Voronoi diagram of the saved sites restricted to
@@ -446,6 +447,7 @@ class VoronoiDiagram : public VoronoiMesh {
   std::vector<VoronoiStatusCode> status_;
   std::vector<double> weights_;
   VoronoiNeighbors neighbors_;
+  SphereQuadtree quadtree_;
 };
 
 /// @brief Lift the sites to 4d where the fourth coordinate = sqrt(wmax -

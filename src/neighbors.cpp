@@ -95,14 +95,27 @@ void VoronoiNeighbors::knearest(uint32_t p,
 
 SphereQuadtree::SphereQuadtree(const coord_t* points, size_t n_points, int dim,
                                int ns)
-    : points_(points), n_points_(n_points), dim_(dim), mesh_(ns) {
+    : points_(points), n_points_(n_points), dim_(dim), mesh_(n_points, ns) {
   setup();
 }
 
-SphereQuadtree::Subdivision::Subdivision(int ns)
+SphereQuadtree::Subdivision::Subdivision(int np, int ns)
     : Mesh(3), children(4), n_levels(ns + 1) {
-  // initial octahedron
   using T = Octahedron;
+  if (ns < 0) {
+    int m = 5;
+    ns = std::log(np / (T::n_faces * m)) / std::log(4);
+  }
+  int npt = np / (T::n_faces * std::pow(4, ns));
+  if (npt > 10) {
+    ns++;
+    npt /= 4;
+  }
+  n_levels = ns + 1;
+
+  LOG << fmt::format("# levels = {}, estimate # pts/tri = {}", n_levels, npt);
+
+  // initial octahedron
   for (int i = 0; i < T::n_vertices; i++) vertices_.add(T::coordinates[i]);
   for (int i = 0; i < T::n_faces; i++) {
     triangles_.add(T::faces[i]);
@@ -165,20 +178,17 @@ SphereQuadtree::Subdivision::Subdivision(int ns)
 }
 
 void SphereQuadtree::setup() {
-  size_t t0 = t_first(mesh_.n_levels - 1);
-  size_t t1 = t_last(mesh_.n_levels - 1);
+  int last_level = mesh_.n_levels - 1;
+  size_t t0 = t_first(last_level);
+  size_t t1 = t_last(last_level);
   size_t n_triangles = t1 - t0;
-  ASSERT(n_triangles == 8 * std::pow(4, mesh_.n_levels - 1));
+  ASSERT(t1 == mesh_.triangles().n());
 
-  std::unordered_map<uint32_t, std::vector<uint32_t>> v2t;
+  std::vector<std::vector<uint32_t>> v2t(mesh_.vertices().n());
   for (size_t k = t0; k < t1; k++) {
     for (int j = 0; j < 3; j++) {
       auto v = mesh_.triangles()(k, j);
-      auto it = v2t.find(v);
-      if (it == v2t.end())
-        v2t.insert({v, {uint32_t(k)}});
-      else
-        v2t[v].push_back(k);
+      v2t[v].push_back(k);
     }
   }
 
@@ -188,7 +198,8 @@ void SphereQuadtree::setup() {
   for (size_t k = t0; k < t1; k++) {
     stri.clear();
     for (int j = 0; j < 3; j++) {
-      for (auto t : v2t[mesh_.triangles()[k][j]]) stri.insert(t);
+      auto v = mesh_.triangles()[k][j];
+      for (auto t : v2t[v]) stri.insert(t);
     }
 
     std::fill(vtri.begin(), vtri.end(), -1);
@@ -202,10 +213,11 @@ void SphereQuadtree::setup() {
 
 void SphereQuadtree::build() {
   // utility to determine if a point is inside a spherical triangle
-  auto intriangle = [](const vec3d& v0, const vec3d& v1, const vec3d& v2,
-                       const vec3d& v) {
-    return dot(cross(v0, v1), v) >= 0 && dot(cross(v1, v2), v) >= 0 &&
-           dot(cross(v2, v0), v) >= 0;
+  const double eps = 1e-13;
+  auto intriangle = [eps](const vec3d& v0, const vec3d& v1, const vec3d& v2,
+                          const vec3d& v) {
+    return dot(cross(v0, v1), v) > -eps && dot(cross(v1, v2), v) > -eps &&
+           dot(cross(v2, v0), v) > -eps;
   };
 
   int last_level = mesh_.n_levels - 1;
@@ -223,7 +235,7 @@ void SphereQuadtree::build() {
       for (int i = 0; i < 4; i++) c[i] += 4;
     }
 
-    int level = 0;
+    int level = -1;
     while (true) {
       int child = -1;
       for (int i = 0; i < 4; i++) {
@@ -237,6 +249,7 @@ void SphereQuadtree::build() {
         }
       }
       ASSERT(child >= 0);
+      ASSERT(mesh_.triangles().group(child) == level + 1);
 
       level = mesh_.triangles().group(child);
       if (level == last_level) {
@@ -266,11 +279,11 @@ void SphereQuadtree::knearest(uint32_t p,
 
   // loop through all the triangles in the first layer around this triangle
   const auto& triangles = search_triangles_[t];
-  for (int k = 0; k < triangles.size(); k++) {
+  for (size_t k = 0; k < triangles.size(); k++) {
     // loop through all the points in this triangle
     if (triangles[k] < 0) break;
     const auto& points = triangle2points_[triangles[k]];
-    for (int j = 0; j < points.size(); j++) {
+    for (size_t j = 0; j < points.size(); j++) {
       double d = distance_squared(points_ + dim_ * p,
                                   points_ + dim_ * points[j], dim_);
       search.add(points[j], d);

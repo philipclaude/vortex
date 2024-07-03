@@ -174,7 +174,7 @@ UT_TEST_CASE(squircle_test) {
   auto get_area = [](const Mesh& m) -> double {
     double area = 0;
     for (int k = 0; k < m.triangles().n(); k++) {
-      auto* t = m.triangles()[k];
+      const auto* t = m.triangles()[k];
       const auto* p1 = m.vertices()[t[0]];
       const auto* p2 = m.vertices()[t[1]];
       const auto* p3 = m.vertices()[t[2]];
