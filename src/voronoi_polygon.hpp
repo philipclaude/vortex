@@ -123,7 +123,7 @@ class VoronoiPolygon {
     if (mesh.save_facets()) save_facets(mesh, site);
     if (mesh.save_delaunay()) save_delaunay(mesh, site);
 
-    // TODO(philip) retrieve more neighbors and keep clipping
+    // retrieve more neighbors and keep clipping
     if (!security_radius_reached) {
       if (!tree_ || n_neighbors >= 256)
         return VoronoiStatusCode::kRadiusNotReached;
