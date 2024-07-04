@@ -154,7 +154,6 @@ class SphereQuadtree {
   void knearest(uint32_t p, SphereQuadtreeWorkspace& search) const;
 
   const auto& mesh() const { return mesh_; }
-
   int min_leaf_size() const { return min_leaf_size_; }
   int max_leaf_size() const { return max_leaf_size_; }
 
@@ -178,9 +177,11 @@ class SphereQuadtree {
   size_t n_points_;
   int dim_;
   std::vector<uint32_t> point2triangle_;
+  static constexpr int kOneRingSize = 13;
+  static constexpr int kTwoRingSize = 47;
   std::vector<std::vector<uint32_t>> triangle2points_;
-  std::vector<std::array<int32_t, 13>> one_ring_tris_;
-  std::vector<std::array<int32_t, 47>> two_ring_tris_;
+  std::vector<std::array<int32_t, kOneRingSize>> one_ring_tris_;
+  std::vector<std::array<int32_t, kTwoRingSize>> two_ring_tris_;
   Subdivision mesh_;
   int min_leaf_size_;
   int max_leaf_size_;

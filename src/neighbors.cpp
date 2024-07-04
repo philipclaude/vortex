@@ -105,7 +105,7 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
   if (ns < 0) {
     int k = MAX_NEIGHBOR_CAPACITY;
     int n = np;
-    int m = double(k) / 13.0;
+    int m = double(k) / kOneRingSize;
     ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0));
   }
   n_levels = ns + 1;
@@ -191,7 +191,7 @@ void SphereQuadtree::setup() {
   }
 
   std::unordered_set<uint32_t> stri;
-  std::array<int32_t, 13> vtri;
+  std::array<int32_t, kOneRingSize> vtri;
   one_ring_tris_.resize(n_triangles);
   for (size_t k = t0; k < t1; k++) {
     stri.clear();
@@ -211,7 +211,7 @@ void SphereQuadtree::setup() {
     use_two_ring_ = true;
     struct TwoRingWorkspace {
       std::unordered_set<uint32_t> stri;
-      std::array<int32_t, 47> vtri;
+      std::array<int32_t, kTwoRingSize> vtri;
     };
     std::vector<TwoRingWorkspace> ws(std::thread::hardware_concurrency());
     two_ring_tris_.resize(n_triangles);
@@ -311,7 +311,7 @@ void SphereQuadtree::knearest(uint32_t p,
   // loop through all the triangles in the first layer around this triangle
   const auto* triangles =
       use_two_ring_ ? two_ring_tris_[t].data() : one_ring_tris_[t].data();
-  size_t nt = use_two_ring_ ? 47 : 13;
+  size_t nt = use_two_ring_ ? kTwoRingSize : kOneRingSize;
   for (size_t k = 0; k < nt; k++) {
     // loop through all the points in this triangle
     if (triangles[k] < 0) break;

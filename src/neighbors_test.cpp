@@ -96,7 +96,7 @@ UT_TEST_CASE_END(test1)
 
 UT_TEST_CASE(test2) {
   SphereDomain domain;
-  static const int dim = 4;
+  static const int dim = 3;
   size_t n_sites = 1e7;
 #if VORTEX_FULL_UNIT_TEST != 0
   n_sites = 1e4;

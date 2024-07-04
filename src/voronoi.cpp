@@ -762,9 +762,13 @@ void VoronoiDiagram::compute(const Domain_t& domain,
     LOG << fmt::format("n_incomplete = {}", n_incomplete);
   statistics_.n_incomplete = n_incomplete;
 
+  statistics_.area = analyze().area;
+  statistics_.area_error = statistics_.area - domain.area();
+
   global_timer.stop();
   statistics_.t_total = global_timer.seconds();
   average_statistics_.append_to_average(statistics_);
+  if (track_statistics_history_) statistics_history_.push_back(statistics_);
 }
 
 template <>

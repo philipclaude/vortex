@@ -380,9 +380,8 @@ void run_voronoi(argparse::ArgumentParser& program) {
   auto verbose = program.get<bool>("--verbose");
   auto save = program.present<std::string>("--output");
   auto on_sphere = program.get<bool>("--on_sphere");
-  std::vector<nlohmann::json> stats;
   auto calculate_voronoi_diagram = [&voronoi, &options, &points, n_smooth, save,
-                                    quiet, verbose, on_sphere, &stats, &program,
+                                    quiet, verbose, on_sphere, &program,
                                     &arg_domain](auto& domain) {
     int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
@@ -418,11 +417,10 @@ void run_voronoi(argparse::ArgumentParser& program) {
 
       // move each site to the centroid of the corresponding cell
       voronoi.smooth(points, on_sphere);
-      auto props = voronoi.analyze();
-      if (!quiet) LOG << fmt::format("iter = {}, area = {}", iter, props.area);
-      voronoi.statistics().area = props.area;
-      voronoi.statistics().area_error = props.area - domain.area();
-      stats.push_back(voronoi.statistics().to_json());
+      if (!quiet)
+        LOG << fmt::format("iter = {}, area = {} (error = {})", iter,
+                           voronoi.statistics().area,
+                           voronoi.statistics().area_error);
     }
   };
 
@@ -458,6 +456,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
   if (program.present<std::string>("--statistics")) {
     nlohmann::json data;
     data["average"] = voronoi.average_statistics().to_json();
+    std::vector<nlohmann::json> stats(voronoi.statistics_history().size());
+    for (size_t k = 0; k < stats.size(); k++)
+      stats[k] = voronoi.statistics_history()[k].to_json();
     data["iterations"] = stats;
     std::ofstream outfile(program.get<std::string>("--statistics"));
     outfile << std::setw(4) << data << std::endl;
@@ -563,24 +564,6 @@ void run_simulation(argparse::ArgumentParser& program) {
                       const auto& force) {
     using Domain_t = typename std::remove_reference<decltype(domain)>::type;
 
-    // smooth the initial point distribution with Lloyd relaxation
-    VoronoiDiagram smoother(dim, vertices[0], n_points);
-    VoronoiDiagramOptions options;
-    options.n_neighbors = 50;
-    options.parallel = true;
-    options.store_facet_data = true;
-    int n_iter = program.get<int>("--n_smooth");
-
-    for (int iter = 1; iter <= n_iter; ++iter) {
-      options.store_mesh = false;
-      options.verbose = false;
-      smoother.compute(domain, options);  // calculate voronoi diagram
-      smoother.smooth(vertices, false);   // move sites to centroids
-      for (size_t k = 0; k < vertices.n(); k++)
-        project_point<Domain_t>(vertices[k]);
-    }
-    LOG << "done smoothing points";
-
     // set up the fluid simulator
     SpringParticles<Domain_t> solver(domain, n_points, vertices[0],
                                      vertices.dim());
@@ -592,6 +575,7 @@ void run_simulation(argparse::ArgumentParser& program) {
     // set up fluid and solver properties
     FluidProperties props;
     SimulationOptions solver_opts;
+    solver_opts.n_smoothing_iterations = program.get<int>("--n_smooth");
     solver.initialize(domain, solver_opts);
     LOG << "initialized simulation";
 
@@ -625,6 +609,18 @@ void run_simulation(argparse::ArgumentParser& program) {
     }
     timer.stop();
     solver.print_footer();
+
+    // write voronoi statistics
+    const auto& voronoi = solver.voronoi();
+    nlohmann::json data;
+    data["average"] = voronoi.average_statistics().to_json();
+    std::vector<nlohmann::json> stats(voronoi.statistics_history().size());
+    for (size_t k = 0; k < stats.size(); k++)
+      stats[k] = voronoi.statistics_history()[k].to_json();
+    data["iterations"] = stats;
+    std::ofstream outfile("solver_statistics.json");
+    outfile << std::setw(4) << data << std::endl;
+
     LOG << fmt::format("done! total time = {} seconds.", timer.seconds());
   };
 

@@ -512,6 +512,8 @@ class VoronoiDiagram : public VoronoiMesh {
   const auto& statistics() const { return statistics_; }
   auto& statistics() { return statistics_; }
   const auto& average_statistics() const { return average_statistics_; }
+  const auto& statistics_history() const { return statistics_history_; }
+  void track_statistics_history(bool x) { track_statistics_history_ = x; }
 
  private:
   int dim_;
@@ -524,6 +526,8 @@ class VoronoiDiagram : public VoronoiMesh {
   std::unique_ptr<SphereQuadtree> sqtree_;
   VoronoiStatistics statistics_;
   VoronoiStatistics average_statistics_;
+  std::vector<VoronoiStatistics> statistics_history_;
+  bool track_statistics_history_{true};
 };
 
 /// @brief Lift the sites to 4d where the fourth coordinate = sqrt(wmax -
