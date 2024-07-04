@@ -97,7 +97,7 @@ UT_TEST_CASE_END(test1)
 UT_TEST_CASE(test2) {
   SphereDomain domain;
   static const int dim = 4;
-  size_t n_sites = 1e3;
+  size_t n_sites = 1e7;
 #if VORTEX_FULL_UNIT_TEST != 0
   n_sites = 1e4;
 #endif
@@ -118,7 +118,7 @@ UT_TEST_CASE(test2) {
     vertices.add(x);
   }
 
-  int n_neighbors = 80;
+  int n_neighbors = 50;
 
   VoronoiDiagramOptions options;
   options.n_neighbors = n_neighbors;
@@ -136,17 +136,11 @@ UT_TEST_CASE(test2) {
       get_nearest_neighbors<dim>(vertices[0], n_sites, vertices[0], n_sites,
                                  knn, options.n_neighbors, options, stats);
 
-  int m = 10;
-  int ns = std::min(
-      1.0, std::log(n_sites / (Octahedron::n_faces * m)) / std::log(4));
-  LOG << "ns = " << ns;
-
   Timer timer;
   timer.start();
-  SphereQuadtree neighbors(vertices[0], vertices.n(), dim, ns);
+  SphereQuadtree neighbors(vertices[0], vertices.n(), dim);
   timer.stop();
-  LOG << fmt::format("setup time for ns = {}, nt = {}: {} s.", ns,
-                     neighbors.n_triangles(), timer.seconds());
+  LOG << fmt::format("setup time = {} s.", timer.seconds());
 
   timer.start();
   neighbors.build();
@@ -158,25 +152,22 @@ UT_TEST_CASE(test2) {
   size_t n_threads = std::thread::hardware_concurrency();
   std::vector<SphereQuadtreeWorkspace> searches(n_threads, n_neighbors);
   std::vector<size_t> nn(n_sites);
-  std::parafor_i(
-      0, n_sites,
-      [&](int tid, size_t k) {
-        auto& search = searches[tid];
-        neighbors.knearest(k, search);
-        UT_ASSERT(search.size() > 0);
-        const auto& result = search.neighbors;
-        size_t r = search.size() < n_neighbors ? search.size() : n_neighbors;
-        double d = -1;
-        UT_ASSERT(result[0].first == k);
-        for (size_t j = 0; j < r; j++) {
-          UT_ASSERT(d <= result[j].second);
-          if (r < 10)
-            UT_ASSERT_EQUALS(result[j].first, knn[options.n_neighbors * k + j]);
-          d = result[j].second;
-        }
-        nn[k] = r;
-      },
-      true);
+  std::parafor_i(0, n_sites, [&](int tid, size_t k) {
+    auto& search = searches[tid];
+    neighbors.knearest(k, search);
+    UT_ASSERT(search.size() > 0);
+    const auto& result = search.neighbors;
+    size_t r = search.size() < n_neighbors ? search.size() : n_neighbors;
+    double d = -1;
+    UT_ASSERT(result[0].first == k);
+    for (size_t j = 0; j < r; j++) {
+      UT_ASSERT(d <= result[j].second);
+      if (r < 10)
+        UT_ASSERT_EQUALS(result[j].first, knn[options.n_neighbors * k + j]);
+      d = result[j].second;
+    }
+    nn[k] = r;
+  });
   timer.stop();
   LOG << fmt::format("computed nearest neighbors in {} s.", timer.seconds());
 

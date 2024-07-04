@@ -108,10 +108,10 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
     int m = double(k) / 13.0;
     ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0));
   }
-  int npt = np / (T::n_faces * std::pow(4, ns));
   n_levels = ns + 1;
-
-  LOG << fmt::format("# levels = {}, estimate # pts/tri = {}", n_levels, npt);
+  n_points_per_triangle = np / (Octahedron::n_faces * std::pow(4, ns));
+  LOG << fmt::format("# levels = {}, # triangles = {}, # pts/tri ~ {}",
+                     n_levels, t_last(ns) - t_first(ns), n_points_per_triangle);
 
   // initial octahedron
   for (int i = 0; i < T::n_vertices; i++) vertices_.add(T::coordinates[i]);
@@ -177,8 +177,8 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
 
 void SphereQuadtree::setup() {
   int last_level = mesh_.n_levels - 1;
-  size_t t0 = t_first(last_level);
-  size_t t1 = t_last(last_level);
+  size_t t0 = mesh_.t_first(last_level);
+  size_t t1 = mesh_.t_last(last_level);
   size_t n_triangles = t1 - t0;
   ASSERT(t1 == mesh_.triangles().n());
 
@@ -192,7 +192,7 @@ void SphereQuadtree::setup() {
 
   std::unordered_set<uint32_t> stri;
   std::array<int32_t, 13> vtri;
-  search_triangles_.resize(n_triangles);
+  one_ring_tris_.resize(n_triangles);
   for (size_t k = t0; k < t1; k++) {
     stri.clear();
     for (int j = 0; j < 3; j++) {
@@ -202,10 +202,35 @@ void SphereQuadtree::setup() {
 
     std::fill(vtri.begin(), vtri.end(), -1);
     int i = 0;
-    for (auto t : stri) {
-      vtri[i++] = t - t0;
-    }
-    search_triangles_[k - t0] = vtri;
+    for (auto t : stri) vtri[i++] = t - t0;
+    one_ring_tris_[k - t0] = vtri;
+  }
+
+  if (mesh_.n_points_per_triangle < 10) {
+    LOG << "activating two-ring";
+    use_two_ring_ = true;
+    struct TwoRingWorkspace {
+      std::unordered_set<uint32_t> stri;
+      std::array<int32_t, 47> vtri;
+    };
+    std::vector<TwoRingWorkspace> ws(std::thread::hardware_concurrency());
+    two_ring_tris_.resize(n_triangles);
+    std::parafor_i(0, t1 - t0, [&](int tid, size_t k) {
+      auto& stri2 = ws[tid].stri;
+      stri2.clear();
+      const auto& tris = one_ring_tris_[k];
+      for (auto t : tris) {
+        for (int j = 0; j < 3; j++) {
+          auto v = mesh_.triangles()[t + t0][j];
+          for (auto tt : v2t[v]) stri2.insert(tt);
+        }
+      }
+
+      std::fill(ws[tid].vtri.begin(), ws[tid].vtri.end(), -1);
+      int i = 0;
+      for (auto t : stri2) ws[tid].vtri[i++] = t - t0;
+      two_ring_tris_[k] = ws[tid].vtri;
+    });
   }
 }
 
@@ -218,8 +243,8 @@ void SphereQuadtree::build() {
   };
 
   int last_level = mesh_.n_levels - 1;
-  int t0 = t_first(last_level);
-  int t1 = t_last(last_level);
+  int t0 = mesh_.t_first(last_level);
+  int t1 = mesh_.t_last(last_level);
   size_t n_triangles = t1 - t0;
 
   // build the point2triangle info
@@ -284,8 +309,10 @@ void SphereQuadtree::knearest(uint32_t p,
   auto t = point2triangle_[p];
 
   // loop through all the triangles in the first layer around this triangle
-  const auto& triangles = search_triangles_[t];
-  for (size_t k = 0; k < triangles.size(); k++) {
+  const auto* triangles =
+      use_two_ring_ ? two_ring_tris_[t].data() : one_ring_tris_[t].data();
+  size_t nt = use_two_ring_ ? 47 : 13;
+  for (size_t k = 0; k < nt; k++) {
     // loop through all the points in this triangle
     if (triangles[k] < 0) break;
     const auto& points = triangle2points_[triangles[k]];

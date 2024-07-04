@@ -32,7 +32,7 @@ namespace vortex {
 
 class VoronoiDiagram;
 
-#define MAX_NEIGHBOR_CAPACITY 250
+#define MAX_NEIGHBOR_CAPACITY 256
 
 template <typename T>
 class queue {
@@ -153,7 +153,6 @@ class SphereQuadtree {
   void build();
   void knearest(uint32_t p, SphereQuadtreeWorkspace& search) const;
 
-  size_t n_triangles() const { return search_triangles_.size(); }
   const auto& mesh() const { return mesh_; }
 
   int min_leaf_size() const { return min_leaf_size_; }
@@ -164,25 +163,28 @@ class SphereQuadtree {
     Subdivision(int np, int ns);
     array2d<uint32_t> children;
     int n_levels;
-  };
+    int n_points_per_triangle;
 
-  // 8 * \sum_{i = 0}^n 4^i
-  size_t t_first(int n) {
-    return Octahedron::n_faces * (std::pow(4, n) - 1) / 3;
-  }
-  size_t t_last(int n) {
-    return Octahedron::n_faces * (std::pow(4, n + 1) - 1) / 3;
-  }
+    // 8 * \sum_{i = 0}^n 4^i
+    size_t t_first(int n) {
+      return Octahedron::n_faces * (std::pow(4, n) - 1) / 3;
+    }
+    size_t t_last(int n) {
+      return Octahedron::n_faces * (std::pow(4, n + 1) - 1) / 3;
+    }
+  };
 
   const coord_t* points_;
   size_t n_points_;
   int dim_;
   std::vector<uint32_t> point2triangle_;
   std::vector<std::vector<uint32_t>> triangle2points_;
-  std::vector<std::array<int32_t, 13>> search_triangles_;
+  std::vector<std::array<int32_t, 13>> one_ring_tris_;
+  std::vector<std::array<int32_t, 47>> two_ring_tris_;
   Subdivision mesh_;
   int min_leaf_size_;
   int max_leaf_size_;
+  bool use_two_ring_{false};
 };
 
 }  // namespace vortex
