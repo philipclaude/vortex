@@ -28,7 +28,7 @@ namespace vortex {
 struct SimulationOptions {
   double volume_grad_tol{1e-8};
   int max_iter{25};
-  int n_neighbors{80};
+  int n_neighbors{50};
   bool verbose{true};
   double time_step{1e-3};
   double time{0};
@@ -43,6 +43,8 @@ struct SimulationOptions {
   bool reflection_boundary_condition{false};
   bool advect_from_centroid{true};
   int n_smoothing_iterations{10};
+  NearestNeighborAlgorithm neighbor_algorithm{
+      NearestNeighborAlgorithm::kKdtree};
 };
 
 struct SimulationConvergence {
@@ -158,6 +160,8 @@ class ParticleSimulation {
     voronoi_.weights().resize(particles_.n(), 0);
 
     // smooth the points using Lloyd relaxation
+    Timer timer;
+    timer.start();
     int n_iter = sim_opts.n_smoothing_iterations;
     for (int iter = 1; iter <= n_iter; ++iter) {
       voro_opts.store_mesh = sim_opts.save_initial_mesh && iter == n_iter;
@@ -169,7 +173,8 @@ class ParticleSimulation {
       for (size_t k = 0; k < particles_.n(); k++)
         project_point<Domain_t>(particles_[k]);
     }
-    LOG << "done smoothing points";
+    timer.stop();
+    LOG << fmt::format("smoothed points in {} s.", timer.seconds());
 
     // save the initial volume and mass of each particles
     for (size_t k = 0; k < particles_.n(); k++) {

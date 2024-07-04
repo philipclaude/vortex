@@ -576,6 +576,10 @@ void run_simulation(argparse::ArgumentParser& program) {
     FluidProperties props;
     SimulationOptions solver_opts;
     solver_opts.n_smoothing_iterations = program.get<int>("--n_smooth");
+    bool is_sphere = std::is_same<Domain_t, SphereDomain>::value;
+    if (is_sphere)
+      solver_opts.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+
     solver.initialize(domain, solver_opts);
     LOG << "initialized simulation";
 
