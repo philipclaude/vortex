@@ -103,14 +103,12 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
     : Mesh(3), children(4), n_levels(ns + 1) {
   using T = Octahedron;
   if (ns < 0) {
-    int m = 5;
-    ns = std::log(np / (T::n_faces * m)) / std::log(4);
+    int k = MAX_NEIGHBOR_CAPACITY;
+    int n = np;
+    int m = double(k) / 13.0;
+    ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0));
   }
   int npt = np / (T::n_faces * std::pow(4, ns));
-  if (npt > 10) {
-    ns++;
-    npt /= 4;
-  }
   n_levels = ns + 1;
 
   LOG << fmt::format("# levels = {}, estimate # pts/tri = {}", n_levels, npt);

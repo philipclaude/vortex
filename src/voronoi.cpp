@@ -520,6 +520,24 @@ void VoronoiDiagram::create_sqtree(int n_subdiv) {
   sqtree_ = std::make_unique<SphereQuadtree>(sites_, n_sites_, dim_, n_subdiv);
 }
 
+int check_closed_delaunay(
+    const absl::flat_hash_set<std::array<uint32_t, 3>>& triangles) {
+  absl::flat_hash_set<std::pair<uint32_t, uint32_t>> edges;
+  for (const auto& t : triangles) {
+    for (int j = 0; j < 3; j++) {
+      uint32_t p = t[j];
+      uint32_t q = t[j == 2 ? 0 : j + 1];
+      if (p > q) std::swap(p, q);
+      auto it = edges.find({p, q});
+      if (it == edges.end())
+        edges.insert({p, q});
+      else
+        edges.erase(it);
+    }
+  }
+  return edges.size();
+}
+
 template <typename Domain_t>
 void VoronoiDiagram::compute(const Domain_t& domain,
                              VoronoiDiagramOptions options) {
@@ -726,6 +744,14 @@ void VoronoiDiagram::compute(const Domain_t& domain,
       LOG << fmt::format("# triangles = {}, (done in {} sec.)",
                          delaunay_.size(), timer.seconds());
     statistics_.t_delaunay = timer.seconds();
+
+    if (options.check_closed) {
+      timer.start();
+      statistics_.n_bnd_delaunay_edges = check_closed_delaunay(delaunay_);
+      timer.stop();
+      if (options.verbose)
+        LOG << fmt::format("delaunay check done in {} sec.", timer.seconds());
+    }
   }
 
   uint64_t n_incomplete = 0;
@@ -928,9 +954,11 @@ nlohmann::json VoronoiStatistics::to_json() const {
   data["t_total"] = t_total;
   data["count"] = count;
   data["area_error"] = area_error;
+  data["area"] = area;
   data["n_bfs_level"] = n_bfs_level;
   data["n_sites"] = n_sites;
   data["n_triangles"] = n_triangles;
+  data["n_bnd_delaunay_edges"] = n_bnd_delaunay_edges;
 
   return data;
 }

@@ -372,6 +372,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
   options.n_neighbors = program.get<int>("--n_neighbors");
   options.parallel = true;
   options.bfs_max_level = program.get<int>("--bfs_max_level");
+  voronoi.create_sqtree(program.get<int>("--sqtree_subdiv"));
+  options.check_closed = program.get<bool>("--check_closed");
+  if (options.check_closed) options.store_delaunay_triangles = true;
 
   auto quiet = program.get<bool>("--quiet");
   auto verbose = program.get<bool>("--verbose");
@@ -403,7 +406,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
       if (arg_domain == "sphere" && neighbors == "sqtree") {
         options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
         options.store_facet_data = false;
-        voronoi.create_sqtree(program.get<int>("--sqtree_subdiv"));
       }
 
       options.store_mesh = (iter == n_iter) && save;
@@ -671,6 +673,8 @@ void run_simulation(argparse::ArgumentParser& program) {
 }  // namespace vortex
 
 int main(int argc, char** argv) {
+  vortex::Timer timer;
+  timer.start();
   argparse::ArgumentParser program("vortex", "1.0");
 
   argparse::ArgumentParser cmd_viz("viz");
@@ -781,13 +785,16 @@ int main(int argc, char** argv) {
   cmd_voronoi.add_argument("--bfs_max_level")
       .help(
           "# levels to use when using the BFS-based nearest neighbor algorithm")
-      .default_value(2)
+      .default_value(3)
       .scan<'i', int>();
   cmd_voronoi.add_argument("--bfs_initial_neighbors")
       .help(
           "algorithm to use for the first neighbor calculation when using BFS: "
           "kdtree/sqtree")
       .default_value("sqtree");
+  cmd_voronoi.add_argument("--check_closed")
+      .help("option to check whether the dual Delaunay triangulation is closed")
+      .flag();
   program.add_subparser(cmd_voronoi);
 
   argparse::ArgumentParser cmd_merge("merge");
@@ -898,6 +905,9 @@ int main(int argc, char** argv) {
   } else {
     std::cout << program.help().str();
   }
+
+  timer.stop();
+  std::cout << fmt::format("\ntotal time: {} seconds\n\n", timer.seconds());
 
   return 0;
 }

@@ -61,6 +61,7 @@ struct VoronoiStatistics {
   int count = 0;
   double area;
   double area_error;
+  int n_bnd_delaunay_edges;
   void reset() {
     n_neighbors = 0;
     t_kdtree_build = 0;
@@ -83,6 +84,7 @@ struct VoronoiStatistics {
     n_bfs_level = -1;
     n_sites = -1;
     n_triangles = -1;
+    n_bnd_delaunay_edges = -1;
   }
   nlohmann::json to_json() const;
   void append_to_average(const VoronoiStatistics& stats) {
@@ -368,7 +370,8 @@ struct VoronoiDiagramOptions {
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
   bool store_facet_data{true};
   bool store_delaunay_triangles{false};
-  int bfs_max_level{2};
+  int bfs_max_level{3};
+  bool check_closed{false};
   NearestNeighborAlgorithm neighbor_algorithm{
       NearestNeighborAlgorithm::kVoronoiBFS};
 };
