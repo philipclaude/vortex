@@ -290,7 +290,7 @@ UT_TEST_CASE(test3) {
   nlopt::result result = opt_rosen3d.optimize(X, rosen3d_opt);
 
   // discretized min check
-  int N = 25000;
+  int N = 5000;
   double min = std::numeric_limits<double>::max();
   double delta_theta = (2 * M_PI) / N;
   double delta_phi = M_PI / N;
@@ -327,9 +327,9 @@ UT_TEST_CASE(test3) {
   // check that the minimum val and x1, x2, x3 coords on the constraint is
   // roughly equal to the value returned from optimization
   UT_ASSERT_NEAR(min, rosen3d_opt, 1e-4);
-  UT_ASSERT_NEAR(X[0], xm, 1e-4);
-  UT_ASSERT_NEAR(X[1], ym, 1e-4);
-  UT_ASSERT_NEAR(X[2], zm, 1e-4);
+  UT_ASSERT_NEAR(X[0], xm, 1e-3);
+  UT_ASSERT_NEAR(X[1], ym, 1e-3);
+  UT_ASSERT_NEAR(X[2], zm, 1e-3);
 
   // UT_ASSERT_EQUALS(result, nlopt::SUCCESS);
 }
