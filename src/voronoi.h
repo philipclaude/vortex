@@ -78,7 +78,7 @@ struct VoronoiStatistics {
     t_delaunay = 0;
     energy = 0;
     t_total = 0;
-    count = 1;
+    count = 0;
     area = 0;
     area_error = -1;
     n_bfs_level = -1;

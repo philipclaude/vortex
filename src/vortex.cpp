@@ -407,6 +407,9 @@ void run_voronoi(argparse::ArgumentParser& program) {
         options.store_facet_data = false;
       }
 
+      if (points.n() < 100)
+        options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+
       options.store_mesh = (iter == n_iter) && save;
       options.verbose = (verbose || iter == 1 || iter == n_iter) && !quiet;
       voronoi.vertices().clear();
@@ -416,7 +419,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
-      voronoi.smooth(points, on_sphere);
+      if (iter < n_iter) voronoi.smooth(points, on_sphere);
       if (!quiet)
         LOG << fmt::format("iter = {}, area = {} (error = {})", iter,
                            voronoi.statistics().area,
@@ -448,9 +451,19 @@ void run_voronoi(argparse::ArgumentParser& program) {
     if (voronoi.polygons().n() > 0) meshb::write(voronoi, arg_output);
   }
   if (program.present<std::string>("--output_points")) {
-    Mesh tmp(dim);
-    points.copy(tmp.vertices());
-    meshb::write(tmp, program.get<std::string>("--output_points"));
+    auto output_points = program.get<std::string>("--output_points");
+    auto ext = get_file_ext(output_points);
+    if (ext == "meshb") {
+      Mesh tmp(dim);
+      points.copy(tmp.vertices());
+      meshb::write(tmp, program.get<std::string>("--output_points"));
+    } else if (ext == "txt" || ext == "dat") {
+      FILE* fid = fopen(output_points.c_str(), "w");
+      for (size_t k = 0; k < points.n(); k++)
+        fprintf(fid, "%1.16e %1.16e %1.16e\n", points[k][0], points[k][1],
+                points[k][2]);
+      fclose(fid);
+    }
   }
 
   if (program.present<std::string>("--statistics")) {

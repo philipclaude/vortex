@@ -180,7 +180,7 @@ void SphereQuadtree::setup() {
   size_t t0 = mesh_.t_first(last_level);
   size_t t1 = mesh_.t_last(last_level);
   size_t n_triangles = t1 - t0;
-  ASSERT(t1 == mesh_.triangles().n());
+  ASSERT(t1 == mesh_.triangles().n()) << t1 << ", " << mesh_.triangles().n();
 
   std::vector<std::vector<uint32_t>> v2t(mesh_.vertices().n());
   for (size_t k = t0; k < t1; k++) {
