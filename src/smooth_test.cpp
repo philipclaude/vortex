@@ -99,7 +99,8 @@ double energy_objective(unsigned n, const double *sites, double *grad,
   data_e.it++;
 
   // reset sites and recompute diagram
-  new_sites(data_e.vor.vertices(), sites, data_e.dim, n / data_e.dim);
+  data_e.vor.vertices().clear();
+  new_sites(data_e.verts, sites, data_e.dim, n / data_e.dim);
   data_e.vor.polygons().clear();
   data_e.vor.triangles().clear();
   data_e.vor.compute(data_e.domain, data_e.options);
@@ -116,7 +117,8 @@ double energy_objective(unsigned n, const double *sites, double *grad,
         data_e.it, curr_e, ((curr_e - data_e.prev_e) / curr_e) * 100);
   }
 
-  LOG << data_e.vor.polygons().n();
+  // LOG << data_e.vor.polygons().n();
+
   // calculate gradient values
   VoronoiCellProperties props;
   if (grad) {
