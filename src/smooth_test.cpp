@@ -58,20 +58,28 @@ double energy(VoronoiDiagram &voronoi, int t_type, int order) {
 
 // helper method for energy_objective
 void new_sites(Vertices &vertices, const double *prev_sites, int dim,
-               size_t n_sites) {
+               unsigned n_sites) {
   int r = 0;
-  for (int i = 0; i < n_sites; i++) {
+  for (auto i = 0; i < n_sites; i++) {
+    // if (i % 100 == 0) {
+    //   LOG << fmt::format("Prev. Coords. -> [{} {} {}]", vertices[i][0],
+    //                      vertices[i][1], vertices[i][2]);
+    // }
     for (int j = 0; j < dim; j++) {
-      vertices[i][j] = prev_sites[r];
+      vertices[(int)i][j] = prev_sites[r];
       r++;
     }
+    // if (i % 100 == 0) {
+    //   LOG << fmt::format("New Coords. ->   [{} {} {}]", vertices[i][0],
+    //                      vertices[i][1], vertices[i][2]);
+    // }
   }
 }
 
-// Data for site optimization --> add sites
+// Data for site optimization
 template <typename D>
 struct energy_data {
-  double first_e;
+  double prev_e;
   VoronoiDiagram &vor;
   D &domain;
   VoronoiDiagramOptions &options;
@@ -91,37 +99,43 @@ double energy_objective(unsigned n, const double *sites, double *grad,
   data_e.it++;
 
   // reset sites and recompute diagram
-  data_e.vor.vertices().clear();
-  data_e.vor.vertices().reserve(data_e.vor.polygons().n());  // unecessary
+  new_sites(data_e.vor.vertices(), sites, data_e.dim, n / data_e.dim);
   data_e.vor.polygons().clear();
   data_e.vor.triangles().clear();
-
-  new_sites(data_e.vor.vertices(), sites, data_e.dim,
-            data_e.vor.polygons().n());
   data_e.vor.compute(data_e.domain, data_e.options);
 
   // calculate energy and record current guess
-  double curr_energy = energy(data_e.vor, 0, 4);
-  LOG << fmt::format("IT. {} - Current Energy Value = {:1.10e}", data_e.it,
-                     curr_energy);
+  double curr_e = energy(data_e.vor, 0, 4);
+  if (data_e.prev_e > curr_e) {
+    LOG << fmt::format(
+        "IT. {} -> Current Energy = {:1.10e}: Energy Decreased by {:2.3f}%",
+        data_e.it, curr_e, ((data_e.prev_e - curr_e) / data_e.prev_e) * 100);
+  } else {
+    LOG << fmt::format(
+        "IT. {} -> Current Energy = {:1.10e}: Energy Increased by {:2.3f}%",
+        data_e.it, curr_e, ((curr_e - data_e.prev_e) / curr_e) * 100);
+  }
 
+  LOG << data_e.vor.polygons().n();
   // calculate gradient values
   VoronoiCellProperties props;
   if (grad) {
-    for (int i = 0; i < data_e.vor.polygons().n(); i++) {
+    for (int i = 0; i < (n / data_e.dim); i++) {
       props = data_e.vor.properties()[i];
       vec3 site(data_e.vor.vertices()[props.site][0],
                 data_e.vor.vertices()[props.site][1],
                 data_e.vor.vertices()[props.site][2]);
-      vec3 grads(
-          (2 * props.volume * (site - ((1.0 / props.volume) * props.moment))));
+      vec3 grads(0., 0., 0.);
+      grads =
+          (2 * props.volume * (site - ((1.0 / props.volume) * props.moment)));
       for (int j = 0; j < data_e.dim; j++) {
-        grad[i + j] = grads[j] / data_e.first_e;
+        grad[i + j] = grads[j];
       }
     }
   }
 
-  return curr_energy / data_e.first_e;
+  data_e.prev_e = curr_e;
+  return curr_e;
 }
 
 UT_TEST_SUITE(smooth_test_suite)
@@ -134,7 +148,8 @@ UT_TEST_CASE(optimized_points_square) {
   options.parallel = true;
   options.verbose = false;
   options.store_mesh = true;
-  size_t n_sites = 1e6;
+  options.parallel = false;
+  size_t n_sites = 1e3;
   int dim = 3;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
@@ -163,22 +178,26 @@ UT_TEST_CASE(optimized_points_square) {
   opt_sites.set_min_objective(&energy_objective, static_cast<void *>(&data_e));
 
   // optimizaition params
-  opt_sites.set_xtol_rel(1e-20);  // adjust
-  opt_sites.set_ftol_rel(1e-12);
+  opt_sites.set_xtol_rel(1e-15);  // adjust
+  opt_sites.set_ftol_rel(1e-15);
   opt_sites.set_maxeval(100);
 
-  // set the lower and upper bounds on the weights
-  std::vector<double> lower_bound(n, -10.0);
-  std::vector<double> upper_bound(n, 10.0);
+  // set the lower and upper bounds
+  std::vector<double> lower_bound(n, -3.);
+  std::vector<double> upper_bound(n, 3.);
   opt_sites.set_lower_bounds(lower_bound);
   opt_sites.set_upper_bounds(upper_bound);
 
+  LOG << fmt::format("Initial Energy = {:1.10e}", first_e);
   double e_opt;
   std::vector<double> X = sites;
   nlopt::result result = opt_sites.optimize(X, e_opt);
   LOG << fmt::format(
       "CVT Diagram Energy = {:1.10e} -> {} Iterations to Converge", e_opt,
       data_e.it);
+  LOG << fmt::format(
+      "Percentage Decrease Relative to Initial Energy = {:2.3f}%",
+      ((first_e - e_opt) / first_e) * 100);
 
   ASSERT(result == nlopt::SUCCESS);
 }
@@ -191,7 +210,7 @@ UT_TEST_CASE(energy_test_square) {
   // creating a voronoi diagram on a square domain (copied from
   // voronoi_test.cpp)
   static const int dim = 3;
-  size_t n_sites = 1e6;
+  size_t n_sites = 1e3;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
     sites[k * dim + 0] = double(rand()) / double(RAND_MAX);
@@ -219,6 +238,7 @@ UT_TEST_CASE(energy_test_square) {
   int n_iter = 10;
   for (int iter = 1; iter <= n_iter; ++iter) {
     voronoi.smooth(vertices, false);
+
     // Examining energy decrase as diagram gets smoothed
     if (iter == 1) {
       LOG << fmt::format("IT. {} -> Initial Energy = {:1.10e}", iter, curr_e);
