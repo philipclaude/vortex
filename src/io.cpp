@@ -198,6 +198,21 @@ void plus_one(int64_t begin, int64_t end, void* data) {
   for (int64_t i = begin; i <= end; i++) v[i]++;
 };
 
+void write_points(const Mesh& mesh, const std::string& filename, bool twod) {
+  int dim = mesh.vertices().dim();
+  if (twod) dim = 2;
+  int version = 3;
+
+  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, version, dim);
+  ASSERT(fid);
+  GmfSetKwd(fid, GmfVertices, mesh.vertices().n());
+  size_t nv = mesh.vertices().n();
+  auto& groups = mesh.vertices().groups();
+  GmfSetBlock(fid, GmfVertices, dim, nv, 1, nullptr, nullptr, GmfDoubleVec, dim,
+              mesh.vertices()[0], mesh.vertices()[nv - 1], GmfInt, &groups[0],
+              &groups[nv - 1]);
+}
+
 void write_polygons(int64_t fid, const Mesh& mesh) {
   if (mesh.polygons().n() == 0) return;
 
@@ -261,6 +276,59 @@ void write_simplex(int64_t fid, const Topology<T>& topology) {
   }
 }
 
+void read(const std::string& filename, Mesh& mesh,
+          std::vector<float>& densities) {
+  int version;
+  int dim;
+  int NmbSolLin, NmbSolTyp, TotSolSiz;
+  int SolTypTab[GmfMaxTyp];
+  double* SolTab;
+  int64_t fid = GmfOpenMesh(filename.c_str(), GmfRead, &version, &dim);
+  ASSERT(fid) << "could not open mesh file " << filename;
+  mesh.vertices().set_dim(dim);
+
+  read_edges(fid, mesh);
+  read_triangles(fid, mesh);
+  read_quads(fid, mesh);
+  read_polygons(fid, mesh);
+  read_vertices(fid, version, mesh.vertices());
+
+  // Read the densities
+  if (GmfGotoKwd(fid, GmfSolAtVertices)) {
+    NmbSolLin =
+        GmfStatKwd(fid, GmfSolAtVertices, &NmbSolTyp, &TotSolSiz, SolTypTab);
+    densities.resize(NmbSolLin);
+    // std::cout << "Total vertices: " << NmbSolLin << std::endl;
+
+    // Allocate memory for the solution data
+    SolTab = (double*)malloc((NmbSolLin + 1) * TotSolSiz * sizeof(double));
+    if (!SolTab) {
+      std::cerr << "Failed to allocate memory for solution data." << std::endl;
+      GmfCloseMesh(fid);
+      return;
+    }
+
+    // Solution field block reading via arguments tables
+    int DatTypTab[1] = {GmfDoubleVec};
+    int DatSizTab[1] = {TotSolSiz};
+    char* DatBegTab[1] = {(char*)&SolTab[1 * TotSolSiz]};
+    char* DatEndTab[1] = {(char*)&SolTab[NmbSolLin * TotSolSiz]};
+
+    GmfGetBlock(fid, GmfSolAtVertices, 1, NmbSolLin, 0, NULL, NULL, GmfArgTab,
+                DatTypTab, DatSizTab, DatBegTab, DatEndTab);
+
+    // Transfer the solution data to the densities vector
+    for (int i = 0; i < NmbSolLin; ++i) {
+      densities[i] = static_cast<float>(SolTab[(i + 1) * TotSolSiz]);
+    }
+
+    // Free the solution data
+    free(SolTab);
+  }
+
+  GmfCloseMesh(fid);
+}
+
 void read(const std::string& filename, Mesh& mesh) {
   // open the file
   int version;
@@ -276,6 +344,65 @@ void read(const std::string& filename, Mesh& mesh) {
   read_vertices(fid, version, mesh.vertices());
 
   GmfCloseMesh(fid);
+}
+
+void write(const Mesh& mesh, const std::string& filename, bool twod,
+           const std::vector<float>& densities) {
+  int dim = mesh.vertices().dim();
+  if (twod) dim = 2;
+  int version = 3;
+  int SolTypTab[1] = {GmfSca};  // Type of solution (scalar in this case)
+  double* SolTab;               // Array to hold the solution data
+
+  // Open the file for writing
+  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, version, dim);
+  if (!fid) {
+    std::cerr << "Error: Could not open mesh file for writing: " << filename
+              << std::endl;
+    return;
+  }
+
+  std::cout << "File opened successfully for writing: " << filename
+            << std::endl;
+
+  GmfSetKwd(fid, GmfVertices, mesh.vertices().n());
+  size_t nv = mesh.vertices().n();
+  auto& groups = mesh.vertices().groups();
+
+  std::cout << "Writing vertices. Total vertices: " << nv << std::endl;
+
+  GmfSetBlock(fid, GmfVertices, dim, nv, 1, nullptr, nullptr, GmfDoubleVec, dim,
+              mesh.vertices()[0], mesh.vertices()[nv - 1], GmfInt, &groups[0],
+              &groups[nv - 1]);
+
+  std::cout << "Vertices written successfully." << std::endl;
+
+  // Write the elements
+  write_simplex(fid, mesh.lines());
+  write_simplex(fid, mesh.triangles());
+  write_polygons(fid, mesh);
+
+  std::cout << "Elements written successfully." << std::endl;
+
+  if (!densities.empty()) {
+    int nds = densities.size();
+    // Allocate memory for solution data
+    SolTab = (double*)malloc(nds * sizeof(double));
+    std::cout << "Writing density data." << std::endl;
+    for (int i = 0; i < nds; ++i) {
+      SolTab[i] = densities[i];
+    }
+    // Set the solution keyword
+    GmfSetKwd(fid, GmfSolAtVertices, nds, 1, SolTypTab);
+    std::cout << "Density data written successfully. Total densities: "
+              << densities.size() << std::endl;
+    // Write the solution data
+    GmfSetBlock(fid, GmfSolAtVertices, 1, nds, 0, NULL, NULL, GmfSca,
+                &SolTab[0], &SolTab[nds - 1]);
+  }
+
+  GmfCloseMesh(fid);
+  std::cout << "File closed successfully." << std::endl;
 }
 
 void write(const Mesh& mesh, const std::string& filename, bool twod) {

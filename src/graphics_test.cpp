@@ -26,7 +26,7 @@ using namespace vortex;
 
 UT_TEST_SUITE(graphics_test_suite)
 
-UT_TEST_CASE(test1) {
+UT_TEST_CASE_SKIP(test1) {
   // SubdividedIcosahedron mesh(0);
   //    mesh.vertices().print();
   //    mesh.triangles().print();
@@ -36,9 +36,20 @@ UT_TEST_CASE(test1) {
   Grid<Quad> mesh({10, 10});
   mesh.fields().set_defaults(mesh);
 #if VORTEX_FULL_UNIT_TEST == 0
-  Viewer viewer(mesh, 7681);
+  ParticleAnimationParameters particle_params;
+  Viewer viewer(mesh, particle_params, 7681);
 #endif
 }
 UT_TEST_CASE_END(test1)
+
+UT_TEST_CASE(animation_test) {
+#if VORTEX_FULL_UNIT_TEST == 0
+  Mesh mesh(3);  // empty mesh
+  ParticleAnimationParameters particle_params;
+  particle_params.points_prefix = "../../build/release/test_points/frame_";
+  Viewer viewer(mesh, particle_params, 7681);
+#endif
+}
+UT_TEST_CASE_END(animation_test)
 
 UT_TEST_SUITE_END(graphics_test_suite)

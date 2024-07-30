@@ -19,6 +19,7 @@
 #include <fmt/format.h>
 
 #include <argparse/argparse.hpp>
+#include <filesystem>
 #include <queue>
 #include <unordered_set>
 
@@ -41,9 +42,57 @@
 namespace vortex {
 
 namespace {
+void load_points(Vertices& original_points, Vertices& points,
+                 unsigned int numPoints) {
+  std::mt19937 gen(std::random_device{}());
+  std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+  for (unsigned int i = 0; i < numPoints; ++i) {
+    float theta = 2.0f * M_PI * dist(gen);      // 0 to 2*PI
+    float phi = acos(2.0f * dist(gen) - 1.0f);  // 0 to PI
+
+    float x = sin(phi) * cos(theta);
+    float y = sin(phi) * sin(theta);
+    float z = cos(phi);
+
+    std::array<float, 3> vertex = {x, y, z};
+
+    original_points.add(vertex.data());
+    points.add(vertex.data());
+  }
+}
+
+void update_points(const Vertices& original_points, Vertices& points,
+                   float time) {
+  float scale = 0.5f * sin(time) + 0.5f;  // Oscillates between 0 and 1
+
+  for (size_t i = 0; i < points.n(); ++i) {
+    points.set_group(i, 1);
+    points[i][0] = original_points[i][0] * scale;
+    points[i][1] = original_points[i][1] * scale;
+    points[i][2] = original_points[i][2] * scale;
+  }
+}
+
+void generate_testcase(argparse::ArgumentParser& program) {
+  int num_frames = program.get<int>("--num_frames");
+  int num_particles = program.get<int>("--num_particles");
+  Mesh mesh(3);
+  load_points(mesh.initial_vertices(), mesh.vertices(), num_particles);
+  for (unsigned int frame = 0; frame < num_frames; ++frame) {
+    float time = frame * 0.1f;  // Adjust the time increment as needed
+    update_points(mesh.initial_vertices(), mesh.vertices(), time);
+
+    std::string filename = "particles" + std::to_string(frame) + ".meshb";
+    meshb::write_points(mesh, filename, false);
+
+    std::cout << "Frame " << frame << " written to " << filename << std::endl;
+  }
+}
 
 void run_visualizer(argparse::ArgumentParser& program) {
   std::string filename = program.get<std::string>("input");
+  std::string extension = filename.substr(filename.find_last_of(".") + 1);
 
   Mesh mesh(3);
   read_mesh(filename, mesh);
@@ -63,7 +112,39 @@ void run_visualizer(argparse::ArgumentParser& program) {
   }
 
   mesh.fields().set_defaults(mesh);
-  Viewer viewer(mesh, 7681);
+
+  // TODO parse program parameters
+  ParticleAnimationParameters particle_params;
+  particle_params.num_particles = mesh.vertices().n();
+  auto points_prefix = program.get<std::string>("--points_prefix");
+  if (!points_prefix.empty()) {
+    particle_params.file_type = extension;
+    particle_params.points_prefix = program.get<std::string>("--points_prefix");
+
+    // Set up the number of frames
+    std::filesystem::path directory(points_prefix);
+    int total_frames = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+      if (entry.is_regular_file() &&
+          entry.path().extension() == "." + particle_params.file_type) {
+        total_frames++;
+      }
+    }
+    particle_params.total_frames = total_frames;
+
+    // Set up the total time steps
+    for (int i = 0; i < particle_params.total_frames;
+         ++i) {  // Adjust this range as necessary
+      particle_params.time.push_back(i);
+    }
+  }
+  // particle_params.velocity_prefix = program.get<std::string>("velocity");
+  // particle_params.density_prefix = program.get<std::string>("density");
+  // particle_params.pressure_prefix = program.get<std::string>("pressure");
+
+  int port = program.get<int>("--port");
+
+  Viewer viewer(mesh, particle_params, port);
 }
 
 void apply_mask(const std::string& input, double tmin, double tmax,
@@ -575,13 +656,14 @@ void run_simulation(argparse::ArgumentParser& program) {
     ASSERT(!solver_opts.reflection_boundary_condition);
     solver_opts.advect_from_centroid = !program.get<bool>("--advect_from_site");
     const auto directory = program.get<std::string>("--output_directory");
+    const auto type = program.get<std::string>("--output_type");
     int s = 0;
     Timer timer;
     timer.start();
     for (int t = 0; t < nt; t++) {
       if (t % program.get<int>("--save_every") == 0)
         solver.particles().save(
-            fmt::format("{}/particles{}.vtk", directory, s++));
+            fmt::format("{}/particles{}.{}", directory, s++, type));
       solver.step(force, props, solver_opts);
       solver_opts.iteration++;
     }
@@ -637,9 +719,28 @@ void run_simulation(argparse::ArgumentParser& program) {
 int main(int argc, char** argv) {
   argparse::ArgumentParser program("vortex", "1.0");
 
+  argparse::ArgumentParser cmd_gen("gen");
+  cmd_gen.add_description("generate a test set for animation");
+  cmd_gen.add_argument("--num_frames")
+      .help("number of frames you want to generate")
+      .default_value(1000)
+      .scan<'i', int>();
+  cmd_gen.add_argument("--num_particles")
+      .help("number of particles you want to simulate")
+      .default_value(100000)
+      .scan<'i', int>();
+  program.add_subparser(cmd_gen);
+
   argparse::ArgumentParser cmd_viz("viz");
   cmd_viz.add_description("visualize a mesh");
   cmd_viz.add_argument("input").help("input file");
+  cmd_viz.add_argument("--points_prefix")
+      .help("prefix of the files storing the points")
+      .default_value("");
+  cmd_viz.add_argument("--port")
+      .help("enter a port number")
+      .default_value(7681)
+      .scan<'i', int>();
   program.add_subparser(cmd_viz);
 
   argparse::ArgumentParser cmd_mesh("mesh");
@@ -800,8 +901,11 @@ int main(int argc, char** argv) {
       .default_value(0.15)
       .scan<'g', double>();
   cmd_sim.add_argument("--output_directory")
-      .help("output location for .vtk files")
+      .help("output location for files")
       .default_value("");
+  cmd_sim.add_argument("--output_type")
+      .help("output file type")
+      .default_value("vtk");
   cmd_sim.add_argument("--save_every")
       .help("# time steps after which the solution is saved")
       .default_value(50)
@@ -845,6 +949,8 @@ int main(int argc, char** argv) {
     vortex::run_merge(program.at<argparse::ArgumentParser>("merge"));
   } else if (program.is_subcommand_used("simulate")) {
     vortex::run_simulation(program.at<argparse::ArgumentParser>("simulate"));
+  } else if (program.is_subcommand_used("gen")) {
+    vortex::generate_testcase(program.at<argparse::ArgumentParser>("gen"));
   } else {
     std::cout << program.help().str();
   }

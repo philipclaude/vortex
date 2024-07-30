@@ -165,7 +165,7 @@ class Vertices : public array2d<coord_t> {
 
 class Mesh {
  public:
-  Mesh(int dim) : vertices_(dim) {}
+  Mesh(int dim) : vertices_(dim), initial_vertices_(dim) {}
   Mesh(const Mesh&) = delete;
 
   Topology<Line>& lines() { return lines_; }
@@ -182,6 +182,9 @@ class Mesh {
 
   Vertices& vertices() { return vertices_; }
   const Vertices& vertices() const { return vertices_; }
+
+  Vertices& initial_vertices() { return initial_vertices_; }
+  const Vertices& initial_vertices() const { return initial_vertices_; }
 
   template <typename T>
   const Topology<T>& get() const;
@@ -213,6 +216,7 @@ class Mesh {
   Topology<Triangle> triangles_;
   Topology<Quad> quads_;
   Topology<Polygon> polygons_;
+  Vertices initial_vertices_;
 
   FieldLibrary fields_;
 };

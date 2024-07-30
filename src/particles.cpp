@@ -62,24 +62,53 @@ void Particles::save(const std::string& filename) const {
   size_t m = 0;
   for (size_t k = 0; k < n(); k++)
     for (int d = 0; d < 3; d++) data[m++] = (*this)[k][d];
-  FILE* fid = fopen(filename.c_str(), "wb");
-  fprintf(fid, "# vtk DataFile Version 2.0\nvortex vertices\n");
-  fprintf(fid, "BINARY\nDATASET UNSTRUCTURED_GRID\nPOINTS %zu float\n", n());
-  std::parafor_i(0, n_data,
-                 [&data](int tid, size_t k) { io::swap_end(data[k]); });
-  fwrite(&data[0], 4, n_data, fid);
-  fprintf(fid, "\nCELLS 0 0\nCELL_TYPES 0\n");
-  fprintf(fid, "POINT_DATA %zu\n", n());
-  fprintf(fid, "FIELD FieldData 1\n");
-  fprintf(fid, "density 1 %zu float\n", n());
-  std::vector<float> density_data(n());
-  for (size_t k = 0; k < n(); k++) density_data[k] = density_[k] > 1 ? 1000 : 0;
-  std::parafor_i(0, n(), [&density_data](int tid, size_t k) {
-    io::swap_end(density_data[k]);
-  });
-  fwrite(&density_data[0], 4, n(), fid);
-  fprintf(fid, "\n");
-  fclose(fid);
+
+  std::string extension = filename.substr(filename.find_last_of(".") + 1);
+
+  if (extension == "vtk") {
+    FILE* fid = fopen(filename.c_str(), "wb");
+    fprintf(fid, "# vtk DataFile Version 2.0\nvortex vertices\n");
+    fprintf(fid, "BINARY\nDATASET UNSTRUCTURED_GRID\nPOINTS %zu float\n", n());
+    std::parafor_i(0, n_data,
+                   [&data](int tid, size_t k) { io::swap_end(data[k]); });
+    fwrite(&data[0], 4, n_data, fid);
+    fprintf(fid, "\nCELLS 0 0\nCELL_TYPES 0\n");
+    fprintf(fid, "POINT_DATA %zu\n", n());
+    fprintf(fid, "FIELD FieldData 1\n");
+    fprintf(fid, "density 1 %zu float\n", n());
+    std::vector<float> density_data(n());
+    for (size_t k = 0; k < n(); k++)
+      density_data[k] = density_[k] > 1 ? 1000 : 0;
+    std::parafor_i(0, n(), [&density_data](int tid, size_t k) {
+      io::swap_end(density_data[k]);
+    });
+    fwrite(&density_data[0], 4, n(), fid);
+    fprintf(fid, "\n");
+    fclose(fid);
+  } else if (extension == "meshb") {
+    Mesh mesh(3);
+    mesh.vertices().reserve(n());
+    for (size_t k = 0; k < n(); k++) {
+      mesh.vertices().add((*this)[k]);
+    }
+    meshb::write(mesh, filename);  // Pass densities to write function
+  } else if (extension == "solb") {
+    Mesh mesh(3);
+    mesh.vertices().reserve(n());
+    for (size_t k = 0; k < n(); k++) {
+      mesh.vertices().add((*this)[k]);
+    }
+
+    // Collect density information
+    std::vector<float> density_data(n());
+    for (size_t k = 0; k < n(); k++)
+      density_data[k] = density_[k] > 1 ? 1000 : 0;
+
+    meshb::write(mesh, filename, false,
+                 density_data);  // Pass densities to write function
+  } else {
+    std::cerr << "Unsupported file extension: " << extension << std::endl;
+  }
 }
 
 void ParticleSimulation::compute_search_direction(
