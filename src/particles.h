@@ -28,7 +28,7 @@ namespace vortex {
 struct SimulationOptions {
   double volume_grad_tol{1e-8};
   int max_iter{25};
-  int n_neighbors{80};
+  int n_neighbors{50};
   bool verbose{true};
   double time_step{1e-3};
   double time{0};
@@ -42,6 +42,9 @@ struct SimulationOptions {
   int print_frequency{50};
   bool reflection_boundary_condition{false};
   bool advect_from_centroid{true};
+  int n_smoothing_iterations{10};
+  NearestNeighborAlgorithm neighbor_algorithm{
+      NearestNeighborAlgorithm::kKdtree};
 };
 
 struct SimulationConvergence {
@@ -152,12 +155,26 @@ class ParticleSimulation {
     // we need to calculate the voronoi diagram to obtain initial volumes,
     // masses and centroids
     VoronoiDiagramOptions voro_opts;
-    voro_opts.store_mesh = sim_opts.save_initial_mesh;
-    voro_opts.store_facet_data = true;
     voro_opts.n_neighbors = sim_opts.n_neighbors;
     voro_opts.verbose = false;
     voronoi_.weights().resize(particles_.n(), 0);
-    voronoi_.compute(domain, voro_opts);
+
+    // smooth the points using Lloyd relaxation
+    Timer timer;
+    timer.start();
+    int n_iter = sim_opts.n_smoothing_iterations;
+    for (int iter = 1; iter <= n_iter; ++iter) {
+      voro_opts.store_mesh = sim_opts.save_initial_mesh && iter == n_iter;
+      voro_opts.store_facet_data = iter == n_iter;
+      voro_opts.verbose = false;
+
+      voronoi_.compute(domain, voro_opts);  // calculate voronoi diagram
+      voronoi_.smooth(particles_, false);   // move sites to centroids
+      for (size_t k = 0; k < particles_.n(); k++)
+        project_point<Domain_t>(particles_[k]);
+    }
+    timer.stop();
+    LOG << fmt::format("smoothed points in {} s.", timer.seconds());
 
     // save the initial volume and mass of each particles
     for (size_t k = 0; k < particles_.n(); k++) {

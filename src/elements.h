@@ -97,4 +97,18 @@ struct Polygon {
   typedef Line face_type;
 };
 
+struct Icosahedron {
+  static const int n_faces = 20;
+  static const int n_vertices = 12;
+  static double coordinates[n_vertices][3];
+  static int faces[n_faces][3];
+};
+
+struct Octahedron {
+  static const int n_faces = 8;
+  static const int n_vertices = 6;
+  static double coordinates[n_vertices][3];
+  static int faces[n_faces][3];
+};
+
 }  // namespace vortex

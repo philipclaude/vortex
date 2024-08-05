@@ -18,6 +18,8 @@
 //
 #include "neighbors.h"
 
+#include <algorithm>
+
 #include "io.h"
 #include "log.h"
 #include "mesh.h"
@@ -54,12 +56,14 @@ UT_TEST_CASE(test1) {
   options.parallel = true;
   options.store_mesh = false;
   options.verbose = true;
+  options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
 
   // build a kdtree for comparison
+  VoronoiStatistics stats;
   std::vector<index_t> knn(n_sites * options.n_neighbors);
   auto tree =
       get_nearest_neighbors<dim>(vertices[0], n_sites, vertices[0], n_sites,
-                                 knn, options.n_neighbors, options);
+                                 knn, options.n_neighbors, options, stats);
 
   // calculate the voronoi diagram
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
@@ -89,5 +93,89 @@ UT_TEST_CASE(test1) {
   LOG << fmt::format("avg = {}, time = {} sec.", n_avg, timer.seconds());
 }
 UT_TEST_CASE_END(test1)
+
+UT_TEST_CASE(test2) {
+  SphereDomain domain;
+  static const int dim = 3;
+  size_t n_sites = 1e7;
+#if VORTEX_FULL_UNIT_TEST != 0
+  n_sites = 1e4;
+#endif
+  std::vector<coord_t> sites(n_sites * dim, 0.0);
+  for (size_t k = 0; k < n_sites; k++) {
+    auto point = domain.random_point();
+    for (int d = 0; d < 3; d++) sites[k * dim + d] = point[d];
+  }
+
+  std::vector<index_t> order(n_sites);
+  sort_points_on_zcurve(sites.data(), n_sites, dim, order);
+
+  Vertices vertices(dim);
+  vertices.reserve(n_sites);
+  coord_t x[dim];
+  for (size_t i = 0; i < n_sites; i++) {
+    for (int d = 0; d < dim; d++) x[d] = sites[dim * order[i] + d];
+    vertices.add(x);
+  }
+
+  int n_neighbors = 50;
+
+  VoronoiDiagramOptions options;
+  options.n_neighbors = n_neighbors;
+  options.parallel = true;
+  options.store_mesh = false;
+  options.verbose = true;
+
+  if (n_sites > 1e6) options.n_neighbors = 10;
+
+  // build a kdtree for comparison
+  VoronoiStatistics stats;
+  std::vector<index_t> knn;
+  knn.resize(n_sites * options.n_neighbors);
+  auto tree =
+      get_nearest_neighbors<dim>(vertices[0], n_sites, vertices[0], n_sites,
+                                 knn, options.n_neighbors, options, stats);
+
+  Timer timer;
+  timer.start();
+  SphereQuadtree neighbors(vertices[0], vertices.n(), dim);
+  timer.stop();
+  LOG << fmt::format("setup time = {} s.", timer.seconds());
+
+  timer.start();
+  neighbors.build();
+  timer.stop();
+  LOG << fmt::format("build time = {} s.", timer.seconds());
+  meshb::write(neighbors.mesh(), "neighbors.meshb");
+
+  timer.start();
+  size_t n_threads = std::thread::hardware_concurrency();
+  std::vector<SphereQuadtreeWorkspace> searches(n_threads, n_neighbors);
+  std::vector<size_t> nn(n_sites);
+  std::parafor_i(0, n_sites, [&](int tid, size_t k) {
+    auto& search = searches[tid];
+    neighbors.knearest(k, search);
+    UT_ASSERT(search.size() > 0);
+    const auto& result = search.neighbors;
+    size_t r = search.size() < n_neighbors ? search.size() : n_neighbors;
+    double d = -1;
+    UT_ASSERT(result[0].first == k);
+    for (size_t j = 0; j < r; j++) {
+      UT_ASSERT(d <= result[j].second);
+      if (r < 10)
+        UT_ASSERT_EQUALS(result[j].first, knn[options.n_neighbors * k + j]);
+      d = result[j].second;
+    }
+    nn[k] = r;
+  });
+  timer.stop();
+  LOG << fmt::format("computed nearest neighbors in {} s.", timer.seconds());
+
+  double n_avg = 0;
+  for (auto n : nn) n_avg += n;
+  n_avg /= n_sites;
+  LOG << fmt::format("average # neighbors = {}", n_avg);
+}
+UT_TEST_CASE_END(test2)
 
 UT_TEST_SUITE_END(neighbors_test_suite)

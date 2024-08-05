@@ -102,23 +102,6 @@ UT_TEST_CASE(test1) {
     vertices.add(x);
   }
 
-  // smooth the initial point distribution with Lloyd relaxation
-  VoronoiDiagram smoother(dim, vertices[0], n_sites);
-  VoronoiDiagramOptions options;
-  options.n_neighbors = 50;
-  options.parallel = true;
-  options.store_facet_data = true;
-  int n_iter = 100;
-
-  for (int iter = 1; iter <= n_iter; ++iter) {
-    options.store_mesh = false;
-    options.verbose = false;
-    smoother.compute(domain, options);  // calculate voronoi diagram
-    smoother.smooth(vertices, false);   // move sites to centroids
-    for (size_t k = 0; k < vertices.n(); k++)
-      project_point<Domain_t>(vertices[k]);
-  }
-
   // set up the fluid simulator
   SpringParticles<Domain_t> solver(domain, n_sites, vertices[0],
                                    vertices.dim());
@@ -133,6 +116,7 @@ UT_TEST_CASE(test1) {
 
   SimulationOptions solver_opts;
   solver_opts.save_initial_mesh = true;
+  solver_opts.n_smoothing_iterations = 100;
   solver.initialize(domain, solver_opts);
   // std::vector<double> target_vol(n_sites, 4.0 * M_PI / n_sites);
   // solver.optimize_volumes(domain, solver_opts, target_vol);

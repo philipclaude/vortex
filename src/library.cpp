@@ -153,51 +153,22 @@ void Grid<Polygon>::build() {
   }
 }
 
-void SubdividedIcosahedron::build(int n) {
-  // icosahedron vertices
-  coord_t t = (1.0 + std::sqrt(5.0)) / 2.0;
-
-  coord_t coordinates[12][3] = {{t, 1, 0}, {-t, 1, 0}, {t, -1, 0}, {-t, -1, 0},
-                                {1, 0, t}, {1, 0, -t}, {-1, 0, t}, {-1, 0, -t},
-                                {0, t, 1}, {0, -t, 1}, {0, t, -1}, {0, -t, -1}};
-
-  for (int i = 0; i < 12; i++) {
-    for (int d = 0; d < 3; d++) coordinates[i][d] /= std::sqrt(1 + t * t);
-    vertices_.add(coordinates[i]);
+template <typename T>
+void SubdividedSphere<T>::build(int n) {
+  for (int i = 0; i < T::n_vertices; i++) {
+    vertices_.add(T::coordinates[i]);
   }
 
-  index_t triangles[20][3] = {
-      {0, 8, 4},   // 0
-      {0, 5, 10},  // 1
-      {2, 4, 9},   // 2
-      {2, 11, 5},  // 3
-      {1, 6, 8},   // 4
-      {1, 10, 7},  // 5
-      {3, 9, 6},   // 6
-      {3, 7, 11},  // 7
-      {0, 10, 8},  // 8
-      {1, 8, 10},  // 9
-      {2, 9, 11},  // 10
-      {3, 11, 9},  // 11
-      {4, 2, 0},   // 12
-      {5, 0, 2},   // 13
-      {6, 1, 3},   // 14
-      {7, 3, 1},   // 15
-      {8, 6, 4},   // 16
-      {9, 4, 6},   // 17
-      {10, 5, 7},  // 18
-      {11, 7, 5}   // 19
-  };
-
-  for (int i = 0; i < 20; i++) {
-    triangles_.add(triangles[i]);
+  for (int i = 0; i < T::n_faces; i++) {
+    triangles_.add(T::faces[i]);
     triangles_.set_group(i, 0);
   }
 
   for (int i = 0; i < n; i++) subdivide();
 }
 
-void SubdividedIcosahedron::subdivide() {
+template <typename T>
+void SubdividedSphere<T>::subdivide() {
   std::map<Edge, index_t> edges;
 
   Topology<Triangle> triangles;
@@ -386,5 +357,7 @@ void Squircle::build(double R, int nr, int nt, bool half) {
 template class Grid<Triangle>;
 template class Grid<Quad>;
 template class Grid<Polygon>;
+template class SubdividedSphere<Icosahedron>;
+template class SubdividedSphere<Octahedron>;
 
 }  // namespace vortex
