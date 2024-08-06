@@ -91,7 +91,7 @@ void Particles::save(const std::string& filename) const {
     for (size_t k = 0; k < n(); k++) {
       mesh.vertices().add((*this)[k]);
     }
-    meshb::write(mesh, filename);  // Pass densities to write function
+    meshb::write(mesh, filename);
   } else if (extension == "solb") {
     Mesh mesh(3);
     mesh.vertices().reserve(n());

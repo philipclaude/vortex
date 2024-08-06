@@ -790,10 +790,10 @@ class MeshScene : public wings::Scene {
     auto start_time = std::chrono::high_resolution_clock::now();
     ClientView& view = view_[client_idx];
     bool updated = false;
-    // bool animating = false;
     switch (input.type) {
       case wings::InputType::AnimationRequest: {
         view.time += 1;
+        *msg = "#" + std::to_string(view.time);
         if (input.looping) {
           view.time = view.time % animation_->params().time.size();
         } else {
@@ -805,7 +805,7 @@ class MeshScene : public wings::Scene {
           }
         }
         view.animating = true;
-        updated = true;
+        // updated = true;
         break;
       }
       case wings::InputType::MouseMotion: {
@@ -970,10 +970,21 @@ class MeshScene : public wings::Scene {
         updated = true;
         break;
       }
+      case wings::InputType::SetTime: {
+        view.time = input.time;
+        break;
+      }
+      case wings::InputType::SetFrames: {
+        if (animation_) {
+          *msg = "~" + std::to_string(animation_->params().total_frames);
+          updated = true;
+        }
+        break;
+      }
       default:
         break;
     }
-    if (!updated) return false;
+    if (!updated && !view.animating) return false;
 
     // write shader uniforms
     GL_CALL(glViewport(0, 0, view.canvas.width, view.canvas.height));
@@ -985,6 +996,7 @@ class MeshScene : public wings::Scene {
     glEnable(GL_POLYGON_SMOOTH);
     glDepthMask(GL_TRUE);
     glEnable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_MULTISAMPLE);
     glPolygonOffset(1, 1);
     // glEnable(GL_BLEND);
     //  glEnable(GL_STENCIL_TEST);
@@ -1174,6 +1186,15 @@ class MeshScene : public wings::Scene {
         shader.set_uniform("u_NormalMatrix", normal_matrix);
         shader.set_uniform("u_width", view.canvas.width);
         shader.set_uniform("u_height", view.canvas.height);
+        wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
+        auto im = wings::glm::inverse(view.model_matrix);
+        shader.set_uniform("u_InverseModel", im);
+        shader.set_uniform("u_Camera", wings::glm::inverse(view.view_matrix));
+        shader.set_uniform("u_eye", (im * eye_h).xyz());
+        shader.set_uniform("u_center", view.center);
+        shader.set_uniform("u_fov", view.fov);
+        shader.set_uniform("u_width", int(view.canvas.width));
+        shader.set_uniform("u_height", int(view.canvas.height));
 
         // bind the desired colormap
         glActiveTexture(GL_TEXTURE0 + kColormap);

@@ -56,7 +56,7 @@ struct ParticleAnimationParameters {
   std::string file_type;
   std::vector<double> time;
   int num_particles{100};
-  int total_frames;
+  int total_frames{-1};
   int hasDensity_{0};
 
   bool active() const { return !points_prefix.empty(); }

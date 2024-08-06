@@ -3,7 +3,8 @@
 layout(location = 0) out vec4 fragColor;
 
 in float v_Density;
-in float v_DotProduct;
+in vec3 v_Normal;
+in vec3 v_Position;
 
 uniform samplerBuffer colormap;
 
@@ -13,11 +14,6 @@ uniform float u_umin = 0.0;
 uniform float u_umax = 1.0;
 
 void main() {
-  // Cull fragments where the dot product is less than or equal to zero
-  if (v_DotProduct <= 0.0) {
-    discard;
-  }
-  
   vec3 color;
 
   if (v_Density >= 0.0) {
