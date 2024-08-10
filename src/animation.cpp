@@ -17,19 +17,287 @@
 //  limitations under the License.
 //
 
-/**
- * 能用的version
 #include "animation.h"
 
 #include <fmt/format.h>
+#include <stlext.h>
 
 #include "log.h"
 #include "particles.h"
-#include "wings/util/glm.h"
-#include "wings/util/shader.h"
 
 namespace vortex {
+#if ANIMATION_VERSION == 0
+ParticleAnimation::ParticleAnimation(const ParticleAnimationParameters& params,
+                                     wings::RenderingContext* context)
+    : params_(params),
+      current_buffer_(0),
+      loading_buffer_(1),
+      thread_context_(context) {
+  shader_names_.push_back("particles");
+  std::cout << "ParticleAnimation constructed with " << params_.num_particles
+            << " particles.\n";
+}
 
+void ParticleAnimation::setup() {
+  std::cout << "Entering ParticleAnimation setup..." << std::endl;
+  if (params_.num_particles == 0) {
+    std::cerr << "Error: num_particles is zero in ParticleAnimation setup.\n";
+    return;
+  }
+  std::cout << "Setting up ParticleAnimation with " << params_.num_particles
+            << " particles.\n";
+
+  // Resize buffers to accommodate double buffering
+  point_buffer_.resize(2 * buffer_size_);
+  velocity_buffer_.resize(2 * buffer_size_);
+  density_buffer_.resize(2 * buffer_size_);
+  pressure_buffer_.resize(2 * buffer_size_);
+
+  // Generate buffers for both sets
+  GL_CALL(glGenBuffers(2 * buffer_size_, point_buffer_.data()));
+  GL_CALL(glGenBuffers(2 * buffer_size_, velocity_buffer_.data()));
+  GL_CALL(glGenBuffers(2 * buffer_size_, density_buffer_.data()));
+  GL_CALL(glGenBuffers(2 * buffer_size_, pressure_buffer_.data()));
+
+  // Allocate memory for each buffer
+  for (size_t i = 0; i < 2 * buffer_size_; ++i) {
+    std::vector<GLfloat> tmp(params_.num_particles * sizeof(float) * 3, 0);
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[i]));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                         params_.num_particles * sizeof(float) * 3, tmp.data(),
+                         GL_STATIC_DRAW));
+
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[i]));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                         params_.num_particles * sizeof(float) * 3, nullptr,
+                         GL_STATIC_DRAW));
+
+    std::vector<GLfloat> tmp1(params_.num_particles * sizeof(float), 0);
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[i]));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, params_.num_particles * sizeof(float),
+                         tmp1.data(), GL_STATIC_DRAW));
+
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[i]));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, params_.num_particles * sizeof(float),
+                         nullptr, GL_STATIC_DRAW));
+  }
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+}
+void ParticleAnimation::load() {
+  LOG << "Entering ParticleAnimation load...";
+  for (size_t t = 0; t < buffer_size_; ++t) {
+    load_frame(t, 0);
+  }
+  loaded_frames_ = buffer_size_;
+}
+
+void ParticleAnimation::load_frame(size_t frame, size_t buffer_offset) {
+  if (frame >= params_.time.size()) {
+    std::cerr << "Error: Frame index out of bounds: " << frame << std::endl;
+    return;
+  }
+
+  std::string points_file = fmt::format(
+      "{}/particles{}.{}", params_.points_prefix, frame, params_.file_type);
+  Mesh mesh(3);
+  std::vector<float> densities;
+
+  if (params_.file_type == "obj") {
+    obj::read(points_file, mesh);
+  } else if (params_.file_type == "mesh" || params_.file_type == "meshb") {
+    meshb::read(points_file, mesh);
+  } else if (params_.file_type == "sol" || params_.file_type == "solb") {
+    meshb::read(points_file, mesh, densities);
+  }
+
+  const auto& vertices = mesh.vertices();
+  std::vector<float> points(vertices.n() * 3);
+  for (size_t i = 0; i < vertices.n(); ++i) {
+    points[i * 3] = static_cast<float>(vertices[i][0]);
+    points[i * 3 + 1] = static_cast<float>(vertices[i][1]);
+    points[i * 3 + 2] = static_cast<float>(vertices[i][2]);
+  }
+
+  std::vector<float> velocities(params_.num_particles * 3, 0.0f);
+  std::vector<float> densities_out(params_.num_particles, 0.0f);
+  params_.hasDensity_ = !densities.empty() ? 1 : 0;
+  if (params_.hasDensity_) {
+    for (size_t i = 0; i < vertices.n(); ++i) {
+      densities_out[i] = densities[i];
+    }
+  }
+  std::vector<float> pressures(params_.num_particles, 0.0f);
+
+  size_t index = buffer_offset + (frame % buffer_size_);
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, points.size() * sizeof(float),
+                          points.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, velocities.size() * sizeof(float),
+                          velocities.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0,
+                          densities_out.size() * sizeof(float),
+                          densities_out.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, pressures.size() * sizeof(float),
+                          pressures.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+}
+
+void ParticleAnimation::load_frame(size_t frame, size_t buffer_offset,
+                                   wings::RenderingContext* thread_context) {
+  if (frame >= params_.time.size()) {
+    std::cerr << "Error: Frame index out of bounds: " << frame << std::endl;
+    return;
+  }
+
+  std::string points_file = fmt::format(
+      "{}/particles{}.{}", params_.points_prefix, frame, params_.file_type);
+  Mesh mesh(3);
+  std::vector<float> densities;
+
+  if (params_.file_type == "obj") {
+    obj::read(points_file, mesh);
+  } else if (params_.file_type == "mesh" || params_.file_type == "meshb") {
+    meshb::read(points_file, mesh);
+  } else if (params_.file_type == "sol" || params_.file_type == "solb") {
+    meshb::read(points_file, mesh, densities);
+  }
+
+  const auto& vertices = mesh.vertices();
+  std::vector<float> points(vertices.n() * 3);
+  for (size_t i = 0; i < vertices.n(); ++i) {
+    points[i * 3] = static_cast<float>(vertices[i][0]);
+    points[i * 3 + 1] = static_cast<float>(vertices[i][1]);
+    points[i * 3 + 2] = static_cast<float>(vertices[i][2]);
+  }
+
+  std::vector<float> velocities(params_.num_particles * 3, 0.0f);
+  std::vector<float> densities_out(params_.num_particles, 0.0f);
+  params_.hasDensity_ = !densities.empty() ? 1 : 0;
+  if (params_.hasDensity_) {
+    for (size_t i = 0; i < vertices.n(); ++i) {
+      densities_out[i] = densities[i];
+    }
+  }
+  std::vector<float> pressures(params_.num_particles, 0.0f);
+  size_t index = buffer_offset + (frame % buffer_size_);
+
+  thread_context->make_context_current();
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, points.size() * sizeof(float),
+                          points.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, velocities.size() * sizeof(float),
+                          velocities.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0,
+                          densities_out.size() * sizeof(float),
+                          densities_out.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[index]));
+  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, pressures.size() * sizeof(float),
+                          pressures.data()));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+  thread_context->release_context();
+  LOG << fmt::format("Loading Frame {} finished.", frame);
+}
+
+void clip(ParticleAnimation* animation, size_t frame, size_t buffer_offset,
+          wings::RenderingContext* thread_context) {
+  animation->load_frame(frame, buffer_offset, thread_context);
+}
+
+void ParticleAnimation::reload() {
+  LOG << "Reloading particle animation data...";
+
+  size_t new_size =
+      std::min<size_t>(current_time_ + buffer_size_ + 1, params_.time.size());
+
+  LOG << fmt::format("Next frame range: {} - {}", current_time_ + 1, new_size);
+
+  size_t buffer_offset = loading_buffer_ * buffer_size_;
+
+  std::vector<std::thread> threads;
+
+#if 1
+  std::vector<std::shared_ptr<wings::RenderingContext>> contexts;
+  for (size_t t = current_time_ + 1; t < new_size; ++t) {
+    contexts.push_back(wings::RenderingContext::create(context()));
+    //  auto thread_context = wings::RenderingContext::create(
+    //      context());  // Create new context for the thread
+    std::thread th(clip, this, t, buffer_offset, contexts.back().get());
+    threads.push_back(std::move(th));
+    // clip(this, t, buffer_offset);
+  }
+#else
+  std::parafor_i(0, 12, [&](int tid, size_t k) {
+    clip(this, tid + current_time_ + 1, buffer_offset);
+  });
+#endif
+
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  // Swap the buffers
+  std::swap(current_buffer_, loading_buffer_);
+
+  loaded_frames_ = new_size;
+  std::cout << "There are " << loaded_frames_ << " frames." << std::endl;
+}
+
+void ParticleAnimation::render(const ShaderLibrary& shaders, int time_step) {
+  const auto& particle_shader = shaders["particles"];
+  particle_shader.use();
+  particle_shader.set_uniform("u_hasDensity", params_.hasDensity_);
+
+  if (time_step >= 0) {
+    if (time_step >= loaded_frames_) {
+      std::cerr << "Error: Attempting to render an unloaded frame: "
+                << time_step << std::endl;
+      reload();  // Attempt to reload more frames if necessary
+      if (time_step >= loaded_frames_) {
+        current_time_ = loaded_frames_ - 1;
+      } else {
+        current_time_ = time_step;
+      }
+    } else {
+      // LOG << fmt::format("render particles @ time {}!", current_time_);
+      current_time_ = time_step;
+    }
+  } else {
+    current_time_ = 0;
+  }
+
+  size_t buffer_offset = current_buffer_ * buffer_size_;
+  size_t index = buffer_offset + (current_time_ % buffer_size_);
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
+  GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr));
+  GL_CALL(glEnableVertexAttribArray(0));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
+  GL_CALL(glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, nullptr));
+  GL_CALL(glEnableVertexAttribArray(1));
+
+  GL_CALL(glDrawArrays(GL_POINTS, 0, params_.num_particles));
+
+  GL_CALL(glDisableVertexAttribArray(0));
+  GL_CALL(glDisableVertexAttribArray(1));
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+}
+#elif ANIMATION_VERSION == 1
 ParticleAnimation::ParticleAnimation(const ParticleAnimationParameters& params)
     : params_(params) {
   shader_names_.push_back("particles");
@@ -205,449 +473,5 @@ void ParticleAnimation::load() {
 
   GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
 }
-
+#endif
 }  // namespace vortex
-*/
-
-#include <fmt/format.h>
-
-#include "animation.h"
-#include "log.h"
-#include "particles.h"
-#include "wings/util/glm.h"
-#include "wings/util/shader.h"
-
-namespace vortex {
-
-ParticleAnimation::ParticleAnimation(const ParticleAnimationParameters& params)
-    : params_(params), current_buffer_(0), loading_buffer_(1) {
-  shader_names_.push_back("particles");
-  std::cout << "ParticleAnimation constructed with " << params_.num_particles
-            << " particles.\n";
-}
-
-void ParticleAnimation::setup() {
-  std::cout << "Entering ParticleAnimation setup..." << std::endl;
-  if (params_.num_particles == 0) {
-    std::cerr << "Error: num_particles is zero in ParticleAnimation setup.\n";
-    return;
-  }
-  std::cout << "Setting up ParticleAnimation with " << params_.num_particles
-            << " particles.\n";
-
-  // Resize buffers to accommodate double buffering
-  point_buffer_.resize(2 * buffer_size_);
-  velocity_buffer_.resize(2 * buffer_size_);
-  density_buffer_.resize(2 * buffer_size_);
-  pressure_buffer_.resize(2 * buffer_size_);
-
-  // Generate buffers for both sets
-  GL_CALL(glGenBuffers(2 * buffer_size_, point_buffer_.data()));
-  GL_CALL(glGenBuffers(2 * buffer_size_, velocity_buffer_.data()));
-  GL_CALL(glGenBuffers(2 * buffer_size_, density_buffer_.data()));
-  GL_CALL(glGenBuffers(2 * buffer_size_, pressure_buffer_.data()));
-
-  // Allocate memory for each buffer
-  for (size_t i = 0; i < 2 * buffer_size_; ++i) {
-    std::vector<GLfloat> tmp(params_.num_particles * sizeof(float) * 3, 0);
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                         params_.num_particles * sizeof(float) * 3, tmp.data(),
-                         GL_STATIC_DRAW));
-
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                         params_.num_particles * sizeof(float) * 3, nullptr,
-                         GL_STATIC_DRAW));
-
-    std::vector<GLfloat> tmp1(params_.num_particles * sizeof(float), 0);
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER, params_.num_particles * sizeof(float),
-                         tmp1.data(), GL_STATIC_DRAW));
-
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER, params_.num_particles * sizeof(float),
-                         nullptr, GL_STATIC_DRAW));
-  }
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-}
-
-void ParticleAnimation::load_frame(size_t frame, size_t buffer_offset) {
-  if (frame >= params_.time.size()) {
-    std::cerr << "Error: Frame index out of bounds: " << frame << std::endl;
-    return;
-  }
-
-  std::string points_file = fmt::format(
-      "{}/particles{}.{}", params_.points_prefix, frame, params_.file_type);
-  Mesh mesh(3);
-  std::vector<float> densities;
-
-  if (params_.file_type == "obj") {
-    obj::read(points_file, mesh);
-  } else if (params_.file_type == "mesh" || params_.file_type == "meshb") {
-    meshb::read(points_file, mesh);
-  } else if (params_.file_type == "sol" || params_.file_type == "solb") {
-    meshb::read(points_file, mesh, densities);
-  }
-
-  const auto& vertices = mesh.vertices();
-  std::vector<float> points(vertices.n() * 3);
-  for (size_t i = 0; i < vertices.n(); ++i) {
-    points[i * 3] = static_cast<float>(vertices[i][0]);
-    points[i * 3 + 1] = static_cast<float>(vertices[i][1]);
-    points[i * 3 + 2] = static_cast<float>(vertices[i][2]);
-  }
-
-  std::vector<float> velocities(params_.num_particles * 3, 0.0f);
-  std::vector<float> densities_out(params_.num_particles, 0.0f);
-  params_.hasDensity_ = !densities.empty() ? 1 : 0;
-  if (params_.hasDensity_) {
-    for (size_t i = 0; i < vertices.n(); ++i) {
-      densities_out[i] = densities[i];
-    }
-  }
-  std::vector<float> pressures(params_.num_particles, 0.0f);
-
-  size_t index = buffer_offset + (frame % buffer_size_);
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, points.size() * sizeof(float),
-                          points.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, velocities.size() * sizeof(float),
-                          velocities.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0,
-                          densities_out.size() * sizeof(float),
-                          densities_out.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, pressures.size() * sizeof(float),
-                          pressures.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-  std::cout << "Load Frame " << frame << " finished\n";
-}
-
-void ParticleAnimation::load() {
-  LOG << "Entering ParticleAnimation load...";
-  for (size_t t = 0; t < buffer_size_; ++t) {
-    load_frame(t, 0);
-  }
-  loaded_frames_ = buffer_size_;
-}
-
-void clip(ParticleAnimation* animation, size_t frame, size_t buffer_offset) {
-  animation->load_frame(frame, buffer_offset);
-}
-
-void ParticleAnimation::reload() {
-  LOG << "Reloading particle animation data...";
-
-  size_t new_size =
-      std::min<size_t>(current_time_ + buffer_size_ + 1, params_.time.size());
-
-  LOG << fmt::format("Next frame range: {} - {}", current_time_ + 1, new_size);
-
-  size_t buffer_offset = loading_buffer_ * buffer_size_;
-
-  std::vector<std::thread> threads;
-  for (size_t t = current_time_ + 1; t < new_size; ++t) {
-    // std::thread th(clip, this, t, buffer_offset);
-    // threads.push_back(std::move(th));
-    clip(this, t, buffer_offset);
-  }
-
-  for (auto& thread : threads) {
-    if (thread.joinable()) {
-      thread.join();
-    }
-  }
-
-  // Swap the buffers
-  std::swap(current_buffer_, loading_buffer_);
-
-  loaded_frames_ = new_size;
-  std::cout << "There are " << loaded_frames_ << " frames." << std::endl;
-}
-
-void ParticleAnimation::render(const ShaderLibrary& shaders, int time_step) {
-  const auto& particle_shader = shaders["particles"];
-  particle_shader.use();
-  particle_shader.set_uniform("u_hasDensity", params_.hasDensity_);
-
-  if (time_step >= 0) {
-    if (time_step >= loaded_frames_) {
-      std::cerr << "Error: Attempting to render an unloaded frame: "
-                << time_step << std::endl;
-      reload();  // Attempt to reload more frames if necessary
-      if (time_step >= loaded_frames_) {
-        current_time_ = loaded_frames_ - 1;
-      } else {
-        current_time_ = time_step;
-      }
-    } else {
-      // LOG << fmt::format("render particles @ time {}!", current_time_);
-      current_time_ = time_step;
-    }
-  } else {
-    current_time_ = 0;
-  }
-
-  size_t buffer_offset = current_buffer_ * buffer_size_;
-  size_t index = buffer_offset + (current_time_ % buffer_size_);
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
-  GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr));
-  GL_CALL(glEnableVertexAttribArray(0));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
-  GL_CALL(glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, nullptr));
-  GL_CALL(glEnableVertexAttribArray(1));
-
-  GL_CALL(glDrawArrays(GL_POINTS, 0, params_.num_particles));
-
-  GL_CALL(glDisableVertexAttribArray(0));
-  GL_CALL(glDisableVertexAttribArray(1));
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-}
-
-}  // namespace vortex
-
-/**
-#include <fmt/format.h>
-
-#include <thread>
-#include <vector>
-
-#include "animation.h"
-#include "log.h"
-#include "particles.h"
-#include "wings/util/glm.h"
-#include "wings/util/shader.h"
-
-namespace vortex {
-
-ParticleAnimation::ParticleAnimation(const ParticleAnimationParameters&
-params) : params_(params), current_buffer_(0), loading_buffer_(1) {
-  shader_names_.push_back("particles");
-  std::cout << "ParticleAnimation constructed with " <<
-params_.num_particles
-            << " particles.\n";
-}
-
-void ParticleAnimation::setup() {
-  std::cout << "Entering ParticleAnimation setup..." << std::endl;
-  if (params_.num_particles == 0) {
-    std::cerr << "Error: num_particles is zero in ParticleAnimation
-setup.\n"; return;
-  }
-  std::cout << "Setting up ParticleAnimation with " << params_.num_particles
-            << " particles.\n";
-
-  // Resize buffers to accommodate double buffering
-  point_buffer_.resize(2 * buffer_size_);
-  velocity_buffer_.resize(2 * buffer_size_);
-  density_buffer_.resize(2 * buffer_size_);
-  pressure_buffer_.resize(2 * buffer_size_);
-
-  // Generate buffers for both sets
-  GL_CALL(glGenBuffers(2 * buffer_size_, point_buffer_.data()));
-  GL_CALL(glGenBuffers(2 * buffer_size_, velocity_buffer_.data()));
-  GL_CALL(glGenBuffers(2 * buffer_size_, density_buffer_.data()));
-  GL_CALL(glGenBuffers(2 * buffer_size_, pressure_buffer_.data()));
-
-  // Allocate memory for each buffer
-  for (size_t i = 0; i < 2 * buffer_size_; ++i) {
-    std::vector<GLfloat> tmp(params_.num_particles * sizeof(float) * 3, 0);
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                         params_.num_particles * sizeof(float) * 3,
-tmp.data(), GL_STATIC_DRAW));
-
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                         params_.num_particles * sizeof(float) * 3, nullptr,
-                         GL_STATIC_DRAW));
-
-    std::vector<GLfloat> tmp1(params_.num_particles * sizeof(float), 0);
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER, params_.num_particles *
-sizeof(float), tmp1.data(), GL_STATIC_DRAW));
-
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[i]));
-    GL_CALL(glBufferData(GL_ARRAY_BUFFER, params_.num_particles *
-sizeof(float), nullptr, GL_STATIC_DRAW));
-  }
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-}
-
-void ParticleAnimation::load_frame(size_t frame, size_t buffer_offset) {
-  if (frame >= params_.time.size()) {
-    std::cerr << "Error: Frame index out of bounds: " << frame << std::endl;
-    return;
-  }
-
-  std::string points_file = fmt::format(
-      "{}/particles{}.{}", params_.points_prefix, frame, params_.file_type);
-  Mesh mesh(3);
-  std::vector<float> densities;
-
-  if (params_.file_type == "obj") {
-    obj::read(points_file, mesh);
-  } else if (params_.file_type == "mesh" || params_.file_type == "meshb") {
-    meshb::read(points_file, mesh);
-  } else if (params_.file_type == "sol" || params_.file_type == "solb") {
-    meshb::read(points_file, mesh, densities);
-  }
-
-  const auto& vertices = mesh.vertices();
-  std::vector<float> points(vertices.n() * 3);
-  for (size_t i = 0; i < vertices.n(); ++i) {
-    points[i * 3] = static_cast<float>(vertices[i][0]);
-    points[i * 3 + 1] = static_cast<float>(vertices[i][1]);
-    points[i * 3 + 2] = static_cast<float>(vertices[i][2]);
-  }
-
-  std::vector<float> velocities(params_.num_particles * 3, 0.0f);
-  std::vector<float> densities_out(params_.num_particles, 0.0f);
-  params_.hasDensity_ = !densities.empty() ? 1 : 0;
-  if (params_.hasDensity_) {
-    for (size_t i = 0; i < vertices.n(); ++i) {
-      densities_out[i] = densities[i];
-    }
-  }
-  std::vector<float> pressures(params_.num_particles, 0.0f);
-
-  size_t index = buffer_offset + (frame % buffer_size_);
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, points.size() * sizeof(float),
-                          points.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, velocity_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, velocities.size() *
-sizeof(float), velocities.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0,
-                          densities_out.size() * sizeof(float),
-                          densities_out.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, pressure_buffer_[index]));
-  GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, pressures.size() *
-sizeof(float), pressures.data()));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-}
-
-void ParticleAnimation::load() {
-  LOG << "Entering ParticleAnimation load...";
-  size_t n_threads = std::thread::hardware_concurrency();
-  std::vector<std::thread> threads;
-
-  for (size_t k = 0; k < n_threads; ++k) {
-    size_t start = k * buffer_size_ / n_threads;
-    size_t end = (k + 1) * buffer_size_ / n_threads;
-    threads.emplace_back(&ParticleAnimation::multiThreadLoad, this, start,
-end, 0);
-  }
-
-  for (auto& t : threads) {
-    t.join();
-  }
-
-  loaded_frames_ = buffer_size_;
-}
-
-void ParticleAnimation::multiThreadLoad(size_t start, size_t end,
-                                        size_t buffer_offset) {
-  for (size_t t = start; t < end; ++t) {
-    load_frame(t, buffer_offset);
-  }
-}
-
-void ParticleAnimation::reload() {
-  LOG << "Reloading particle animation data...";
-
-  size_t new_size =
-      std::min<size_t>(current_time_ + buffer_size_ + 1,
-params_.time.size());
-
-  LOG << fmt::format("Next frame range: {} - {}", current_time_ + 1,
-new_size);
-
-  size_t buffer_offset = loading_buffer_ * buffer_size_;
-
-  size_t n_threads = std::thread::hardware_concurrency();
-  std::vector<std::thread> threads;
-
-  for (size_t k = 0; k < n_threads; ++k) {
-    size_t start =
-        current_time_ + 1 + k * (new_size - current_time_ - 1) / n_threads;
-    size_t end = current_time_ + 1 +
-                 (k + 1) * (new_size - current_time_ - 1) / n_threads;
-    threads.emplace_back(&ParticleAnimation::multiThreadLoad, this, start,
-end, buffer_offset);
-  }
-
-  for (auto& t : threads) {
-    t.join();
-  }
-
-  // Swap the buffers
-  std::swap(current_buffer_, loading_buffer_);
-
-  loaded_frames_ = new_size;
-  std::cout << "There are " << loaded_frames_ << " frames." << std::endl;
-}
-
-void ParticleAnimation::render(const ShaderLibrary& shaders, int time_step)
-{ const auto& particle_shader = shaders["particles"]; particle_shader.use();
-  particle_shader.set_uniform("u_hasDensity", params_.hasDensity_);
-
-  if (time_step >= 0) {
-    if (time_step >= loaded_frames_) {
-      std::cerr << "Error: Attempting to render an unloaded frame: "
-                << time_step << std::endl;
-      reload();  // Attempt to reload more frames if necessary
-      if (time_step >= loaded_frames_) {
-        current_time_ = loaded_frames_ - 1;
-      } else {
-        current_time_ = time_step;
-      }
-    } else {
-      current_time_ = time_step;
-    }
-  } else {
-    current_time_ = 0;
-  }
-
-  size_t buffer_offset = current_buffer_ * buffer_size_;
-  size_t index = buffer_offset + (current_time_ % buffer_size_);
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_[index]));
-  GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr));
-  GL_CALL(glEnableVertexAttribArray(0));
-
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, density_buffer_[index]));
-  GL_CALL(glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, nullptr));
-  GL_CALL(glEnableVertexAttribArray(1));
-
-  GL_CALL(glDrawArrays(GL_POINTS, 0, params_.num_particles));
-
-  GL_CALL(glDisableVertexAttribArray(0));
-  GL_CALL(glDisableVertexAttribArray(1));
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-
-  // Swap buffers after rendering
-  std::swap(current_buffer_, loading_buffer_);
-}
-
-}  // namespace vortex
-*/

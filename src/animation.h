@@ -25,29 +25,41 @@
 #include "io.h"
 #include "mesh.h"
 #include "voronoi.h"
+#include "wings.h"
+#include "wings/util/glm.h"
+#include "wings/util/shader.h"
 
 namespace vortex {
+
+#define ANIMATION_VERSION 1
 
 class ShaderLibrary;
 
 class ParticleAnimation {
  public:
+#if ANIMATION_VERSION == 0
+  ParticleAnimation(const ParticleAnimationParameters& params,
+                    wings::RenderingContext* context);
+#elif ANIMATION_VERSION == 1
   ParticleAnimation(const ParticleAnimationParameters& params);
-
-  // void setup();
-  // void load();
-  // void load_frame(size_t frame, size_t buffer_offset);
-  // void reload();
-  // void render(const ShaderLibrary& shaders, int time_step);
+#endif
 
   void render(const ShaderLibrary& shaders, int time_step);
   void setup();
   void load();
   void reload();
+  void load_frame_data(size_t frame, std::vector<float>& points,
+                       std::vector<float>& velocities,
+                       std::vector<float>& densities_out,
+                       std::vector<float>& pressures);
+  void load_frame(size_t frame, size_t buffer_offset,
+                  wings::RenderingContext* thread_context);
   void load_frame(size_t frame, size_t buffer_offset);
 
   const auto& shader_names() const { return shader_names_; }
   const auto& params() const { return params_; }
+  const wings::RenderingContext& context() const { return *thread_context_; }
+  wings::RenderingContext& context() { return *thread_context_; }
 
  private:
   // size_t current_time_;
@@ -64,6 +76,7 @@ class ParticleAnimation {
   std::vector<GLuint> pressure_buffer_;
   std::vector<std::string> shader_names_;
   std::mutex load_mutex_;
+  wings::RenderingContext* thread_context_;
 
   void multiThreadLoad(size_t start, size_t end, size_t buffer_offset);
 };

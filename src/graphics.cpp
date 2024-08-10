@@ -472,7 +472,12 @@ class MeshScene : public wings::Scene {
     build_pickables();
 
     if (particle_params.active()) {
+#if ANIMATION_VERSION == 0
+      animation_ =
+          std::make_unique<ParticleAnimation>(particle_params, context_.get());
+#elif ANIMATION_VERSION == 1
       animation_ = std::make_unique<ParticleAnimation>(particle_params);
+#endif
       animation_->setup();
       animation_->load();
     }
@@ -787,7 +792,6 @@ class MeshScene : public wings::Scene {
     static auto last_time = std::chrono::high_resolution_clock::now();
     static int frame_count = 0;
 
-    auto start_time = std::chrono::high_resolution_clock::now();
     ClientView& view = view_[client_idx];
     bool updated = false;
     switch (input.type) {
@@ -1208,8 +1212,6 @@ class MeshScene : public wings::Scene {
       animation_->render(shaders_, time_step);
 
       // End of render step
-      auto end_time = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double> render_duration = end_time - start_time;
       frame_count++;
 
       auto now = std::chrono::high_resolution_clock::now();

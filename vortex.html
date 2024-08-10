@@ -280,13 +280,13 @@
         return;
       }
       if (evt.data[0] == "#") {
-        console.log(evt.data);
+        //console.log(evt.data);
         current_time = evt.data.substring(1);
         document.getElementById("time-input").value = current_time;
         return;
       }
       if (evt.data[0] == "~") {
-        console.log(evt.data);
+        //console.log(evt.data);
         max_frames = parseInt(evt.data.substring(1)) - 1;
         return;
       }
@@ -353,7 +353,7 @@
     };
   }
 
-  const throttledSend = throttle((msg) => ws.send(msg), 100);
+  const throttledSend = throttle((msg) => ws.send(msg), 20);
 
   img.addEventListener("mousemove", function (e) {
     const mod = e.ctrlKey || e.shiftKey;
@@ -396,8 +396,8 @@
     const x = ("0000" + X).slice(-5);
     const y = ("0000" + e.offsetY).slice(-5);
     const msg = "D" + x + y;
-    ws.send(msg);
-    //throttledSend(msg);
+    //ws.send(msg);
+    throttledSend(msg);
   });
 
   window.addEventListener("keydown", function (e) {
@@ -406,13 +406,13 @@
   });
 
   const setQuality = function () {
-    ws.send("KIQ" + document.getElementById("qualitys").value);
-    //throttledSend("KIQ" + document.getElementById("qualitys").value);
+    //ws.send("KIQ" + document.getElementById("qualitys").value);
+    throttledSend("KIQ" + document.getElementById("qualitys").value);
   };
 
   const setTransparency = function () {
-    ws.send("KIa" + document.getElementById("transparency").value);
-    //throttledSend("KIa" + document.getElementById("transparency").value);
+    //ws.send("KIa" + document.getElementById("transparency").value);
+    throttledSend("KIa" + document.getElementById("transparency").value);
   };
 
   let timeout;
@@ -422,8 +422,8 @@
       const w = 4 * Math.floor(window.innerWidth / 4);
       img.width = w;
       img.setAttribute("width", w);
-      ws.send("KIW" + w);
-      //throttledSend("KIW" + w);
+      //ws.send("KIW" + w);
+      throttledSend("KIW" + w);
       setQuality(); // request an image update
     }, 100);
   };
@@ -434,16 +434,16 @@
   };
 
   const togglePrimitive = (id, c) => {
-    ws.send("KI" + c + checkboxResult(id));
-    //throttledSend("KI" + c + checkboxResult(id));
+    //ws.send("KI" + c + checkboxResult(id));
+    throttledSend("KI" + c + checkboxResult(id));
   };
 
   const selectColormap = () => {
     const dropdown = document.getElementById("colormap-dropdown");
     let idx = dropdown.selectedIndex;
     if (idx == 0) idx = 8; // default to giraffe colormap
-    ws.send("KSC" + dropdown.options[idx].value);
-    //throttledSend("KSC" + dropdown.options[idx].value);
+    //ws.send("KSC" + dropdown.options[idx].value);
+    throttledSend("KSC" + dropdown.options[idx].value);
   };
 
   const clip = () => {
@@ -456,8 +456,8 @@
   };
 
   const centerView = () => {
-    ws.send("KSp");
-    //throttledSend("KSp");
+    //ws.send("KSp");
+    throttledSend("KSp");
   };
 
   const toggleField = () => {
@@ -468,8 +468,8 @@
   const toggleLighting = () => {
     const checkbox = document.getElementById("checkbox-lighting");
     let result = checkbox.checked ? 1 : 0;
-    ws.send("KIL" + result);
-    //throttledSend("KIL" + result);
+    //ws.send("KIL" + result);
+    throttledSend("KIL" + result);
   };
 
   const toggleEarth = () => {
@@ -494,16 +494,16 @@
 
   const togglePicking = () => {
     const dropdown = document.getElementById("dropdown-picking-type");
-    ws.send("KIx" + dropdown.selectedIndex);
-    //throttledSend("KIx" + dropdown.selectedIndex);
+    //ws.send("KIx" + dropdown.selectedIndex);
+    throttledSend("KIx" + dropdown.selectedIndex);
 
   };
 
   const setHeight = () => {
     const h = document.getElementById("input-height").value;
     img.setAttribute("height", h);
-    ws.send("KIH" + h);
-    //throttledSend("KIH" + h);
+    //ws.send("KIH" + h);
+    throttledSend("KIH" + h);
     setQuality(); // request an image update
   };
 
@@ -515,7 +515,8 @@
   const updateFrame = () => {
     const a = ("00000000" + current_time).slice(-9);
     const msg = "S" + a;
-    ws.send(msg);
+    //ws.send(msg);
+    throttledSend(msg);
   };
 
   const goToStartFrame = () => {
@@ -579,7 +580,8 @@
       const a = ("00000000" + current_time).slice(-9);
       const loopFlag = looping ? "L" : "l"; // Set the loop flag
       const msg = "A" + loopFlag + a;
-      ws.send(msg);
+      //ws.send(msg);
+      throttledSend(msg);
       requestId = requestAnimationFrame(animate);
     } else {
       if (looping) {
