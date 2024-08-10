@@ -21,6 +21,7 @@
 #include <Predicates_psm.h>
 
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <set>
 #include <thread>
 #include <unordered_set>
@@ -474,7 +475,7 @@ template <int dim>
 std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
     const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
     std::vector<index_t>& knn, size_t n_neighbors,
-    const VoronoiDiagramOptions& options,
+    const VoronoiDiagramOptions& options, VoronoiStatistics& stats,
     std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree) {
   Timer timer;
   trees::KdTreeOptions kdtree_opts;
@@ -487,6 +488,7 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
     timer.stop();
     if (options.verbose)
       LOG << "kdtree created in " << timer.seconds() << " s.";
+    stats.t_kdtree_build = timer.seconds();
   }
 
   auto* tree = static_cast<kdtree_t*>(ptree.get());
@@ -503,7 +505,37 @@ std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
   timer.stop();
   if (options.verbose)
     LOG << "nearest neighbors computed in " << timer.seconds() << " s.";
+  stats.t_kdtree_query = timer.seconds();
   return ptree;
+}
+
+VoronoiDiagram::VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
+    : VoronoiMesh(3),
+      dim_(dim),
+      sites_(sites),
+      n_sites_(n_sites),
+      neighbors_(*this, sites, dim) {}
+
+void VoronoiDiagram::create_sqtree(int n_subdiv) {
+  sqtree_ = std::make_unique<SphereQuadtree>(sites_, n_sites_, dim_, n_subdiv);
+}
+
+int check_closed_delaunay(
+    const absl::flat_hash_set<std::array<uint32_t, 3>>& triangles) {
+  absl::flat_hash_set<std::pair<uint32_t, uint32_t>> edges;
+  for (const auto& t : triangles) {
+    for (int j = 0; j < 3; j++) {
+      uint32_t p = t[j];
+      uint32_t q = t[j == 2 ? 0 : j + 1];
+      if (p > q) std::swap(p, q);
+      auto it = edges.find({p, q});
+      if (it == edges.end())
+        edges.insert({p, q});
+      else
+        edges.erase(it);
+    }
+  }
+  return edges.size();
 }
 
 template <typename Domain_t>
@@ -514,54 +546,127 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   Timer timer;
   size_t n_threads = std::thread::hardware_concurrency();
 
+  // reset all the statistics
+  statistics_.reset();
+  statistics_.energy = -1;  // not computed yet
+  statistics_.n_neighbors = options.n_neighbors;
+  average_statistics_.n_sites = n_sites_;
+  statistics_.n_sites = n_sites_;
+
+  Timer global_timer;
+  global_timer.start();
+
+  auto alg = options.neighbor_algorithm;
+  bool is_sphere = std::is_same<Domain_t, SphereDomain>::value;
+  bool use_kdtree = alg == NearestNeighborAlgorithm::kKdtree;
+  bool use_bfs = alg == NearestNeighborAlgorithm::kVoronoiBFS;
+  bool use_sqtree =
+      alg == NearestNeighborAlgorithm::kSphereQuadtree && is_sphere;
+  if (use_bfs && facets_.empty()) use_kdtree = true;
+
   // calculate nearest neighbors
   size_t n_neighbors = options.n_neighbors;
   if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
   std::vector<index_t> knn(n_sites_ * n_neighbors);
   std::vector<uint16_t> max_neighbors(n_sites_, options.n_neighbors);
   std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
-  if (facets_.empty() || options.always_use_kdtree) {
+  if (use_kdtree) {
     if (dim_ == 2)
       tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
-                                      n_neighbors, options);
+                                      n_neighbors, options, statistics_);
     else if (dim_ == 3)
       tree = get_nearest_neighbors<3>(sites_, n_sites_, sites_, n_sites_, knn,
-                                      n_neighbors, options);
+                                      n_neighbors, options, statistics_);
     else if (dim_ == 4)
       tree = get_nearest_neighbors<4>(sites_, n_sites_, sites_, n_sites_, knn,
-                                      n_neighbors, options);
+                                      n_neighbors, options, statistics_);
     else
       NOT_IMPLEMENTED;
-  } else {
+  } else if (use_sqtree) {
+    if (!sqtree_) create_sqtree(-1);
+
+    timer.start();
+    sqtree_->build();
+    timer.stop();
+    double t_build = timer.seconds();
+    statistics_.n_sqtree_maxleaf = sqtree_->min_leaf_size();
+    statistics_.n_sqtree_maxleaf = sqtree_->max_leaf_size();
+    statistics_.t_sqtree_build = t_build;
+
+    std::vector<SphereQuadtreeWorkspace> searches(n_threads,
+                                                  options.n_neighbors);
+    timer.start();
+    std::parafor_i(0, n_sites_,
+                   [this, &searches, &knn, &options, &max_neighbors](size_t tid,
+                                                                     size_t k) {
+                     sqtree_->knearest(k, searches[tid]);
+                     const auto& result = searches[tid].neighbors;
+                     size_t m = searches[tid].size();
+                     if (searches[tid].size() > options.n_neighbors)
+                       m = options.n_neighbors;
+                     ASSERT(result[0].first == k);
+                     for (size_t j = 0; j < m; j++) {
+                       knn[options.n_neighbors * k + j] = result[j].first;
+                     }
+                     max_neighbors[k] = m;
+                   });
+    timer.stop();
+    statistics_.t_sqtree_query = timer.seconds();
+
+    if (options.verbose)
+      LOG << fmt::format(
+          "neighbors computed in {} s. (build = {} s.), total = {} s.",
+          timer.seconds(), t_build, timer.seconds() + t_build);
+
+    // still build the kdtree to retrieve neighbors if the cell is incomplete
+    timer.start();
+    tree = get_kdtree(sites_, n_sites_, dim_, options);
+    timer.stop();
+    statistics_.t_kdtree_build = timer.seconds();
+  } else if (use_bfs) {
     timer.start();
     neighbors_.build();
     timer.stop();
     double t_build = timer.seconds();
+    statistics_.t_bfs_build = t_build;
+    statistics_.n_bfs_level = options.bfs_max_level;
+
     std::vector<NearestNeighborsWorkspace> searches(n_threads,
                                                     options.n_neighbors);
     timer.start();
     std::parafor_i(0, n_sites_,
                    [this, &searches, &knn, &options, &max_neighbors](size_t tid,
                                                                      size_t k) {
+                     searches[tid].max_level = options.bfs_max_level;
                      neighbors_.knearest(k, searches[tid]);
                      const auto& result = searches[tid].sites;
                      size_t m = result.size();
                      if (result.size() > options.n_neighbors)
                        m = options.n_neighbors;
+                     ASSERT(result.data()[0].first == k);
                      for (size_t j = 0; j < m; j++) {
                        knn[options.n_neighbors * k + j] =
                            result.data()[j].first;
                      }
                      max_neighbors[k] = result.size();
                    });
-    // still build the kdtree to retrieve neighbors if the cell is incomplete
-    tree = get_kdtree(sites_, n_sites_, dim_, options);
 
     timer.stop();
+    statistics_.t_bfs_query = timer.seconds();
+
     if (options.verbose)
       LOG << fmt::format(
           "neighbors computed in {} s. (build = {} s.), total = {} s.",
           timer.seconds(), t_build, timer.seconds() + t_build);
+
+    // still build the kdtree to retrieve neighbors if the cell is incomplete
+    timer.start();
+    tree = get_kdtree(sites_, n_sites_, dim_, options);
+    timer.stop();
+    statistics_.t_kdtree_build = timer.seconds();
+  } else {
+    LOG << "unknown nearest neighbor algorithm";
+    NOT_POSSIBLE;
   }
 
   // always add sites first for the Delaunay triangulation
@@ -611,6 +716,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   if (options.verbose) {
     LOG << "voronoi computed in " << timer.seconds() << " s.";
   }
+  statistics_.t_voronoi = timer.seconds();
 
   // merge the facets
   if (options.store_facet_data) {
@@ -623,6 +729,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
     if (options.verbose)
       LOG << fmt::format("# facets = {}, (done in {} sec.)", facets_.size(),
                          timer.seconds());
+    statistics_.t_facets = timer.seconds();
   }
 
   // store the delaunay triangles
@@ -636,13 +743,32 @@ void VoronoiDiagram::compute(const Domain_t& domain,
     if (options.verbose)
       LOG << fmt::format("# triangles = {}, (done in {} sec.)",
                          delaunay_.size(), timer.seconds());
+    statistics_.t_delaunay = timer.seconds();
+
+    if (options.check_closed) {
+      timer.start();
+      statistics_.n_bnd_delaunay_edges = check_closed_delaunay(delaunay_);
+      timer.stop();
+      if (options.verbose)
+        LOG << fmt::format("delaunay check done in {} sec.", timer.seconds());
+    }
   }
 
   uint64_t n_incomplete = 0;
   for (auto s : status_) {
     if (s == VoronoiStatusCode::kRadiusNotReached) n_incomplete++;
   }
-  if (options.verbose) LOG << fmt::format("n_incomplete = {}", n_incomplete);
+  if (options.verbose && n_incomplete > 0)
+    LOG << fmt::format("n_incomplete = {}", n_incomplete);
+  statistics_.n_incomplete = n_incomplete;
+
+  statistics_.area = analyze().area;
+  statistics_.area_error = statistics_.area - domain.area();
+
+  global_timer.stop();
+  statistics_.t_total = global_timer.seconds();
+  average_statistics_.append_to_average(statistics_);
+  if (track_statistics_history_) statistics_history_.push_back(statistics_);
 }
 
 template <>
@@ -658,13 +784,13 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> tree{nullptr};
   if (dim_ == 2)
     tree = get_nearest_neighbors<2>(sites_, n_sites_, sites_, n_sites_, knn,
-                                    n_neighbors, options);
+                                    n_neighbors, options, statistics_);
   else if (dim_ == 3)
     tree = get_nearest_neighbors<3>(sites_, n_sites_, sites_, n_sites_, knn,
-                                    n_neighbors, options);
+                                    n_neighbors, options, statistics_);
   else if (dim_ == 4)
     tree = get_nearest_neighbors<4>(sites_, n_sites_, sites_, n_sites_, knn,
-                                    n_neighbors, options);
+                                    n_neighbors, options, statistics_);
   else
     NOT_IMPLEMENTED;
 
@@ -737,7 +863,8 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   for (auto s : status_) {
     if (s == VoronoiStatusCode::kRadiusNotReached) n_incomplete++;
   }
-  if (options.verbose) LOG << fmt::format("n_incomplete = {}", n_incomplete);
+  if (options.verbose && n_incomplete > 0)
+    LOG << fmt::format("n_incomplete = {}", n_incomplete);
 }
 
 void lift_sites(Vertices& sites, const std::vector<double>& weights) {
@@ -811,17 +938,46 @@ void VoronoiDiagram::merge() {
   triangles.copy(triangles_);
 }
 
+nlohmann::json VoronoiStatistics::to_json() const {
+  nlohmann::json data;
+
+  data["n_neighbors"] = n_neighbors;
+  data["t_kdtree_build"] = t_kdtree_build;
+  data["t_kdtree_query"] = t_kdtree_query;
+  data["t_bfs_build"] = t_bfs_build;
+  data["t_bfs_query"] = t_bfs_query;
+  data["t_sqtree_build"] = t_sqtree_build;
+  data["t_sqtree_query"] = t_sqtree_query;
+  data["n_sqtree_minleaf"] = n_sqtree_minleaf;
+  data["n_sqtree_maxleaf"] = n_sqtree_maxleaf;
+  data["t_voronoi"] = t_voronoi;
+  data["n_incomplete"] = n_incomplete;
+  data["t_facets"] = t_facets;
+  data["t_delaunay"] = t_delaunay;
+  data["energy"] = energy;
+  data["t_total"] = t_total;
+  data["count"] = count;
+  data["area_error"] = area_error;
+  data["area"] = area;
+  data["n_bfs_level"] = n_bfs_level;
+  data["n_sites"] = n_sites;
+  data["n_triangles"] = n_triangles;
+  data["n_bnd_delaunay_edges"] = n_bnd_delaunay_edges;
+
+  return data;
+}
+
 template void VoronoiDiagram::compute(const SphereDomain&,
                                       VoronoiDiagramOptions);
 template void VoronoiDiagram::compute(const SquareDomain&,
                                       VoronoiDiagramOptions);
 
-#define INSTANTIATE_NEAREST_NEIGHBORS(DIM)                          \
-  template std::shared_ptr<trees::KdTreeNd<coord_t, index_t>>       \
-  get_nearest_neighbors<DIM>(                                       \
-      const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq, \
-      std::vector<index_t>& knn, size_t n_neighbors,                \
-      const VoronoiDiagramOptions& options,                         \
+#define INSTANTIATE_NEAREST_NEIGHBORS(DIM)                            \
+  template std::shared_ptr<trees::KdTreeNd<coord_t, index_t>>         \
+  get_nearest_neighbors<DIM>(                                         \
+      const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,   \
+      std::vector<index_t>& knn, size_t n_neighbors,                  \
+      const VoronoiDiagramOptions& options, VoronoiStatistics& stats, \
       std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree);
 
 INSTANTIATE_NEAREST_NEIGHBORS(2)

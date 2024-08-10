@@ -20,6 +20,8 @@
 
 #include <argparse/argparse.hpp>
 #include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <queue>
 #include <unordered_set>
 
@@ -382,7 +384,6 @@ void run_voronoi(argparse::ArgumentParser& program) {
   if (use_mesh)
     LOG << "# triangles in mesh = " << background_mesh.triangles().n();
 
-  // TODO, should this program also accept weights for SDOT?
   int dim = 3;
   Vertices sample(3);
   if (arg_points == "vertices") {
@@ -451,17 +452,45 @@ void run_voronoi(argparse::ArgumentParser& program) {
   VoronoiDiagramOptions options;
   options.n_neighbors = program.get<int>("--n_neighbors");
   options.parallel = true;
-  // options.store_facet_data = false;
-  options.always_use_kdtree = program.get<bool>("--force_kdtree");
+  options.bfs_max_level = program.get<int>("--bfs_max_level");
+  voronoi.create_sqtree(program.get<int>("--sqtree_subdiv"));
+  options.check_closed = program.get<bool>("--check_closed");
+  if (options.check_closed) options.store_delaunay_triangles = true;
 
   auto quiet = program.get<bool>("--quiet");
   auto verbose = program.get<bool>("--verbose");
   auto save = program.present<std::string>("--output");
   auto on_sphere = program.get<bool>("--on_sphere");
   auto calculate_voronoi_diagram = [&voronoi, &options, &points, n_smooth, save,
-                                    quiet, verbose, on_sphere](auto& domain) {
+                                    quiet, verbose, on_sphere, &program,
+                                    &arg_domain](auto& domain) {
     int n_iter = n_smooth;
     for (int iter = 1; iter <= n_iter; ++iter) {
+      options.store_facet_data = false;
+      auto neighbors = program.get<std::string>("--neighbors");
+      options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+      if (neighbors == "bfs") {
+        options.store_facet_data = true;
+        auto init_neighbors =
+            program.get<std::string>("--bfs_initial_neighbors");
+        if (iter == 1) {
+          if (init_neighbors == "kdtree")
+            options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+          else
+            options.neighbor_algorithm =
+                NearestNeighborAlgorithm::kSphereQuadtree;
+        } else {
+          options.neighbor_algorithm = NearestNeighborAlgorithm::kVoronoiBFS;
+        }
+      }
+      if (arg_domain == "sphere" && neighbors == "sqtree") {
+        options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
+        options.store_facet_data = false;
+      }
+
+      if (points.n() < 100)
+        options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+
       options.store_mesh = (iter == n_iter) && save;
       options.verbose = (verbose || iter == 1 || iter == n_iter) && !quiet;
       voronoi.vertices().clear();
@@ -471,9 +500,11 @@ void run_voronoi(argparse::ArgumentParser& program) {
       voronoi.compute(domain, options);
 
       // move each site to the centroid of the corresponding cell
-      voronoi.smooth(points, on_sphere);
-      auto props = voronoi.analyze();
-      if (!quiet) LOG << fmt::format("iter = {}, area = {}", iter, props.area);
+      if (iter < n_iter) voronoi.smooth(points, on_sphere);
+      if (!quiet)
+        LOG << fmt::format("iter = {}, area = {} (error = {})", iter,
+                           voronoi.statistics().area,
+                           voronoi.statistics().area_error);
     }
   };
 
@@ -501,9 +532,30 @@ void run_voronoi(argparse::ArgumentParser& program) {
     if (voronoi.polygons().n() > 0) meshb::write(voronoi, arg_output);
   }
   if (program.present<std::string>("--output_points")) {
-    Mesh tmp(dim);
-    points.copy(tmp.vertices());
-    meshb::write(tmp, program.get<std::string>("--output_points"));
+    auto output_points = program.get<std::string>("--output_points");
+    auto ext = get_file_ext(output_points);
+    if (ext == "meshb") {
+      Mesh tmp(dim);
+      points.copy(tmp.vertices());
+      meshb::write(tmp, program.get<std::string>("--output_points"));
+    } else if (ext == "txt" || ext == "dat") {
+      FILE* fid = fopen(output_points.c_str(), "w");
+      for (size_t k = 0; k < points.n(); k++)
+        fprintf(fid, "%1.16e %1.16e %1.16e\n", points[k][0], points[k][1],
+                points[k][2]);
+      fclose(fid);
+    }
+  }
+
+  if (program.present<std::string>("--statistics")) {
+    nlohmann::json data;
+    data["average"] = voronoi.average_statistics().to_json();
+    std::vector<nlohmann::json> stats(voronoi.statistics_history().size());
+    for (size_t k = 0; k < stats.size(); k++)
+      stats[k] = voronoi.statistics_history()[k].to_json();
+    data["iterations"] = stats;
+    std::ofstream outfile(program.get<std::string>("--statistics"));
+    outfile << std::setw(4) << data << std::endl;
   }
 }
 
@@ -606,24 +658,6 @@ void run_simulation(argparse::ArgumentParser& program) {
                       const auto& force) {
     using Domain_t = typename std::remove_reference<decltype(domain)>::type;
 
-    // smooth the initial point distribution with Lloyd relaxation
-    VoronoiDiagram smoother(dim, vertices[0], n_points);
-    VoronoiDiagramOptions options;
-    options.n_neighbors = 50;
-    options.parallel = true;
-    options.store_facet_data = true;
-    int n_iter = program.get<int>("--n_smooth");
-
-    for (int iter = 1; iter <= n_iter; ++iter) {
-      options.store_mesh = false;
-      options.verbose = false;
-      smoother.compute(domain, options);  // calculate voronoi diagram
-      smoother.smooth(vertices, false);   // move sites to centroids
-      for (size_t k = 0; k < vertices.n(); k++)
-        project_point<Domain_t>(vertices[k]);
-    }
-    LOG << "done smoothing points";
-
     // set up the fluid simulator
     SpringParticles<Domain_t> solver(domain, n_points, vertices[0],
                                      vertices.dim());
@@ -635,6 +669,11 @@ void run_simulation(argparse::ArgumentParser& program) {
     // set up fluid and solver properties
     FluidProperties props;
     SimulationOptions solver_opts;
+    solver_opts.n_smoothing_iterations = program.get<int>("--n_smooth");
+    bool is_sphere = std::is_same<Domain_t, SphereDomain>::value;
+    if (is_sphere)
+      solver_opts.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+
     solver.initialize(domain, solver_opts);
     LOG << "initialized simulation";
 
@@ -669,6 +708,18 @@ void run_simulation(argparse::ArgumentParser& program) {
     }
     timer.stop();
     solver.print_footer();
+
+    // write voronoi statistics
+    const auto& voronoi = solver.voronoi();
+    nlohmann::json data;
+    data["average"] = voronoi.average_statistics().to_json();
+    std::vector<nlohmann::json> stats(voronoi.statistics_history().size());
+    for (size_t k = 0; k < stats.size(); k++)
+      stats[k] = voronoi.statistics_history()[k].to_json();
+    data["iterations"] = stats;
+    std::ofstream outfile("solver_statistics.json");
+    outfile << std::setw(4) << data << std::endl;
+
     LOG << fmt::format("done! total time = {} seconds.", timer.seconds());
   };
 
@@ -717,6 +768,8 @@ void run_simulation(argparse::ArgumentParser& program) {
 }  // namespace vortex
 
 int main(int argc, char** argv) {
+  vortex::Timer timer;
+  timer.start();
   argparse::ArgumentParser program("vortex", "1.0");
 
   argparse::ArgumentParser cmd_gen("gen");
@@ -834,10 +887,27 @@ int main(int argc, char** argv) {
   cmd_voronoi.add_argument("--reorder")
       .help("ordering method (morton, none)")
       .default_value("morton");
-  cmd_voronoi.add_argument("--force_kdtree")
+  cmd_voronoi.add_argument("--neighbors")
+      .help("algorithm used to compute nearest neighbors: kdtree/bfs/sqtree")
+      .default_value("kdtree");
+  cmd_voronoi.add_argument("--sqtree_subdiv")
+      .help("# octahedron subdivisions to define sphere quadtree")
+      .default_value(-1)
+      .scan<'i', int>();
+  cmd_voronoi.add_argument("--statistics")
+      .help("name of statistics JSON file to write");
+  cmd_voronoi.add_argument("--bfs_max_level")
       .help(
-          "force the use of a kdtree to calculate nearest neighbors (only "
-          "relevant if n_smooth > 1)")
+          "# levels to use when using the BFS-based nearest neighbor algorithm")
+      .default_value(3)
+      .scan<'i', int>();
+  cmd_voronoi.add_argument("--bfs_initial_neighbors")
+      .help(
+          "algorithm to use for the first neighbor calculation when using BFS: "
+          "kdtree/sqtree")
+      .default_value("sqtree");
+  cmd_voronoi.add_argument("--check_closed")
+      .help("option to check whether the dual Delaunay triangulation is closed")
       .flag();
   program.add_subparser(cmd_voronoi);
 
@@ -954,6 +1024,9 @@ int main(int argc, char** argv) {
   } else {
     std::cout << program.help().str();
   }
+
+  timer.stop();
+  std::cout << fmt::format("\ntotal time: {} seconds\n\n", timer.seconds());
 
   return 0;
 }

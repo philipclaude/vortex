@@ -147,6 +147,19 @@ matd<typename result_of<R, S>::type> operator-(const matd<R>& A,
   }
 
 /**
+ * \brief Computes matrix-scalar division A / b.
+ */
+#define INSTANTIATE_MATSCADIV(R, S, T)                          \
+  template <int M, int N>                                       \
+  mats<M, N, T> operator/(const mats<M, N, R>& A, const S& b) { \
+    ASSERT(b != 0) << "divide by zero";                         \
+    mats<M, N, T> C;                                            \
+    for (int i = 0; i < M; i++)                                 \
+      for (int j = 0; j < N; j++) C(i, j) = A(i, j) / b;        \
+    return C;                                                   \
+  }
+
+/**
  * \brief Computes the matrix-vector multiplication A * x.
  */
 #define INSTANTIATE_MATVECMUL(R, S)                                         \
@@ -337,6 +350,7 @@ INSTANTIATE_MATVECMUL(double, double)
 
 INSTANTIATE_MATSCAMUL_L(double, double, double)
 INSTANTIATE_MATSCAMUL_R(double, double, double)
+INSTANTIATE_MATSCADIV(double, double, double)
 
 INSTANTIATE_MATPLUS(double)
 INSTANTIATE_MATMINUS(double)

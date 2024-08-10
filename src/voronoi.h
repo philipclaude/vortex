@@ -24,6 +24,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <nlohmann/json_fwd.hpp>
 
 #include "defs.h"
 #include "log.h"
@@ -35,8 +36,74 @@ namespace trees {
 template <typename coord_t, typename index_t>
 class KdTreeNd;
 }  // namespace trees
-
 namespace vortex {
+
+struct VoronoiStatistics {
+  VoronoiStatistics() { reset(); }
+  int n_neighbors;
+  int n_sites;
+  int n_triangles;
+  double t_kdtree_build;
+  double t_kdtree_query;
+  double t_bfs_build;
+  double t_bfs_query;
+  double t_sqtree_build;
+  double t_sqtree_query;
+  int n_sqtree_minleaf;
+  int n_sqtree_maxleaf;
+  int n_bfs_level;
+  double t_voronoi;
+  double n_incomplete;
+  double t_facets;
+  double t_delaunay;
+  double energy;
+  double t_total;
+  int count = 0;
+  double area;
+  double area_error;
+  int n_bnd_delaunay_edges;
+  void reset() {
+    n_neighbors = 0;
+    t_kdtree_build = 0;
+    t_kdtree_query = 0;
+    t_bfs_build = 0;
+    t_bfs_query = 0;
+    t_sqtree_build = 0;
+    t_sqtree_query = 0;
+    n_sqtree_minleaf = 0;
+    n_sqtree_maxleaf = 0;
+    t_voronoi = 0;
+    n_incomplete = 0;
+    t_facets = 0;
+    t_delaunay = 0;
+    energy = 0;
+    t_total = 0;
+    count = 0;
+    area = 0;
+    area_error = -1;
+    n_bfs_level = -1;
+    n_sites = -1;
+    n_triangles = -1;
+    n_bnd_delaunay_edges = -1;
+  }
+  nlohmann::json to_json() const;
+  void append_to_average(const VoronoiStatistics& stats) {
+    auto avg = [this](auto& x, const auto& y) {
+      x = double(x * count + y) / double(count + 1);
+    };
+    avg(t_kdtree_build, stats.t_kdtree_build);
+    avg(t_kdtree_query, stats.t_kdtree_query);
+    avg(t_bfs_build, stats.t_bfs_build);
+    avg(t_bfs_query, stats.t_bfs_query);
+    avg(t_sqtree_build, stats.t_sqtree_build);
+    avg(t_sqtree_query, stats.t_sqtree_query);
+    avg(t_voronoi, stats.t_voronoi);
+    avg(t_facets, stats.t_facets);
+    avg(t_delaunay, stats.t_delaunay);
+    avg(t_total, stats.t_total);
+    count++;
+  }
+};
 
 static constexpr index_t kMaxSite = std::numeric_limits<index_t>::max();
 enum { INSIDE = 0, OUTSIDE = 1 };
@@ -283,6 +350,12 @@ inline vec4 plane_equation(const vec4& ui, const vec4& uj, const coord_t& wi,
   return {n.x, n.y, n.z, -dot(n, m.xyz())};
 }
 
+enum class NearestNeighborAlgorithm : uint8_t {
+  kKdtree,
+  kVoronoiBFS,
+  kSphereQuadtree
+};
+
 struct VoronoiDiagramOptions {
   bool store_mesh{false};  // should the mesh be stored? (this makes the Voronoi
                            // diagram calculation slower).
@@ -297,7 +370,10 @@ struct VoronoiDiagramOptions {
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
   bool store_facet_data{true};
   bool store_delaunay_triangles{false};
-  bool always_use_kdtree{false};
+  int bfs_max_level{3};
+  bool check_closed{false};
+  NearestNeighborAlgorithm neighbor_algorithm{
+      NearestNeighborAlgorithm::kVoronoiBFS};
 };
 
 struct VoronoiCellProperties {
@@ -381,7 +457,6 @@ class VoronoiMesh : public Mesh {
   bool save_facets_{false};
   bool save_delaunay_{false};
   using facet_length_t = float;
-  // std::unordered_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   absl::flat_hash_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
   absl::flat_hash_set<std::array<uint32_t, 3>> delaunay_;
   size_t n_incomplete_{0};
@@ -396,12 +471,7 @@ class VoronoiDiagram : public VoronoiMesh {
   /// @param dim Dimension of the sites (should be 2, 3 or 4).
   /// @param sites Pointer to the sites.
   /// @param n_sites Number of sites.
-  VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites)
-      : VoronoiMesh(3),
-        dim_(dim),
-        sites_(sites),
-        n_sites_(n_sites),
-        neighbors_(*this, sites, dim) {}
+  VoronoiDiagram(int dim, const coord_t* sites, uint64_t n_sites);
   VoronoiDiagram(const VoronoiDiagram&) = delete;
 
   /// @brief Calculates the Voronoi diagram of the saved sites restricted to
@@ -438,6 +508,13 @@ class VoronoiDiagram : public VoronoiMesh {
 
   uint64_t n_sites() const { return n_sites_; }
 
+  void create_sqtree(int ns);
+  const auto& statistics() const { return statistics_; }
+  auto& statistics() { return statistics_; }
+  const auto& average_statistics() const { return average_statistics_; }
+  const auto& statistics_history() const { return statistics_history_; }
+  void track_statistics_history(bool x) { track_statistics_history_ = x; }
+
  private:
   int dim_;
   const coord_t* sites_;
@@ -446,6 +523,11 @@ class VoronoiDiagram : public VoronoiMesh {
   std::vector<VoronoiStatusCode> status_;
   std::vector<double> weights_;
   VoronoiNeighbors neighbors_;
+  std::unique_ptr<SphereQuadtree> sqtree_;
+  VoronoiStatistics statistics_;
+  VoronoiStatistics average_statistics_;
+  std::vector<VoronoiStatistics> statistics_history_;
+  bool track_statistics_history_{true};
 };
 
 /// @brief Lift the sites to 4d where the fourth coordinate = sqrt(wmax -
@@ -523,6 +605,7 @@ struct SphereDomain {
     coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
     return {cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi)};
   }
+  double area() const { return 4 * M_PI * radius * radius; }
 };
 
 struct PlanarVoronoiPolygon {
@@ -611,6 +694,7 @@ struct TriangulationDomain {
   void initialize(int64_t elem,
                   VoronoiPolygon<TriangulationDomain>& cell) const;
   size_t n_elems() const { return n_triangles; }
+  double area() const { return -1; }
 
   const coord_t* points{nullptr};
   uint64_t n_points{0};
@@ -622,7 +706,7 @@ template <int dim>
 std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> get_nearest_neighbors(
     const coord_t* p, uint64_t np, const coord_t* q, uint64_t nq,
     std::vector<index_t>& knn, size_t n_neighbors,
-    const VoronoiDiagramOptions& options,
+    const VoronoiDiagramOptions& options, VoronoiStatistics& stats,
     std::shared_ptr<trees::KdTreeNd<coord_t, index_t>> ptree = nullptr);
 
 }  // namespace vortex

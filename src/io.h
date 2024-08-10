@@ -44,6 +44,10 @@ void write(const Mesh& mesh, const std::string& filename, bool twod,
 
 void write_points(const Mesh& mesh, const std::string& filename, bool twod);
 
+template <int n>
+void write_sol(const std::vector<std::array<double, n>>& sol, bool at_vertices,
+               const std::string& filename);
+
 }  // namespace meshb
 
 namespace obj {

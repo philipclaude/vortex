@@ -51,6 +51,16 @@ struct Triangle {
   static coord_t area(const coord_t* xa, const coord_t* xb, const coord_t* xc);
   static coord_t jacobian(const coord_t* pa, const coord_t* pb,
                           const coord_t* pc, const coord_t* x);
+  static void get_refcoord_gradient(coord_t s, coord_t t, const coord_t* pa,
+                                    const coord_t* pb, const coord_t* pc,
+                                    vec3d& grads, vec3d& gradt);
+
+  static void get_basis(coord_t s, coord_t t, double* basis);
+  static void get_basis_gradient(coord_t s, coord_t t, const coord_t* pa,
+                                 const coord_t* pb, const coord_t* pc,
+                                 vec3d& grad_fa, vec3d& grad_fb,
+                                 vec3d& grad_fc);
+  static const vec3d center;
 };
 
 struct SphericalTriangle {
@@ -85,6 +95,20 @@ struct Polygon {
   static const int n_faces = -1;
   static constexpr int* edges = nullptr;
   typedef Line face_type;
+};
+
+struct Icosahedron {
+  static const int n_faces = 20;
+  static const int n_vertices = 12;
+  static double coordinates[n_vertices][3];
+  static int faces[n_faces][3];
+};
+
+struct Octahedron {
+  static const int n_faces = 8;
+  static const int n_vertices = 6;
+  static double coordinates[n_vertices][3];
+  static int faces[n_faces][3];
 };
 
 }  // namespace vortex

@@ -226,7 +226,52 @@ UT_TEST_CASE(mats_test) {
     for (int j = 0; j < 4; j++) UT_ASSERT_EQUALS(C(i, j), 0.0);
 
   C.print();
+
+  // mat-sca division tests
+  mats<3, 3, double> m6;
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      m6(i, j) = i + j;
+    }
+  }
+  m6 = m6 / 3.;
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      UT_ASSERT_EQUALS(m6(i, j), (i + j) / 3.);
+    }
+  }
+
+  mats<7, 21, double> m7;
+  for (int i = 0; i < 7; i++) {
+    for (int j = 0; j < 21; j++) {
+      m7(i, j) = i * j;
+    }
+  }
+  m7 = m7 / 13.4798;
+  for (int i = 0; i < 7; i++) {
+    for (int j = 0; j < 21; j++) {
+      UT_ASSERT_EQUALS(m7(i, j), (i * j) / 13.4798);
+    }
+  }
+
+  mats<11, 6, double> m8;
+  for (int i = 0; i < 11; i++) {
+    for (int j = 0; j < 6; j++) {
+      m8(i, j) = i - j;
+    }
+  }
+  m8 = m8 / -0.63373;
+  for (int i = 0; i < 11; i++) {
+    for (int j = 0; j < 6; j++) {
+      UT_ASSERT_EQUALS(m8(i, j), (i - j) / -0.63373);
+    }
+  }
+
+  UT_CATCH_EXCEPTION(m6 / 0.);
+  UT_CATCH_EXCEPTION(m7 / 0.);
+  UT_CATCH_EXCEPTION(m8 / 0.);
 }
+
 UT_TEST_CASE_END(mats_test)
 
 UT_TEST_CASE(mvm_test) {

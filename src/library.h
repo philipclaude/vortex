@@ -47,18 +47,39 @@ class Grid : public Mesh {
   const std::vector<int>& sizes_;  // number of sizes in each direction
 };
 
-/// @brief Represents a subdivided icosahedron mesh.
-class SubdividedIcosahedron : public Mesh {
+template <typename S>
+class SubdividedSphere : public Mesh {
  public:
-  /// @brief Constructs a subdivided icosahedron mesh.
-  /// @param n number of subdivisions.
-  SubdividedIcosahedron(int n = 0) : Mesh(3) { build(n); }
-
-  static const int n_icosahedron_triangles = 20;
+  SubdividedSphere(int n = 0) : Mesh(3) { build(n); }
 
  private:
   void build(int n);
   void subdivide();
+};
+
+/// @brief Represents a subdivided icosahedron mesh.
+class SubdividedIcosahedron : public SubdividedSphere<Icosahedron> {
+ public:
+  /// @brief Constructs a subdivided icosahedron mesh.
+  /// @param n number of subdivisions.
+  SubdividedIcosahedron(int n = 0) : SubdividedSphere<Icosahedron>(n) {}
+};
+
+/// @brief Represents a circle mapped to a square.
+/// http://squircular.blogspot.com/2015/09/mapping-circle-to-square.html
+class Squircle : public Mesh {
+ public:
+  /// @brief Constructs the circle-in-square mesh.
+  /// @param r radius of the inner circle.
+  /// @param nr number of divisions in the radial direction.
+  /// @param nt number of divisions in theta direction from 0 - PI.
+  /// @param half whether to create a domain in [0, PI] (true) or [0, 2 * PI].
+  Squircle(double r, int nr, int nt, bool half = false) : Mesh(3) {
+    build(r, nr, nt, half);
+  }
+
+ private:
+  void build(double r, int nr, int nt, bool half);
 };
 
 }  // namespace vortex

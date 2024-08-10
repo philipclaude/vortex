@@ -25,7 +25,9 @@ UT_TEST_CASE(test1) {
   UT_ASSERT_EQUALS(A.nnz(), 4);
 
   vecd<double> x(2);
-  A.solve_nl(b, x, 1e-10, false);
+  SparseSolverOptions opts;
+  opts.symmetric = false;
+  A.solve_nl(b, x, opts);
   A.print();
 
   x.print();
@@ -148,7 +150,9 @@ UT_TEST_CASE(cg_test) {
   // solve the system
   vecd<double> x(n + 1);
   x.zero();
-  A.solve_nl(b, x, 1e-10, false);
+  SparseSolverOptions opts;
+  opts.symmetric = false;
+  A.solve_nl(b, x, opts);
   x.print();
 
   // check the error

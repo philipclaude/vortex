@@ -21,6 +21,7 @@
 #include <math.h>
 
 #include <limits>
+#include <type_traits>
 
 #include "elements.h"
 #include "io.h"
@@ -46,9 +47,9 @@ UT_TEST_CASE(grid_triangle_test) {
       double tot_areat = 0;
       for (int k = 0; k < trit; k++) {
         auto* t = mesh.triangles()[k];
-        coord_t* p1t = mesh.vertices()[t[0]];
-        coord_t* p2t = mesh.vertices()[t[1]];
-        coord_t* p3t = mesh.vertices()[t[2]];
+        const auto* p1t = mesh.vertices()[t[0]];
+        const auto* p2t = mesh.vertices()[t[1]];
+        const auto* p3t = mesh.vertices()[t[2]];
         tot_areat += Triangle::area(p1t, p2t, p3t);
       }
       // total area should be very close to 1
@@ -74,12 +75,12 @@ UT_TEST_CASE(grid_quad_test) {
       double tot_areaq = 0;
       for (int k = 0; k < quads; k++) {
         auto* t = mesh.quads()[k];
-        coord_t* p1q = mesh.vertices()[t[0]];
-        coord_t* p2q = mesh.vertices()[t[1]];
-        coord_t* p3q = mesh.vertices()[t[2]];
-        coord_t* p4q = mesh.vertices()[t[0]];
-        coord_t* p5q = mesh.vertices()[t[2]];
-        coord_t* p6q = mesh.vertices()[t[3]];
+        const auto* p1q = mesh.vertices()[t[0]];
+        const auto* p2q = mesh.vertices()[t[1]];
+        const auto* p3q = mesh.vertices()[t[2]];
+        const auto* p4q = mesh.vertices()[t[0]];
+        const auto* p5q = mesh.vertices()[t[2]];
+        const auto* p6q = mesh.vertices()[t[3]];
         tot_areaq += Triangle::area(p1q, p2q, p3q);
         tot_areaq += Triangle::area(p4q, p5q, p6q);
       }
@@ -123,43 +124,83 @@ UT_TEST_CASE(grid_polygon_test) {
 UT_TEST_CASE_END(grid_polygon_test)
 
 UT_TEST_CASE(sphere_test) {
-  // testing number of triangels in a subdivided icosahedron mesh
+  // testing number of triangles in a subdivided sphere mesh
   double tol1 = 1e-10;
   double tol2 = 5e-3;
-  // vectors for area check
-  std::vector<double> error;
-  std::vector<double> meshsize;
-  for (int i = 0; i < 7; i++) {
-    SubdividedIcosahedron mesh(i);
-    int tris = mesh.triangles().n();
-    int tris_check = std::pow(4, i) * 20;
-    UT_ASSERT_EQUALS(tris, tris_check);
-    double tot_areas = 0;
-    double strt_areas = 0;
-    for (int k = 0; k < tris; k++) {
-      auto* t = mesh.triangles()[k];
-      coord_t* p1 = mesh.vertices()[t[0]];
-      coord_t* p2 = mesh.vertices()[t[1]];
-      coord_t* p3 = mesh.vertices()[t[2]];
-      tot_areas += SphericalTriangle::area(p1, p2, p3);
-      strt_areas += Triangle::area(p1, p2, p3);
+  auto test_shape = [&](auto& shape) {
+    using Shape_t = typename std::remove_reference<decltype(shape)>::type;
+    // vectors for area check
+    std::vector<double> error;
+    std::vector<double> meshsize;
+    for (int i = 0; i < 7; i++) {
+      SubdividedSphere<Shape_t> mesh(i);
+      int tris = mesh.triangles().n();
+      int tris_check = std::pow(4, i) * Shape_t::n_faces;
+      UT_ASSERT_EQUALS(tris, tris_check);
+      double tot_areas = 0;
+      double strt_areas = 0;
+      for (int k = 0; k < tris; k++) {
+        const auto* t = mesh.triangles()[k];
+        const coord_t* p1 = mesh.vertices()[t[0]];
+        const coord_t* p2 = mesh.vertices()[t[1]];
+        const coord_t* p3 = mesh.vertices()[t[2]];
+        tot_areas += SphericalTriangle::area(p1, p2, p3);
+        strt_areas += Triangle::area(p1, p2, p3);
+      }
+      // recording straight-sided area error
+      error.push_back(fabs(strt_areas - (4 * M_PI)));
+      meshsize.push_back(sqrt(tris));
+      //  abs. val. of straight-sided area against meshsize (approx
+      //  sqrt(mesh.triangles().n())) should be very close to 2 in the
+      //  asymptotic range
+      if (i > 4) {
+        double slope = fabs(
+            log(error[error.size() - 2] / error[error.size() - 1]) /
+            log(meshsize[meshsize.size() - 2] / meshsize[meshsize.size() - 1]));
+        UT_ASSERT_NEAR(slope, 2., tol2);
+      }
+      // spherical triangle area should converge to 4pi
+      UT_ASSERT_NEAR(tot_areas, 4 * M_PI, tol1);
     }
-    // recording straight-sided area error
-    error.push_back(fabs(strt_areas - (4 * M_PI)));
-    meshsize.push_back(sqrt(tris));
-    //  abs. val. of straight-sided area against meshsize (approx
-    //  sqrt(mesh.triangles().n())) should be very close to 2 in the asymptotic
-    //  range
-    if (i > 4) {
-      double slope = fabs(
-          log(error[error.size() - 2] / error[error.size() - 1]) /
-          log(meshsize[meshsize.size() - 2] / meshsize[meshsize.size() - 1]));
-      UT_ASSERT_NEAR(slope, 2., tol2);
-    }
-    // spherical triangle area should converge to 4pi
-    UT_ASSERT_NEAR(tot_areas, 4 * M_PI, tol1);
-  }
+  };
+  Icosahedron icosahedron;
+  test_shape(icosahedron);
+  Octahedron octahedron;
+  test_shape(octahedron);
 }
 UT_TEST_CASE_END(sphere_test)
+
+UT_TEST_CASE(squircle_test) {
+  auto get_area = [](const Mesh& m) -> double {
+    double area = 0;
+    for (int k = 0; k < m.triangles().n(); k++) {
+      const auto* t = m.triangles()[k];
+      const auto* p1 = m.vertices()[t[0]];
+      const auto* p2 = m.vertices()[t[1]];
+      const auto* p3 = m.vertices()[t[2]];
+      area += Triangle::area(p1, p2, p3);
+    }
+    return area;
+  };
+
+  int n = 50;
+  double r = 0.1;
+  int nr = n;
+  int nt = 2 * n;
+  Squircle mesh(r, nr, nt);
+  meshb::write(mesh, "circle_square.meshb");
+  UT_ASSERT_NEAR(get_area(mesh), 4.0 - M_PI * r * r, 1e-4);
+
+  Squircle mesh_half(r, nr, nt, true);
+  meshb::write(mesh_half, "circle_square_half.meshb");
+  UT_ASSERT_NEAR(get_area(mesh_half), 2.0 - 0.5 * M_PI * r * r, 1e-4);
+
+  UT_ASSERT_EQUALS(mesh.triangles().n(), 4 * nr * nt);
+  UT_ASSERT_EQUALS(mesh.triangles().n(), 2 * mesh_half.triangles().n());
+  UT_ASSERT_EQUALS(mesh.lines().n(), 4 * nt);
+  UT_ASSERT_EQUALS(mesh_half.lines().n(), 2 * nt + 2 * nr);
+  UT_CATCH_EXCEPTION(Squircle(1.1, 10, 10));
+}
+UT_TEST_CASE_END(squircle_test)
 
 UT_TEST_SUITE_END(library_test_suite)

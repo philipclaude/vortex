@@ -226,19 +226,20 @@ UT_TEST_CASE(test_sphere) {
   }
 
   SphereDomain domain;
+  domain.set_initialization_fraction(0.7);
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
+  options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
   options.n_neighbors = 75;
   options.parallel = true;
   options.store_facet_data = true;
   int n_iter = 20;
   auto& weights = voronoi.weights();
-  weights.resize(n_sites, 0.0);
+  weights.resize(n_sites, 0);
   for (int iter = 1; iter <= n_iter; ++iter) {
     options.store_mesh = iter == n_iter;
     options.verbose = (iter == 1 || iter == n_iter - 1);
     voronoi.vertices().clear();
-    // voronoi.vertices().set_dim(3);
     voronoi.polygons().clear();
     voronoi.triangles().clear();
     voronoi.compute(domain, options);
@@ -249,7 +250,7 @@ UT_TEST_CASE(test_sphere) {
     LOG << fmt::format("iter = {}, area = {}", iter, props.area);
   }
 
-  for (size_t k = 0; k < n_sites; k++) {
+  for (size_t k = 0; k < weights.size(); k++) {
     double x = vertices[k][0];
     double y = vertices[k][1];
     double r = std::sqrt(x * x + y * y);
@@ -259,7 +260,6 @@ UT_TEST_CASE(test_sphere) {
   }
   lift_sites(vertices, voronoi.weights());
 
-  domain.set_initialization_fraction(0.7);
   voronoi.vertices().clear();
   // voronoi.vertices().set_dim(3);
   voronoi.polygons().clear();

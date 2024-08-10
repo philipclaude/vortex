@@ -60,9 +60,10 @@ UT_TEST_CASE(test_square_uniform) {
   // smooth the initial point distribution with Lloyd relaxation
   VoronoiDiagram smoother(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
-  options.n_neighbors = 100;
+  options.n_neighbors = 50;
   options.parallel = true;
-  options.store_facet_data = true;
+  options.store_facet_data = false;
+  options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
   int n_iter = 10;
   for (int iter = 1; iter <= n_iter; ++iter) {
     options.store_mesh = false;
@@ -132,7 +133,8 @@ UT_TEST_CASE(test_sphere_uniform) {
   VoronoiDiagramOptions options;
   options.n_neighbors = 100;
   options.parallel = true;
-  options.store_facet_data = true;
+  options.store_facet_data = false;
+  options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
   int n_iter = 10;
   for (int iter = 1; iter <= n_iter; ++iter) {
     // vtk::write(vertices, fmt::format("particles/points{}.vtk", iter));

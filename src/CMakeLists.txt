@@ -3,6 +3,7 @@ set(SOURCES
   animation.cpp
   array2d.cpp
   elements.cpp
+  fem.cpp
   field.cpp
   graphics.cpp
   halfedges.cpp

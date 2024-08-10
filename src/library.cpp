@@ -20,9 +20,11 @@
 
 #include <cmath>
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 #include "math/vec.hpp"
+#include "stlext.h"
 
 namespace vortex {
 
@@ -151,51 +153,22 @@ void Grid<Polygon>::build() {
   }
 }
 
-void SubdividedIcosahedron::build(int n) {
-  // icosahedron vertices
-  coord_t t = (1.0 + std::sqrt(5.0)) / 2.0;
-
-  coord_t coordinates[12][3] = {{t, 1, 0}, {-t, 1, 0}, {t, -1, 0}, {-t, -1, 0},
-                                {1, 0, t}, {1, 0, -t}, {-1, 0, t}, {-1, 0, -t},
-                                {0, t, 1}, {0, -t, 1}, {0, t, -1}, {0, -t, -1}};
-
-  for (int i = 0; i < 12; i++) {
-    for (int d = 0; d < 3; d++) coordinates[i][d] /= std::sqrt(1 + t * t);
-    vertices_.add(coordinates[i]);
+template <typename T>
+void SubdividedSphere<T>::build(int n) {
+  for (int i = 0; i < T::n_vertices; i++) {
+    vertices_.add(T::coordinates[i]);
   }
 
-  index_t triangles[20][3] = {
-      {0, 8, 4},   // 0
-      {0, 5, 10},  // 1
-      {2, 4, 9},   // 2
-      {2, 11, 5},  // 3
-      {1, 6, 8},   // 4
-      {1, 10, 7},  // 5
-      {3, 9, 6},   // 6
-      {3, 7, 11},  // 7
-      {0, 10, 8},  // 8
-      {1, 8, 10},  // 9
-      {2, 9, 11},  // 10
-      {3, 11, 9},  // 11
-      {4, 2, 0},   // 12
-      {5, 0, 2},   // 13
-      {6, 1, 3},   // 14
-      {7, 3, 1},   // 15
-      {8, 6, 4},   // 16
-      {9, 4, 6},   // 17
-      {10, 5, 7},  // 18
-      {11, 7, 5}   // 19
-  };
-
-  for (int i = 0; i < 20; i++) {
-    triangles_.add(triangles[i]);
+  for (int i = 0; i < T::n_faces; i++) {
+    triangles_.add(T::faces[i]);
     triangles_.set_group(i, 0);
   }
 
   for (int i = 0; i < n; i++) subdivide();
 }
 
-void SubdividedIcosahedron::subdivide() {
+template <typename T>
+void SubdividedSphere<T>::subdivide() {
   std::map<Edge, index_t> edges;
 
   Topology<Triangle> triangles;
@@ -253,8 +226,138 @@ void SubdividedIcosahedron::subdivide() {
   }
 }
 
+void Squircle::build(double R, int nr, int nt, bool half) {
+  ASSERT(R < 1);
+  double dr = (1.0 - R) / double(nr);
+  double dt = M_PI / double(nt);
+
+  if (half) {
+    vertices_.reserve((nr + 1) * (nt + 1));
+    triangles_.reserve(2 * nr * nt);
+  } else {
+    vertices_.reserve(2 * (nr + 1) * (nt + 1));
+    triangles_.reserve(4 * nr * nt);
+  }
+
+  const double tr2 = 2.0 * std::sqrt(2);
+
+  double x[3] = {0, 0, 0};
+  for (int j = 0; j < nt + 1; j++) {
+    for (int i = 0; i < nr + 1; i++) {
+      double r = R + std::pow(i * dr, 1);
+      double u = r * cos(j * dt);
+      double v = r * sin(j * dt);
+
+      x[0] = 0.5 * std::sqrt(std::fabs(2 + tr2 * u + u * u - v * v)) -
+             0.5 * std::sqrt(std::fabs(2 - tr2 * u + u * u - v * v));
+      x[1] = 0.5 * std::sqrt(std::fabs(2 + tr2 * v - u * u + v * v)) -
+             0.5 * std::sqrt(std::fabs(2 - tr2 * v - u * u + v * v));
+      vertices_.add(x);
+    }
+  }
+
+  if (!half) {
+    for (int j = 1; j < nt; j++) {
+      for (int i = 0; i < nr + 1; i++) {
+        double r = R + std::pow(i * dr, 1);
+        double u = r * cos(M_PI + j * dt);
+        double v = r * sin(M_PI + j * dt);
+
+        x[0] = 0.5 * std::sqrt(std::fabs(2 + tr2 * u + u * u - v * v)) -
+               0.5 * std::sqrt(std::fabs(2 - tr2 * u + u * u - v * v));
+        x[1] = 0.5 * std::sqrt(std::fabs(2 + tr2 * v - u * u + v * v)) -
+               0.5 * std::sqrt(std::fabs(2 - tr2 * v - u * u + v * v));
+        vertices_.add(x);
+      }
+    }
+  }
+
+  index_t t[3];
+  for (int j = 0; j < nt; j++) {
+    for (int i = 0; i < nr; i++) {
+      int i0 = j * (nr + 1) + i;
+      int i1 = i0 + 1;
+      int i2 = i1 + nr + 1;
+      int i3 = i2 - 1;
+
+      t[0] = i0;
+      t[1] = i1;
+      t[2] = i2;
+      triangles_.add(t);
+
+      t[0] = i0;
+      t[1] = i2;
+      t[2] = i3;
+      triangles_.add(t);
+    }
+  }
+
+  if (!half) {
+    for (int j = nt; j < 2 * nt; j++) {
+      for (int i = 0; i < nr; i++) {
+        int i0 = j * (nr + 1) + i;
+        int i1 = i0 + 1;
+        int i2 = i1 + nr + 1;
+        int i3 = i2 - 1;
+
+        if (j + 1 == 2 * nt) {
+          i2 = i + 1;
+          i3 = i;
+        }
+
+        t[0] = i0;
+        t[1] = i1;
+        t[2] = i2;
+        triangles_.add(t);
+
+        t[0] = i0;
+        t[1] = i2;
+        t[2] = i3;
+        triangles_.add(t);
+      }
+    }
+  }
+
+  // extract boundary edges
+  std::unordered_map<std::pair<int, int>, int> edges;
+  for (size_t k = 0; k < triangles_.n(); k++) {
+    for (int j = 0; j < 3; j++) {
+      int p = triangles_[k][j];
+      int q = triangles_[k][j == 2 ? 0 : j + 1];
+      auto it = edges.find({q, p});
+      if (it == edges.end()) {
+        edges.insert({{p, q}, 2});
+      } else
+        edges.erase(it);
+    }
+  }
+
+  // tag boundaries
+  lines_.reserve(edges.size());
+  for (const auto& [e, _] : edges) {
+    vec3d e0(vertices_[e.first]);
+    vec3d e1(vertices_[e.second]);
+    if (length(0.5 * (e0 + e1)) < 1.5 * R) continue;  // on interior circle
+    vec3d n = cross(e1 - e0, {0, 0, 1});
+    if (std::fabs(n[0]) < 1e-6) continue;  // upper/lower boundaries
+    if (n[0] > 0)
+      edges[e] = 1;
+    else
+      edges[e] = 3;
+  }
+
+  for (auto& [e, bnd] : edges) {
+    int edge[2] = {e.first, e.second};
+    size_t nl = lines_.n();
+    lines_.add(edge);
+    lines_.set_group(nl, bnd);
+  }
+}
+
 template class Grid<Triangle>;
 template class Grid<Quad>;
 template class Grid<Polygon>;
+template class SubdividedSphere<Icosahedron>;
+template class SubdividedSphere<Octahedron>;
 
 }  // namespace vortex

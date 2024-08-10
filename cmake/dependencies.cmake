@@ -46,6 +46,7 @@ add_extern_repository(trees GIT_REPOSITORY "https://github.com/middleburygcl/tre
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middleburygcl/stlext.git" SKIP_CONFIG TRUE)
 add_extern_repository(abseil GIT_REPOSITORY "https://github.com/abseil/abseil-cpp")
 add_extern_repository(nlopt GIT_REPOSITORY "https://github.com/stevengj/nlopt")
+add_extern_repository(json GIT_REPOSITORY "https://github.com/nlohmann/json")
 
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
@@ -110,6 +111,7 @@ set(VORTEX_INCLUDE_DIRS
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/shapelib
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/trees
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/stlext
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/json/include
 )
 
 

@@ -19,15 +19,20 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
+#include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include "array2d.h"
 #include "defs.h"
+#include "mesh.h"
 
 namespace vortex {
 
 class VoronoiDiagram;
-class Vertices;
+
+#define MAX_NEIGHBOR_CAPACITY 256
 
 template <typename T>
 class queue {
@@ -65,8 +70,16 @@ struct NearestNeighborsWorkspace {
   }
 
   void sort() {
-    std::sort(sites.data().begin(), sites.data().end(),
-              [](const auto& a, const auto& b) { return a.second < b.second; });
+    if (sites.size() <= n_neighbors) {
+      std::sort(
+          sites.data().begin(), sites.data().end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    } else {
+      std::partial_sort(
+          sites.data().begin(), sites.data().begin() + n_neighbors,
+          sites.data().end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    }
   }
 
   uint32_t next() {
@@ -81,7 +94,7 @@ struct NearestNeighborsWorkspace {
     neighbors.insert({n, l});
   }
 
-  int n_neighbors;
+  const int n_neighbors;
   std::unordered_map<uint32_t, uint8_t> neighbors;
   queue<std::pair<uint32_t, double>> sites;
   size_t total_neighbors{0};
@@ -102,6 +115,77 @@ class VoronoiNeighbors {
   const VoronoiDiagram& voronoi_;
   const coord_t* points_;
   array2d<uint32_t> ring_;
+};
+
+struct SphereQuadtreeWorkspace {
+  SphereQuadtreeWorkspace(int n) : n_neighbors(n) {
+    neighbors.reserve(MAX_NEIGHBOR_CAPACITY);
+    reset();
+  }
+
+  void reset() { neighbors.clear(); }
+
+  void sort() {
+    if (size() < n_neighbors) {
+      std::sort(
+          neighbors.begin(), neighbors.end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    } else {
+      std::partial_sort(
+          neighbors.begin(), neighbors.begin() + n_neighbors, neighbors.end(),
+          [](const auto& a, const auto& b) { return a.second < b.second; });
+    }
+  }
+
+  size_t size() const { return neighbors.size(); }
+
+  void add(uint32_t n, double d) { neighbors.emplace_back(n, d); }
+
+  std::vector<std::pair<uint32_t, double>> neighbors;
+  const int n_neighbors{0};
+};
+
+class SphereQuadtree {
+ public:
+  SphereQuadtree(const coord_t* points, size_t n_points, int dim, int ns = -1);
+
+  void setup();
+  void build();
+  void knearest(uint32_t p, SphereQuadtreeWorkspace& search) const;
+
+  const auto& mesh() const { return mesh_; }
+  int min_leaf_size() const { return min_leaf_size_; }
+  int max_leaf_size() const { return max_leaf_size_; }
+
+ private:
+  struct Subdivision : public Mesh {
+    Subdivision(int np, int ns);
+    array2d<uint32_t> children;
+    int n_levels;
+    int n_points_per_triangle;
+
+    // 8 * \sum_{i = 0}^n 4^i
+    size_t t_first(int n) {
+      return Octahedron::n_faces * (std::pow(4, n) - 1) / 3;
+    }
+    size_t t_last(int n) {
+      return Octahedron::n_faces * (std::pow(4, n + 1) - 1) / 3;
+    }
+  };
+
+  const coord_t* points_;
+  size_t n_points_;
+  int dim_;
+  std::vector<uint32_t> point2triangle_;
+  static constexpr int kOneRingSize = 13;
+  static constexpr int kTwoRingSize = 47;
+  std::vector<std::vector<uint32_t>> triangle2points_;
+  std::vector<std::array<int32_t, kOneRingSize>> one_ring_tris_;
+  std::vector<std::array<int32_t, kTwoRingSize>> two_ring_tris_;
+  Subdivision mesh_;
+  int min_leaf_size_;
+  int max_leaf_size_;
+  bool use_two_ring_{false};
 };
 
 }  // namespace vortex
