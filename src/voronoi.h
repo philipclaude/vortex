@@ -27,6 +27,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include "defs.h"
+#include "device_util.h"
 #include "log.h"
 #include "mesh.h"
 #include "neighbors.h"
@@ -570,7 +571,8 @@ struct SphericalVoronoiPolygon {
   /// @param polygon array of Voronoi vertices.
   /// @param planes array of plane equations.
   /// @param props properties of a particular Voronoi cell to update.
-  void get_properties(const pool<Vertex_t>& polygon, const pool<vec4>& planes,
+  void get_properties(const device_vector<Vertex_t>& polygon,
+                      const device_vector<vec4>& planes,
                       VoronoiCellProperties& props) const;
 };
 
@@ -632,14 +634,16 @@ struct PlanarVoronoiPolygon {
   /// @param polygon output list of Voronoi polygon vertices
   /// @param planes output list of planes
   void initialize(const vec3* points, const size_t n_points,
-                  pool<Vertex_t>& polygon, pool<vec4>& planes);
+                  device_vector<Vertex_t>& polygon,
+                  device_vector<vec4>& planes);
 
   /// @brief Calculate the contribution of this polygon to the cell
   /// properties.
   /// @param polygon array of Voronoi vertices.
   /// @param planes array of plane equations.
   /// @param props properties of a particular Voronoi cell to update.
-  void get_properties(const pool<Vertex_t>& polygon, const pool<vec4>& planes,
+  void get_properties(const device_vector<Vertex_t>& polygon,
+                      const device_vector<vec4>& planes,
                       VoronoiCellProperties& props) const;
 };
 

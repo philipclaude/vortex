@@ -125,7 +125,7 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 }
 
 void SphericalVoronoiPolygon::get_properties(
-    const pool<Vertex_t>& p, const pool<vec4>& planes,
+    const device_vector<Vertex_t>& p, const device_vector<vec4>& planes,
     VoronoiCellProperties& props) const {
   if (p.size() < 3) return;
   ASSERT(p[0].bl != p[0].br);
@@ -154,8 +154,8 @@ void SphericalVoronoiPolygon::get_properties(
 }
 
 void PlanarVoronoiPolygon::initialize(const vec3* points, const size_t n_points,
-                                      pool<Vertex_t>& vertices,
-                                      pool<vec4>& planes) {
+                                      device_vector<Vertex_t>& vertices,
+                                      device_vector<vec4>& planes) {
   vertices.resize(n_points);
   planes.resize(n_points);
   const vec3 u = points[1] - points[0];
@@ -220,8 +220,8 @@ vec4 PlanarVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
   return p;
 }
 
-void PlanarVoronoiPolygon::get_properties(const pool<Vertex_t>& p,
-                                          const pool<vec4>& planes,
+void PlanarVoronoiPolygon::get_properties(const device_vector<Vertex_t>& p,
+                                          const device_vector<vec4>& planes,
                                           VoronoiCellProperties& props) const {
   if (p.size() < 3) return;
   vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
@@ -260,12 +260,10 @@ class VoronoiThreadBlock : public VoronoiMesh {
   using Element_t = typename Cell_t::Element_t;
 
  public:
-  VoronoiThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
+  VoronoiThreadBlock(const Domain_t& domain, size_t capacity)
       : VoronoiMesh(3),
-        vertex_pool_(nv),
-        plane_pool_(np),
         domain_(domain),  // copy the domain
-        cell_(&vertex_pool_[0], nv, &plane_pool_[0], np) {
+        cell_(capacity) {
     allocate(20);
   }
 
@@ -337,8 +335,8 @@ class SiteThreadBlock : public VoronoiThreadBlock<Domain_t> {
 
  public:
   // only CPU
-  SiteThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
-      : VoronoiThreadBlock<Domain_t>(domain, nv, np) {}
+  SiteThreadBlock(const Domain_t& domain, size_t capacity = 256)
+      : VoronoiThreadBlock<Domain_t>(domain, capacity) {}
 
   void compute(int dim, size_t m, size_t n, VoronoiMesh& mesh) {
     // compute all cells in range [m, n)
@@ -381,8 +379,8 @@ class ElementThreadBlock : public VoronoiThreadBlock<Domain_t> {
   using Base_t::vertices_;
 
  public:
-  ElementThreadBlock(const Domain_t& domain, size_t nv = 512, size_t np = 512)
-      : VoronoiThreadBlock<Domain_t>(domain, nv, np) {}
+  ElementThreadBlock(const Domain_t& domain, size_t capacity = 256)
+      : VoronoiThreadBlock<Domain_t>(domain, capacity) {}
 
   void compute(int dim, size_t m, size_t n, VoronoiMesh& mesh) {
     // compute all cells in range [m, n)
@@ -677,6 +675,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   // compute voronoi diagram
   timer.start();
   if (!options.parallel) n_threads = 1;
+  // n_threads = 1;
   std::mutex append_mesh_lock;
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
@@ -836,6 +835,7 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   size_t n_elems = domain.n_elems();
   status_.resize(n_elems, VoronoiStatusCode::kIncomplete);
   if (n_threads >= n_elems) n_threads = 1;
+  // n_threads = 1;
   size_t n_elems_per_block = n_elems / n_threads;
   for (size_t k = 0; k < n_threads; k++) {
     blocks.push_back(std::make_shared<ThreadBlock_t>(domain));
@@ -845,6 +845,7 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
     blocks[k]->set_elem2site_ptr(tnn.data());
     blocks[k]->set_properties_ptr(properties_.data());
     blocks[k]->set_status_ptr(status_.data());
+    blocks[k]->cell().set_kdtree(tree.get());
     blocks[k]->set_save_mesh(options.store_mesh);
     blocks[k]->set_save_facets(options.store_facet_data);
     size_t m = k * n_elems_per_block;

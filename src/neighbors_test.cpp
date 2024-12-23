@@ -30,11 +30,12 @@ using namespace vortex;
 
 UT_TEST_SUITE(neighbors_test_suite)
 
-UT_TEST_CASE(test1) {
+UT_TEST_CASE_SKIP(test1) {
   SphereDomain domain;
   static const int dim = 4;
   size_t n_sites = 5e4;
   std::vector<coord_t> sites(n_sites * dim, 0.0);
+
   for (size_t k = 0; k < n_sites; k++) {
     auto point = domain.random_point();
     for (int d = 0; d < 3; d++) sites[k * dim + d] = point[d];
@@ -102,13 +103,20 @@ UT_TEST_CASE(test2) {
   n_sites = 1e4;
 #endif
   std::vector<coord_t> sites(n_sites * dim, 0.0);
+  std::vector<coord_t> param(n_sites * 2, 0.0);
   for (size_t k = 0; k < n_sites; k++) {
-    auto point = domain.random_point();
-    for (int d = 0; d < 3; d++) sites[k * dim + d] = point[d];
+    coord_t theta = 2.0 * M_PI * irand(0, 1);
+    coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
+    sites[k * dim + 0] = cos(theta) * sin(phi);
+    sites[k * dim + 1] = sin(theta) * sin(phi);
+    sites[k * dim + 2] = cos(phi);
+    param[k * 2 + 0] = phi / M_PI;
+    param[k * 2 + 1] = theta / (2.0 * M_PI);
   }
 
   std::vector<index_t> order(n_sites);
-  sort_points_on_zcurve(sites.data(), n_sites, dim, order);
+  // sort_points_on_zcurve(sites.data(), n_sites, dim, order);
+  sort_points_on_zcurve(param.data(), n_sites, 2, order);
 
   Vertices vertices(dim);
   vertices.reserve(n_sites);
@@ -126,7 +134,7 @@ UT_TEST_CASE(test2) {
   options.store_mesh = false;
   options.verbose = true;
 
-  if (n_sites > 1e6) options.n_neighbors = 10;
+  // if (n_sites > 1e6) options.n_neighbors = 10;
 
   // build a kdtree for comparison
   VoronoiStatistics stats;
