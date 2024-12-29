@@ -487,16 +487,7 @@ void lift_sites(Vertices& sites, const std::vector<coord_t>& weights);
 
 /// @brief Represents a Voronoi vertex in a single Voronoi cell (not the
 /// entire Voronoi diagram).
-#if 0
-struct VoronoiVertex {
-  uint8_t bl;  // left bisector
-  uint8_t br;  // right bisector
-};
-#else
-struct VoronoiVertex {
-  uint8_t b;
-};
-#endif
+using VoronoiVertex = uint8_t;
 
 struct VoronoiCellMemoryPool {
   static constexpr int MAX_VERTICES = 256;
@@ -505,7 +496,7 @@ struct VoronoiCellMemoryPool {
 
   VoronoiCellMemoryPool() {}
 
-  thread_memory_pool<VoronoiVertex, NUM_THREADS, MAX_VERTICES> p;
+  thread_memory_pool<VoronoiVertex, NUM_THREADS, MAX_VERTICES> polygon;
   thread_memory_pool<vec4, NUM_THREADS, MAX_PLANES> planes;
   thread_memory_pool<int64_t, NUM_THREADS, MAX_PLANES> bisector_to_site;
 };

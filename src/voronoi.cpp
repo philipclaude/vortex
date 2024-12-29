@@ -70,21 +70,10 @@ void SphereDomain::initialize(vec4 site,
 
   // create the 4 vertices for the bounding square
   vertices.resize(4);
-#if 0
-  vertices[0].bl = 0;
-  vertices[0].br = 1;
-  vertices[1].bl = 1;
-  vertices[1].br = 2;
-  vertices[2].bl = 2;
-  vertices[2].br = 3;
-  vertices[3].bl = 3;
-  vertices[3].br = 0;
-#else
-  vertices[0].b = 0;
-  vertices[1].b = 1;
-  vertices[2].b = 2;
-  vertices[3].b = 3;
-#endif
+  vertices[0] = 0;
+  vertices[1] = 1;
+  vertices[2] = 2;
+  vertices[3] = 3;
 }
 
 uint8_t SphericalVoronoiPolygon::side(const vec4& pi, const vec4& pj,
@@ -135,19 +124,13 @@ void SphericalVoronoiPolygon::get_properties(
     const device_vector<Vertex_t>& p, const device_vector<vec4>& planes,
     VoronoiCellProperties& props) const {
   if (p.size() < 3) return;
-  // ASSERT(p[0].bl != p[0].br);
-  // ASSERT(p[1].bl != p[1].br);
 
-  // vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
-  // vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
-  vec4 ah = compute(planes[p[0].b], planes[p[1].b]);
-  vec4 bh = compute(planes[p[1].b], planes[p[2].b]);
+  vec4 ah = compute(planes[p[0]], planes[p[1]]);
+  vec4 bh = compute(planes[p[1]], planes[p[2]]);
   vec3 a = (1.0 / ah.w) * ah.xyz();
   vec3 b = (1.0 / bh.w) * bh.xyz();
   for (size_t k = 2; k < p.size(); k++) {
-    // ASSERT(p[k].bl != p[k].br);
-    // vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
-    vec4 ch = compute(planes[p[k].b], planes[p[(k + 1) % p.size()].b]);
+    vec4 ch = compute(planes[p[k]], planes[p[(k + 1) % p.size()]]);
     vec3 c = (1.0 / ch.w) * ch.xyz();
 
     // https://www.johndcook.com/blog/2021/11/29/area-of-spherical-triangle/
@@ -175,12 +158,7 @@ void PlanarVoronoiPolygon::initialize(const vec3* points, const size_t n_points,
 
   for (size_t i = 0; i < n_points; ++i) {
     const uint16_t j = (i + 1) % n_points;
-#if 0
-    vertices[i].bl = i;
-    vertices[i].br = j;
-#else
-    vertices[i].b = i;
-#endif
+    vertices[i] = i;
     const vec3 w = unit_vector(cross(n, points[j] - points[i]));
     planes[i] = {w.x, w.y, w.z, -dot(w, points[i])};
   }
@@ -240,14 +218,14 @@ void PlanarVoronoiPolygon::get_properties(const device_vector<Vertex_t>& p,
   if (p.size() < 3) return;
   // vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
   // vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
-  vec4 ah = compute(planes[p[0].b], planes[p[1].b]);
-  vec4 bh = compute(planes[p[1].b], planes[p[2].b]);
+  vec4 ah = compute(planes[p[0]], planes[p[1]]);
+  vec4 bh = compute(planes[p[1]], planes[p[2]]);
   vec3 a = (1.0 / ah.w) * ah.xyz();
   vec3 b = (1.0 / bh.w) * bh.xyz();
 
   for (size_t k = 2; k < p.size(); k++) {
     // vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
-    vec4 ch = compute(planes[p[k].b], planes[p[(k + 1) % p.size()].b]);
+    vec4 ch = compute(planes[p[k]], planes[p[(k + 1) % p.size()]]);
     vec3 c = (1.0 / ch.w) * ch.xyz();
     coord_t ak = 0.5 * length(cross(b - a, c - a));
     vec3 ck = (1.0 / 3.0) * (a + b + c);
@@ -420,13 +398,11 @@ class ElementThreadBlock : public VoronoiThreadBlock<Domain_t> {
 
  private:
   VoronoiStatusCode compute(int dim, uint64_t elem, VoronoiMesh& mesh) {
-    workspace_.clear();
-    auto status = cell_.compute(domain_, dim, elem, elem2site_[elem],
-                                workspace_, properties_, *this);
+    auto status =
+        cell_.compute(domain_, dim, elem, elem2site_[elem], properties_, *this);
     return status;
   }
 
-  ElementVoronoiWorkspace workspace_;
   const index_t* elem2site_{nullptr};
 };
 

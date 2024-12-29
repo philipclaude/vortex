@@ -25,16 +25,6 @@
 
 namespace vortex {
 
-struct ElementVoronoiWorkspace {
-  device_vector<index_t> site_stack;
-  device_hash_set<index_t> site_visited;
-  ElementVoronoiWorkspace() : site_stack(128) {}
-  void clear() {
-    site_stack.clear();
-    site_visited.clear();
-  }
-};
-
 template <typename Domain_t>
 class VoronoiPolygon {
  public:
@@ -44,12 +34,13 @@ class VoronoiPolygon {
 
   // allocate space for the cell
   VoronoiPolygon(VoronoiCellMemoryPool& pool, size_t tid)
-      : polygon_(pool.p.block(tid), pool.p.CAPACITY),
+      : polygon_(pool.polygon.block(tid), pool.polygon.CAPACITY),
         plane_(pool.planes.block(tid), pool.planes.CAPACITY),
         bisector_to_site_(pool.bisector_to_site.block(tid),
                           pool.bisector_to_site.CAPACITY),
         neighbor_data_(512),
-        distance_data_(512) {
+        distance_data_(512),
+        site_stack_(128) {
     clear();
   }
 
@@ -77,7 +68,7 @@ class VoronoiPolygon {
 
   uint8_t new_plane(const vec4& p, int64_t n) {
     size_t b = plane_.size();
-    plane_.push_back(p);  // TODO use emplace back
+    plane_.push_back(p);
     bisector_to_site_.push_back(n);
     return b;
   }
@@ -155,7 +146,6 @@ class VoronoiPolygon {
 
   VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
                             uint64_t triangle, uint64_t site,
-                            ElementVoronoiWorkspace& workspace,
                             VoronoiCellProperties* properties,
                             VoronoiMesh& mesh) {
     NOT_POSSIBLE;
@@ -166,29 +156,29 @@ class VoronoiPolygon {
     // retrieve the plane equation
     const vec4& eqn = plane_[b];
 
-    const uint8_t b0 = polygon_[0].b;
-    const uint8_t b1 = polygon_[1].b;
+    const uint8_t b0 = polygon_[0];
+    const uint8_t b1 = polygon_[1];
     int si = compute_side(b0, b1, eqn);
 
     uint8_t bi = b0;
     uint8_t bj = b1;
-    uint8_t bk = polygon_[2].b;
+    uint8_t bk = polygon_[2];
     const size_t m = polygon_.size();
     size_t n = 0;
     for (size_t i = 0; i < m; i++) {
-      int sj = compute_side(bj, bk, eqn);
+      const int sj = compute_side(bj, bk, eqn);
 
       if (si != sj) {
         // intersection
         if (si == INSIDE) {
-          polygon_[n++] = {bi};
-          polygon_[n++] = {bj};
+          polygon_[n++] = bi;
+          polygon_[n++] = bj;
         } else {
-          polygon_[n++] = {b};
+          polygon_[n++] = b;
         }
       } else if (si == INSIDE) {
         // both vertices are in this cell
-        polygon_[n++] = {bi};
+        polygon_[n++] = bi;
       } else {
         // both vertices are outside the cell
         // no vertices get added
@@ -203,7 +193,7 @@ class VoronoiPolygon {
         bk = b1;
       } else {
         bj = bk;
-        bk = polygon_[i + 3].b;
+        bk = polygon_[i + 3];
       }
 
       si = sj;
@@ -214,12 +204,12 @@ class VoronoiPolygon {
   double squared_radius(const vec4& c) const {
     if (polygon_.size() == 0) return 0.0;
     double r = 0.0;
-    uint8_t bi = polygon_.back().b;
+    uint8_t bi = polygon_.back();
     for (size_t k = 0; k < polygon_.size(); k++) {
-      vec4 p = cell_.compute(plane_[bi], plane_[polygon_[k].b]);
+      vec4 p = cell_.compute(plane_[bi], plane_[polygon_[k]]);
       double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
       if (rk > r) r = rk;
-      bi = polygon_[k].b;
+      bi = polygon_[k];
     }
     return r;
   }
@@ -240,8 +230,8 @@ class VoronoiPolygon {
 
     index_t v_offset = mesh.vertices().n();
     for (size_t k = 0; k < polygon_.size(); k++) {
-      uint8_t bi = polygon_[k].b;
-      uint8_t bj = polygon_[(k + 1) % polygon_.size()].b;
+      uint8_t bi = polygon_[k];
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()];
       vec4 p = cell_.compute(plane_[bi], plane_[bj]);
       if (p.w == 0.0) p.w = 1.0;
       p = p / p.w;
@@ -268,12 +258,12 @@ class VoronoiPolygon {
 
     // last point in the polygon
     size_t m = polygon_.size() - 1;
-    vec4 p = cell_.compute(plane_[polygon_[m - 1].b], plane_[polygon_[m].b]);
+    vec4 p = cell_.compute(plane_[polygon_[m]], plane_[polygon_[0]]);
     if (p.w == 0.0) p.w = 1.0;
     p = p / p.w;
     for (size_t k = 0; k < polygon_.size(); k++) {
-      uint8_t bi = polygon_[k].b;
-      uint8_t bj = polygon_[(k + 1) % polygon_.size()].b;
+      uint8_t bi = polygon_[k];
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()];
       vec4 q = cell_.compute(plane_[bi], plane_[bj]);
       if (q.w == 0.0) q.w = 1.0;
       q = q / q.w;
@@ -303,8 +293,8 @@ class VoronoiPolygon {
     t[0] = site;
     for (size_t k = 0; k < polygon_.size(); k++) {
       // add Delaunay triangle associated with this Voronoi vertex
-      uint8_t bi = polygon_[k].b;
-      uint8_t bj = polygon_[(k + 1) % polygon_.size()].b;
+      uint8_t bi = polygon_[k];
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()];
       auto tj = bisector_to_site_[bi];
       auto tk = bisector_to_site_[bj];
       if (tj < 0) continue;
@@ -336,6 +326,10 @@ class VoronoiPolygon {
   device_vector<index_t> neighbor_data_;
   device_vector<coord_t> distance_data_;
 
+  // for element-based clipping
+  device_vector<index_t> site_stack_;
+  device_hash_set<index_t> site_visited_;
+
   double max_radius_;
 
   // only CPU
@@ -345,21 +339,23 @@ class VoronoiPolygon {
 template <>
 VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
     const TriangulationDomain& domain, int dim, uint64_t triangle,
-    uint64_t site, ElementVoronoiWorkspace& workspace,
-    VoronoiCellProperties* properties, VoronoiMesh& mesh) {
+    uint64_t site, VoronoiCellProperties* properties, VoronoiMesh& mesh) {
   assert(sites_);
   assert(neighbors_);
 
+  site_stack_.clear();
+  site_visited_.clear();
+
   // get the first site
   size_t i = site;
-  workspace.site_stack.push_back(i);
-  workspace.site_visited.insert(i);
+  site_stack_.push_back(i);
+  site_visited_.insert(i);
   int iter = 0;
-  while (!workspace.site_stack.empty()) {
+  while (!site_stack_.empty()) {
     iter++;
     clear();
-    i = workspace.site_stack.back();
-    workspace.site_stack.pop_back();
+    i = site_stack_.back();
+    site_stack_.pop_back();
     const coord_t* zi = sites_ + i * dim;
     const vec4 ui(zi, dim);
     const coord_t wi = 0.0;
@@ -378,9 +374,9 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
       for (size_t j = 1; j < n_neighbors; j++) {
         // get the next point, TODO and weight
         const index_t n = neighbor_data_[j];
-        if (!workspace.site_visited.contains(n)) {
-          workspace.site_stack.push_back(n);
-          workspace.site_visited.insert(n);
+        if (!site_visited_.contains(n)) {
+          site_stack_.push_back(n);
+          site_visited_.insert(n);
         }
         const coord_t* zj = sites_ + n * dim;
         const vec4 uj(zj, dim);
