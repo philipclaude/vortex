@@ -44,8 +44,7 @@ class VoronoiPolygon {
 
   // allocate space for the cell
   VoronoiPolygon(VoronoiCellMemoryPool& pool, size_t tid)
-      : p_(pool.p.block(tid), pool.p.CAPACITY),
-        q_(pool.q.block(tid), pool.q.CAPACITY),
+      : polygon_(pool.p.block(tid), pool.p.CAPACITY),
         plane_(pool.planes.block(tid), pool.planes.CAPACITY),
         bisector_to_site_(pool.bisector_to_site.block(tid),
                           pool.bisector_to_site.CAPACITY),
@@ -70,8 +69,7 @@ class VoronoiPolygon {
   void set_kdtree(trees::KdTreeNd<coord_t, index_t>* tree) { tree_ = tree; }
 
   void clear() {
-    p_.clear();
-    q_.clear();
+    polygon_.clear();
     plane_.clear();
     bisector_to_site_.clear(-1);
     max_radius_ = 0;
@@ -86,10 +84,6 @@ class VoronoiPolygon {
 
   uint8_t compute_side(uint8_t bl, uint8_t br, const vec4& eqn) {
     return cell_.side(plane_[bl], plane_[br], eqn);
-  }
-
-  uint8_t compute_side(uint8_t k, const vec4& eqn) {
-    return cell_.side(plane_[p_[k].b], plane_[p_[(k + 1) % p_.size()].b], eqn);
   }
 
   // calculate the Voronoi cell for site i clipped to the domain k_elem
@@ -168,93 +162,33 @@ class VoronoiPolygon {
     return VoronoiStatusCode::kSuccess;
   }
 
-#if 0
   void clip_by_plane(uint8_t b) {
     // retrieve the plane equation
     const vec4& eqn = plane_[b];
 
-    q_.clear();
-    int si = compute_side(0, eqn);
-    for (size_t i = 0; i < p_.size(); i++) {
-      int j = (i + 1 == p_.size()) ? 0 : i + 1;
-      int sj = compute_side(j, eqn);
-
-      if (si != sj) {
-        // intersection
-        if (si == INSIDE) {
-          auto& v0 = q_.emplace_back();
-          v0.bl = p_[i].bl;
-          v0.br = p_[i].br;
-          auto& v1 = q_.emplace_back();
-          v1.bl = p_[i].br;
-          v1.br = b;
-        } else {
-          auto& v = q_.emplace_back();
-          v.bl = b;
-          v.br = p_[j].bl;
-        }
-      } else if (si == INSIDE) {
-        // both vertices are in this cell
-        auto& v = q_.emplace_back();
-        v.bl = p_[i].bl;
-        v.br = p_[i].br;
-      } else {
-        // both vertices are outside the cell
-        // no vertices get added
-      }
-      si = sj;
-    }
-    p_.swap(q_);
-  }
-#else
-  void clip_by_plane(uint8_t b) {
-    // retrieve the plane equation
-    const vec4& eqn = plane_[b];
-
-    q_.clear();
-
-    const uint8_t b0 = p_[0].b;
-    const uint8_t b1 = p_[1].b;
+    const uint8_t b0 = polygon_[0].b;
+    const uint8_t b1 = polygon_[1].b;
     int si = compute_side(b0, b1, eqn);
 
-#define SWAP_POLY 0
     uint8_t bi = b0;
     uint8_t bj = b1;
-    uint8_t bk = p_[2].b;
-    const size_t m = p_.size();
+    uint8_t bk = polygon_[2].b;
+    const size_t m = polygon_.size();
     size_t n = 0;
     for (size_t i = 0; i < m; i++) {
       int sj = compute_side(bj, bk, eqn);
-      // ASSERT(n <= i);
 
       if (si != sj) {
         // intersection
         if (si == INSIDE) {
-#if SWAP_POLY
-          auto& v0 = q_.emplace_back();
-          v0.b = bi;
-          auto& v1 = q_.emplace_back();
-          v1.b = bj;
-#else
-          p_[n++] = {bi};
-          p_[n++] = {bj};
-#endif
+          polygon_[n++] = {bi};
+          polygon_[n++] = {bj};
         } else {
-#if SWAP_POLY
-          auto& v = q_.emplace_back();
-          v.b = b;
-#else
-          p_[n++] = {b};
-#endif
+          polygon_[n++] = {b};
         }
       } else if (si == INSIDE) {
-// both vertices are in this cell
-#if SWAP_POLY
-        auto& v = q_.emplace_back();
-        v.b = bi;
-#else
-        p_[n++] = {bi};
-#endif
+        // both vertices are in this cell
+        polygon_[n++] = {bi};
       } else {
         // both vertices are outside the cell
         // no vertices get added
@@ -269,50 +203,45 @@ class VoronoiPolygon {
         bk = b1;
       } else {
         bj = bk;
-        bk = p_[i + 3].b;
+        bk = polygon_[i + 3].b;
       }
 
       si = sj;
     }
-#if SWAP_POLY
-    p_.swap(q_);
-#else
-    p_.set_size(n);
-#endif
+    polygon_.set_size(n);
   }
-#endif
 
   double squared_radius(const vec4& c) const {
-    if (p_.size() == 0) return 0.0;
+    if (polygon_.size() == 0) return 0.0;
     double r = 0.0;
-    uint8_t bi = p_.back().b;
-    for (size_t k = 0; k < p_.size(); k++) {
-      vec4 p = cell_.compute(plane_[bi], plane_[p_[k].b]);
+    uint8_t bi = polygon_.back().b;
+    for (size_t k = 0; k < polygon_.size(); k++) {
+      vec4 p = cell_.compute(plane_[bi], plane_[polygon_[k].b]);
       double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
       if (rk > r) r = rk;
-      bi = p_[k].b;
+      bi = polygon_[k].b;
     }
     return r;
   }
 
   void get_properties(VoronoiCellProperties& props, bool reset) const {
     if (reset) props.reset();
-    cell_.get_properties(p_, plane_, props);
+    cell_.get_properties(polygon_, plane_, props);
     props.rmax = max_radius_;
   }
 
   bool append_to_mesh(VoronoiMesh& mesh, index_t site) const {
-    if (p_.size() < 3) return false;
+    if (polygon_.size() < 3) return false;
 
     // initialize arrays for Voronoi polygon and Delaunay triangle
-    std::vector<index_t> polygon(p_.size());
+    std::vector<index_t> polygon(polygon_.size());
     std::array<index_t, 3> t;
     t[0] = site;
 
     index_t v_offset = mesh.vertices().n();
-    for (size_t k = 0; k < p_.size(); k++) {
-      uint8_t bi = p_[k].b;
-      uint8_t bj = p_[(k + 1) % p_.size()].b;
+    for (size_t k = 0; k < polygon_.size(); k++) {
+      uint8_t bi = polygon_[k].b;
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()].b;
       vec4 p = cell_.compute(plane_[bi], plane_[bj]);
       if (p.w == 0.0) p.w = 1.0;
       p = p / p.w;
@@ -335,17 +264,16 @@ class VoronoiPolygon {
   }
 
   void save_facets(VoronoiMesh& mesh, index_t site_i) const {
-    if (p_.size() < 3) return;
+    if (polygon_.size() < 3) return;
 
     // last point in the polygon
-    size_t m = p_.size() - 1;
-    // vec4 p = cell_.compute(plane_[p_[m].bl], plane_[p_[m].br]);
-    vec4 p = cell_.compute(plane_[p_[m - 1].b], plane_[p_[m].b]);
+    size_t m = polygon_.size() - 1;
+    vec4 p = cell_.compute(plane_[polygon_[m - 1].b], plane_[polygon_[m].b]);
     if (p.w == 0.0) p.w = 1.0;
     p = p / p.w;
-    for (size_t k = 0; k < p_.size(); k++) {
-      uint8_t bi = p_[k].b;
-      uint8_t bj = p_[(k + 1) % p_.size()].b;
+    for (size_t k = 0; k < polygon_.size(); k++) {
+      uint8_t bi = polygon_[k].b;
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()].b;
       vec4 q = cell_.compute(plane_[bi], plane_[bj]);
       if (q.w == 0.0) q.w = 1.0;
       q = q / q.w;
@@ -373,10 +301,10 @@ class VoronoiPolygon {
   void save_delaunay(VoronoiMesh& mesh, index_t site) const {
     std::array<uint32_t, 3> t;
     t[0] = site;
-    for (size_t k = 0; k < p_.size(); k++) {
+    for (size_t k = 0; k < polygon_.size(); k++) {
       // add Delaunay triangle associated with this Voronoi vertex
-      uint8_t bi = p_[k].b;
-      uint8_t bj = p_[(k + 1) % p_.size()].b;
+      uint8_t bi = polygon_[k].b;
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()].b;
       auto tj = bisector_to_site_[bi];
       auto tk = bisector_to_site_[bj];
       if (tj < 0) continue;
@@ -388,15 +316,14 @@ class VoronoiPolygon {
   }
 
   Cell_t& cell() { return cell_; }
-  auto& vertices() { return p_; }
+  auto& vertices() { return polygon_; }
   auto& planes() { return plane_; }
   const auto* sites() const { return sites_; }
   const auto& bisector_to_site(uint8_t b) { return bisector_to_site_[b]; }
 
  private:
   Cell_t cell_;
-  device_vector<Vertex_t> p_;
-  device_vector<Vertex_t> q_;
+  device_vector<Vertex_t> polygon_;
   device_vector<vec4> plane_;
   device_vector<int64_t> bisector_to_site_;
 

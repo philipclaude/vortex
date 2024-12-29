@@ -506,7 +506,6 @@ struct VoronoiCellMemoryPool {
   VoronoiCellMemoryPool() {}
 
   thread_memory_pool<VoronoiVertex, NUM_THREADS, MAX_VERTICES> p;
-  thread_memory_pool<VoronoiVertex, NUM_THREADS, MAX_VERTICES> q;
   thread_memory_pool<vec4, NUM_THREADS, MAX_PLANES> planes;
   thread_memory_pool<int64_t, NUM_THREADS, MAX_PLANES> bisector_to_site;
 };
