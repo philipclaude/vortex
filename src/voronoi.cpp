@@ -70,6 +70,7 @@ void SphereDomain::initialize(vec4 site,
 
   // create the 4 vertices for the bounding square
   vertices.resize(4);
+#if 0
   vertices[0].bl = 0;
   vertices[0].br = 1;
   vertices[1].bl = 1;
@@ -78,6 +79,12 @@ void SphereDomain::initialize(vec4 site,
   vertices[2].br = 3;
   vertices[3].bl = 3;
   vertices[3].br = 0;
+#else
+  vertices[0].b = 0;
+  vertices[1].b = 1;
+  vertices[2].b = 2;
+  vertices[3].b = 3;
+#endif
 }
 
 uint8_t SphericalVoronoiPolygon::side(const vec4& pi, const vec4& pj,
@@ -128,16 +135,19 @@ void SphericalVoronoiPolygon::get_properties(
     const device_vector<Vertex_t>& p, const device_vector<vec4>& planes,
     VoronoiCellProperties& props) const {
   if (p.size() < 3) return;
-  ASSERT(p[0].bl != p[0].br);
-  ASSERT(p[1].bl != p[1].br);
+  // ASSERT(p[0].bl != p[0].br);
+  // ASSERT(p[1].bl != p[1].br);
 
-  vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
-  vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  // vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
+  // vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  vec4 ah = compute(planes[p[0].b], planes[p[1].b]);
+  vec4 bh = compute(planes[p[1].b], planes[p[2].b]);
   vec3 a = (1.0 / ah.w) * ah.xyz();
   vec3 b = (1.0 / bh.w) * bh.xyz();
   for (size_t k = 2; k < p.size(); k++) {
-    ASSERT(p[k].bl != p[k].br);
-    vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    // ASSERT(p[k].bl != p[k].br);
+    // vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    vec4 ch = compute(planes[p[k].b], planes[p[(k + 1) % p.size()].b]);
     vec3 c = (1.0 / ch.w) * ch.xyz();
 
     // https://www.johndcook.com/blog/2021/11/29/area-of-spherical-triangle/
@@ -165,8 +175,12 @@ void PlanarVoronoiPolygon::initialize(const vec3* points, const size_t n_points,
 
   for (size_t i = 0; i < n_points; ++i) {
     const uint16_t j = (i + 1) % n_points;
+#if 0
     vertices[i].bl = i;
     vertices[i].br = j;
+#else
+    vertices[i].b = i;
+#endif
     const vec3 w = unit_vector(cross(n, points[j] - points[i]));
     planes[i] = {w.x, w.y, w.z, -dot(w, points[i])};
   }
@@ -224,12 +238,16 @@ void PlanarVoronoiPolygon::get_properties(const device_vector<Vertex_t>& p,
                                           const device_vector<vec4>& planes,
                                           VoronoiCellProperties& props) const {
   if (p.size() < 3) return;
-  vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
-  vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  // vec4 ah = compute(planes[p[0].bl], planes[p[0].br]);
+  // vec4 bh = compute(planes[p[1].bl], planes[p[1].br]);
+  vec4 ah = compute(planes[p[0].b], planes[p[1].b]);
+  vec4 bh = compute(planes[p[1].b], planes[p[2].b]);
   vec3 a = (1.0 / ah.w) * ah.xyz();
   vec3 b = (1.0 / bh.w) * bh.xyz();
+
   for (size_t k = 2; k < p.size(); k++) {
-    vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    // vec4 ch = compute(planes[p[k].bl], planes[p[k].br]);
+    vec4 ch = compute(planes[p[k].b], planes[p[(k + 1) % p.size()].b]);
     vec3 c = (1.0 / ch.w) * ch.xyz();
     coord_t ak = 0.5 * length(cross(b - a, c - a));
     vec3 ck = (1.0 / 3.0) * (a + b + c);
@@ -260,10 +278,11 @@ class VoronoiThreadBlock : public VoronoiMesh {
   using Element_t = typename Cell_t::Element_t;
 
  public:
-  VoronoiThreadBlock(const Domain_t& domain, size_t capacity)
+  VoronoiThreadBlock(const Domain_t& domain, VoronoiCellMemoryPool& pool,
+                     size_t tid)
       : VoronoiMesh(3),
         domain_(domain),  // copy the domain
-        cell_(capacity) {
+        cell_(pool, tid) {
     allocate(20);
   }
 
@@ -308,8 +327,6 @@ class VoronoiThreadBlock : public VoronoiMesh {
 
  protected:
   // only CPU
-  std::vector<Vertex_t> vertex_pool_;
-  std::vector<vec4> plane_pool_;
   std::mutex* append_mesh_lock_;
 
   // CPU or GPU
@@ -327,16 +344,15 @@ class SiteThreadBlock : public VoronoiThreadBlock<Domain_t> {
   using Base_t = VoronoiThreadBlock<Domain_t>;
   using Base_t::append_mesh_lock_;
   using Base_t::cell_;
-  using Base_t::plane_pool_;
   using Base_t::properties_;
   using Base_t::status_;
-  using Base_t::vertex_pool_;
   using Base_t::vertices_;
 
  public:
   // only CPU
-  SiteThreadBlock(const Domain_t& domain, size_t capacity = 256)
-      : VoronoiThreadBlock<Domain_t>(domain, capacity) {}
+  SiteThreadBlock(const Domain_t& domain, VoronoiCellMemoryPool& pool,
+                  size_t tid)
+      : VoronoiThreadBlock<Domain_t>(domain, pool, tid) {}
 
   void compute(int dim, size_t m, size_t n, VoronoiMesh& mesh) {
     // compute all cells in range [m, n)
@@ -379,8 +395,9 @@ class ElementThreadBlock : public VoronoiThreadBlock<Domain_t> {
   using Base_t::vertices_;
 
  public:
-  ElementThreadBlock(const Domain_t& domain, size_t capacity = 256)
-      : VoronoiThreadBlock<Domain_t>(domain, capacity) {}
+  ElementThreadBlock(const Domain_t& domain, VoronoiCellMemoryPool& pool,
+                     size_t tid)
+      : VoronoiThreadBlock<Domain_t>(domain, pool, tid) {}
 
   void compute(int dim, size_t m, size_t n, VoronoiMesh& mesh) {
     // compute all cells in range [m, n)
@@ -686,11 +703,12 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
   properties_.resize(n_sites_);
 
+  VoronoiCellMemoryPool pool;
   status_.resize(n_sites_, VoronoiStatusCode::kIncomplete);
   size_t n_sites_per_block = n_sites_ / n_threads;
   for (size_t k = 0; k < n_threads; k++) {
-    blocks.push_back(std::make_shared<ThreadBlock_t>(domain));
-    blocks[k]->cell().set_sites(sites_);
+    blocks.push_back(std::make_shared<ThreadBlock_t>(domain, pool, k));
+    blocks[k]->cell().set_sites(sites_, n_sites_);
     blocks[k]->cell().set_neighbors(knn.data(), n_neighbors);
     blocks[k]->cell().set_max_neighbors(max_neighbors.data());
     blocks[k]->cell().set_kdtree(tree.get());
@@ -836,10 +854,11 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   status_.resize(n_elems, VoronoiStatusCode::kIncomplete);
   if (n_threads >= n_elems) n_threads = 1;
   // n_threads = 1;
+  VoronoiCellMemoryPool pool;
   size_t n_elems_per_block = n_elems / n_threads;
   for (size_t k = 0; k < n_threads; k++) {
-    blocks.push_back(std::make_shared<ThreadBlock_t>(domain));
-    blocks[k]->cell().set_sites(sites_);
+    blocks.push_back(std::make_shared<ThreadBlock_t>(domain, pool, k));
+    blocks[k]->cell().set_sites(sites_, n_sites_);
     blocks[k]->cell().set_neighbors(knn.data(), n_neighbors);
     blocks[k]->set_mesh_lock(&append_mesh_lock);
     blocks[k]->set_elem2site_ptr(tnn.data());

@@ -26,10 +26,14 @@ set(SOURCES
   util.cpp
   voronoi.cpp)
 
+cmake_host_system_information(RESULT num_cores QUERY NUMBER_OF_PHYSICAL_CORES)
+message(STATUS "num cores = ${num_cores}")
+
 # create an object library for all the sources
 add_library(vortex_src OBJECT ${SOURCES})
 add_definitions(-DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 add_definitions(-DROBUST_PREDICATES=0)
+add_definitions(-DVORTEX_NUM_CORES=${num_cores})
 
 target_compile_features(vortex_src PRIVATE cxx_std_17)
 #target_compile_definitions(vortex_src PUBLIC -DVORTEX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

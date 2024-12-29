@@ -33,6 +33,10 @@
 #include "neighbors.h"
 #include "util.h"
 
+#ifndef VORTEX_NUM_CORES
+#define VORTEX_NUM_CORES 1
+#endif
+
 namespace trees {
 template <typename coord_t, typename index_t>
 class KdTreeNd;
@@ -106,70 +110,14 @@ struct VoronoiStatistics {
   }
 };
 
+static constexpr int kMaxClippingAttempts = 2;
 static constexpr index_t kMaxSite = std::numeric_limits<index_t>::max();
 enum { INSIDE = 0, OUTSIDE = 1 };
-using vint_t = uint16_t;
 enum class VoronoiStatusCode : uint8_t {
   kIncomplete,
   kSuccess,
   kRadiusNotReached,
   kNeedPredicates
-};
-
-/// @brief Helper class similar to a vector but accepts a buffer for storing
-/// data. On the CPU, this would be the memory allocated by std::vector, but
-/// on the GPU this could be a pointer to shared memory.
-/// @tparam T type of the data to store.
-template <typename T>
-class pool {
- public:
-  pool(T* data, int n) : data_(data), capacity_(n) {}
-
-  T& operator[](size_t k) { return data_[k]; }
-  const T& operator[](size_t k) const { return data_[k]; }
-  void push_back(const T& x) {
-    assert(index_ < capacity_);
-    data_[index_++] = x;
-  }
-
-  size_t capacity() const { return capacity_; }
-  size_t size() const { return index_; }
-  void set_size(size_t n) {
-    ASSERT(n <= capacity_) << fmt::format("n = {}, capacity_ = {}", n,
-                                          capacity_);
-    index_ = n;
-  }
-  bool empty() const { return index_ == 0; }
-  void resize(size_t n) {
-    assert(n < capacity_);
-    index_ = n;
-  }
-  void clear() { index_ = 0; }
-  T& back() { return data_[index_ - 1]; }
-  T*& data() { return data_; }
-
-#define SWAP(X, Y) \
-  {                \
-    auto t = Y;    \
-    Y = X;         \
-    X = t;         \
-  }
-  void swap(pool<T>& v) {
-    SWAP(v.data_, data_);
-    SWAP(v.capacity_, capacity_);
-    SWAP(v.index_, index_);
-  }
-#undef SWAP
-
-  void erase(size_t k) {
-    for (size_t i = k + 1; i < index_; i++) data_[i - 1] = data_[i];
-    index_--;
-  }
-
- private:
-  T* data_{nullptr};
-  size_t index_{0};
-  size_t capacity_{0};
 };
 
 /// @brief Specialized vector (separate from math/vec.h) for computing Voronoi
@@ -539,9 +487,28 @@ void lift_sites(Vertices& sites, const std::vector<coord_t>& weights);
 
 /// @brief Represents a Voronoi vertex in a single Voronoi cell (not the
 /// entire Voronoi diagram).
+#if 0
 struct VoronoiVertex {
   uint8_t bl;  // left bisector
   uint8_t br;  // right bisector
+};
+#else
+struct VoronoiVertex {
+  uint8_t b;
+};
+#endif
+
+struct VoronoiCellMemoryPool {
+  static constexpr int MAX_VERTICES = 256;
+  static constexpr int MAX_PLANES = 256;
+  static const unsigned NUM_THREADS = VORTEX_NUM_CORES;
+
+  VoronoiCellMemoryPool() {}
+
+  thread_memory_pool<VoronoiVertex, NUM_THREADS, MAX_VERTICES> p;
+  thread_memory_pool<VoronoiVertex, NUM_THREADS, MAX_VERTICES> q;
+  thread_memory_pool<vec4, NUM_THREADS, MAX_PLANES> planes;
+  thread_memory_pool<int64_t, NUM_THREADS, MAX_PLANES> bisector_to_site;
 };
 
 struct SphereDomain;
