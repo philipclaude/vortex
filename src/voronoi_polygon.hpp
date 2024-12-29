@@ -217,63 +217,68 @@ class VoronoiPolygon {
     const uint8_t b1 = p_[1].b;
     int si = compute_side(b0, b1, eqn);
 
+#define SWAP_POLY 0
+    uint8_t bi = b0;
     uint8_t bj = b1;
     uint8_t bk = p_[2].b;
     const size_t m = p_.size();
-    int j = 1;
-    int k = 2;
+    size_t n = 0;
     for (size_t i = 0; i < m; i++) {
       int sj = compute_side(bj, bk, eqn);
-      const uint8_t bi = p_[i].b;
+      // ASSERT(n <= i);
 
       if (si != sj) {
         // intersection
         if (si == INSIDE) {
+#if SWAP_POLY
           auto& v0 = q_.emplace_back();
           v0.b = bi;
           auto& v1 = q_.emplace_back();
           v1.b = bj;
+#else
+          p_[n++] = {bi};
+          p_[n++] = {bj};
+#endif
         } else {
+#if SWAP_POLY
           auto& v = q_.emplace_back();
           v.b = b;
+#else
+          p_[n++] = {b};
+#endif
         }
       } else if (si == INSIDE) {
-        // both vertices are in this cell
+// both vertices are in this cell
+#if SWAP_POLY
         auto& v = q_.emplace_back();
         v.b = bi;
+#else
+        p_[n++] = {bi};
+#endif
       } else {
         // both vertices are outside the cell
         // no vertices get added
       }
 
-      j++;
-      k++;
-#if 0
-      if (j == m) {
-        j = 0;
-      } else if (k == m) {
-        k = 0;
-      }
-      bj = p_[j].b;
-      bk = p_[k].b;
-#else
-      if (j == m) {
-        j = 0;
-        bj = b0;
-        bk = b1;
-      } else if (k == m) {
-        k = 0;
+      bi = bj;
+      if (i + 3 == m) {
         bj = bk;
         bk = b0;
+      } else if (i + 2 == m) {
+        bj = b0;
+        bk = b1;
       } else {
         bj = bk;
         bk = p_[i + 3].b;
       }
-#endif
 
       si = sj;
     }
+#if SWAP_POLY
     p_.swap(q_);
+#else
+    p_.set_size(n);
+#endif
   }
 #endif
 
@@ -282,7 +287,6 @@ class VoronoiPolygon {
     double r = 0.0;
     uint8_t bi = p_.back().b;
     for (size_t k = 0; k < p_.size(); k++) {
-      // const vec4 p = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
       vec4 p = cell_.compute(plane_[bi], plane_[p_[k].b]);
       double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
       if (rk > r) r = rk;
@@ -316,8 +320,6 @@ class VoronoiPolygon {
       polygon[k] = k + v_offset;
 
       // add Delaunay triangle associated with this Voronoi vertex
-      // auto tj = bisector_to_site_[p_[k].bl];
-      // auto tk = bisector_to_site_[p_[k].br];
       auto tj = bisector_to_site_[bi];
       auto tk = bisector_to_site_[bj];
       if (tj < 0) tj = kMaxSite;
