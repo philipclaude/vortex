@@ -85,7 +85,8 @@ void VoronoiNeighbors::knearest(uint32_t p,
       if (n == p) continue;
       if (search.neighbors.find(n) != search.neighbors.end()) continue;
       double d = distance_squared(&points_[dim_ * p], &points_[dim_ * n], dim_);
-      if (level > 1 && d > search.max_distance) continue;
+      // if (level > 1 && d > search.max_distance) continue;
+      if (search.neighbors.size() > search.n_neighbors) continue;
       search.add(n, level + 1, d);
     }
   }
