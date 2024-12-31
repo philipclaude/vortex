@@ -19,19 +19,11 @@
 #include <unordered_set>
 #include <vector>
 
+#include "device_util.h"
 #include "elements.h"
 #include "voronoi.h"
 
 namespace vortex {
-
-struct ElementVoronoiWorkspace {
-  std::vector<index_t> site_stack;
-  std::unordered_set<index_t> site_visited;
-  void clear() {
-    site_stack.clear();
-    site_visited.clear();
-  }
-};
 
 template <typename Domain_t>
 class VoronoiPolygon {
@@ -40,13 +32,22 @@ class VoronoiPolygon {
   using Vertex_t = typename Cell_t::Vertex_t;
   typedef Polygon Element_t;
 
-  // initialize the vertex and plane pools
-  VoronoiPolygon(Vertex_t* v, size_t nv, vec4* p, size_t np)
-      : p_(v, nv / 2), q_(v + nv / 2, nv / 2), plane_(p, np) {
-    assert(nv % 2 == 0);
+  // allocate space for the cell
+  VoronoiPolygon(VoronoiCellMemoryPool& pool, size_t tid)
+      : polygon_(pool.polygon.block(tid), pool.polygon.CAPACITY),
+        plane_(pool.planes.block(tid), pool.planes.CAPACITY),
+        bisector_to_site_(pool.bisector_to_site.block(tid),
+                          pool.bisector_to_site.CAPACITY),
+        neighbor_data_(512),
+        distance_data_(512),
+        site_stack_(128) {
+    clear();
   }
 
-  void set_sites(const coord_t* sites) { sites_ = sites; }
+  void set_sites(const coord_t* sites, size_t n_sites) {
+    sites_ = sites;
+    n_sites_ = n_sites;
+  }
   void set_weights(const coord_t* weights) { weights_ = weights; }
   void set_neighbors(const index_t* neighbors, uint32_t n_neighbors) {
     neighbors_ = neighbors;
@@ -59,23 +60,21 @@ class VoronoiPolygon {
   void set_kdtree(trees::KdTreeNd<coord_t, index_t>* tree) { tree_ = tree; }
 
   void clear() {
-    p_.clear();
-    q_.clear();
+    polygon_.clear();
     plane_.clear();
-    std::fill(bisector_to_site_, bisector_to_site_ + 256, -1);
+    bisector_to_site_.clear(-1);
     max_radius_ = 0;
   }
 
   uint8_t new_plane(const vec4& p, int64_t n) {
     size_t b = plane_.size();
-    ASSERT(b < plane_.capacity());
     plane_.push_back(p);
-    bisector_to_site_[b] = n;
+    bisector_to_site_.push_back(n);
     return b;
   }
 
-  uint8_t compute_side(uint8_t k, const vec4& eqn) {
-    return cell_.side(plane_[p_[k].bl], plane_[p_[k].br], eqn);
+  uint8_t compute_side(uint8_t bl, uint8_t br, const vec4& eqn) {
+    return cell_.side(plane_[bl], plane_[br], eqn);
   }
 
   // calculate the Voronoi cell for site i clipped to the domain k_elem
@@ -83,59 +82,63 @@ class VoronoiPolygon {
                             VoronoiMesh& mesh) {
     assert(sites_);
     assert(neighbors_);
-    clear();
     const coord_t* zi = sites_ + site * dim;
     const coord_t wi = (weights_) ? weights_[site] : 0.0;
     const vec4 ui(zi, dim);
 
-    // store the neighbors
+    // store initial neighbors
     size_t n_neighbors = max_neighbors_[site];
+    neighbor_data_.resize(n_neighbors);
     for (size_t j = 0; j < n_neighbors; j++)
       neighbor_data_[j] = neighbors_[site * n_neighbors_ + j];
 
-  clip:
-    domain.initialize(ui, *this);
     bool security_radius_reached = false;
+    for (int attempt = 1; !security_radius_reached; ++attempt) {
+      // initialize the cell
+      clear();
+      domain.initialize(ui, *this);
+      bisector_to_site_.set_size(plane_.size());
+      for (size_t j = 1; j < n_neighbors; j++) {
+        // get the next point and weight
+        const index_t n = neighbor_data_[j];
+        ASSERT(n < std::numeric_limits<index_t>::max())
+            << "points may have duplicate coordinates, attempt = " << attempt
+            << "# neighbors = " << n_neighbors << ", d = " << distance_data_[j];
+        const coord_t* zj = sites_ + n * dim;
+        const coord_t wj = (weights_) ? weights_[n] : 0.0;
+        const vec4 uj(zj, dim);
 
-    for (size_t j = 1; j < n_neighbors; j++) {
-      // get the next point and weight
-      const index_t n = neighbor_data_[j];
-      ASSERT(n < std::numeric_limits<index_t>::max())
-          << "points may have duplicate coordinates";
-      const coord_t* zj = sites_ + n * dim;
-      const coord_t wj = (weights_) ? weights_[n] : 0.0;
-      const vec4 uj(zj, dim);
+        // create the plane and clip
+        const vec4 eqn = plane_equation(ui, uj, wi, wj);
+        const uint8_t b = new_plane(eqn, n);
+        clip_by_plane(b);
 
-      // create the plane and clip
-      const vec4 eqn = plane_equation(ui, uj, wi, wj);
-      const uint8_t b = new_plane(eqn, n);
-      clip_by_plane(b);
+        // check if no more bisectors contribute to the cell
+        double sr = squared_radius(ui);
+        max_radius_ = std::sqrt(sr);
+        security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
+        if (security_radius_reached) break;
+      }
 
-      // check if no more bisectors contribute to the cell
-      double sr = squared_radius(ui);
-      max_radius_ = std::sqrt(sr);
-      security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
+      // append to the mesh if necessary
+      if (mesh.save_mesh()) append_to_mesh(mesh, site);
+      if (mesh.save_facets()) save_facets(mesh, site);
+      if (mesh.save_delaunay()) save_delaunay(mesh, site);
+
       if (security_radius_reached) break;
-    }
-
-    // append to the mesh if necessary
-    if (mesh.save_mesh()) append_to_mesh(mesh, site);
-    if (mesh.save_facets()) save_facets(mesh, site);
-    if (mesh.save_delaunay()) save_delaunay(mesh, site);
-
-    // retrieve more neighbors and keep clipping
-    if (!security_radius_reached) {
-      if (!tree_ || n_neighbors >= 256)
+      if (!tree_ || attempt == kMaxClippingAttempts)
         return VoronoiStatusCode::kRadiusNotReached;
 
-      index_t n_tmp[256];
-      coord_t d_tmp[256];
-      n_neighbors = 256;
-      trees::NearestNeighborSearch<index_t, coord_t> search(n_neighbors, n_tmp,
-                                                            d_tmp);
+      // get more neighbors
+      n_neighbors *= 2;
+      if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
+      if (n_neighbors < neighbor_data_.size()) break;
+      neighbor_data_.resize(n_neighbors);
+      distance_data_.resize(n_neighbors);
+      trees::NearestNeighborSearch<index_t, coord_t> search(
+          n_neighbors, neighbor_data_.data(), distance_data_.data());
       tree_->knearest(zi, search);
-      for (size_t j = 0; j < n_neighbors; ++j) neighbor_data_[j] = n_tmp[j];
-      goto clip;
+      ASSERT(neighbor_data_[0] == site);
     }
 
     return VoronoiStatusCode::kSuccess;
@@ -143,7 +146,6 @@ class VoronoiPolygon {
 
   VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
                             uint64_t triangle, uint64_t site,
-                            ElementVoronoiWorkspace& workspace,
                             VoronoiCellProperties* properties,
                             VoronoiMesh& mesh) {
     NOT_POSSIBLE;
@@ -154,79 +156,91 @@ class VoronoiPolygon {
     // retrieve the plane equation
     const vec4& eqn = plane_[b];
 
-    size_t nq = 0;
-    q_.clear();
-    int si = compute_side(0, eqn);
-    for (size_t i = 0; i < p_.size(); i++) {
-      int j = (i + 1 == p_.size()) ? 0 : i + 1;
-      int sj = compute_side(j, eqn);
+    const uint8_t b0 = polygon_[0];
+    const uint8_t b1 = polygon_[1];
+    int si = compute_side(b0, b1, eqn);
+
+    uint8_t bi = b0;
+    uint8_t bj = b1;
+    uint8_t bk = polygon_[2];
+    const size_t m = polygon_.size();
+    size_t n = 0;
+    for (size_t i = 0; i < m; i++) {
+      const int sj = compute_side(bj, bk, eqn);
 
       if (si != sj) {
         // intersection
         if (si == INSIDE) {
-          q_[nq].bl = p_[i].bl;
-          q_[nq].br = p_[i].br;
-          ++nq;
-          q_[nq].bl = p_[i].br;
-          q_[nq].br = b;
-          ++nq;
+          polygon_[n++] = bi;
+          polygon_[n++] = bj;
         } else {
-          q_[nq].bl = b;
-          q_[nq].br = p_[j].bl;
-          ++nq;
+          polygon_[n++] = b;
         }
       } else if (si == INSIDE) {
         // both vertices are in this cell
-        q_[nq].bl = p_[i].bl;
-        q_[nq].br = p_[i].br;
-        ++nq;
+        polygon_[n++] = bi;
       } else {
         // both vertices are outside the cell
         // no vertices get added
       }
+
+      bi = bj;
+      if (i + 3 == m) {
+        bj = bk;
+        bk = b0;
+      } else if (i + 2 == m) {
+        bj = b0;
+        bk = b1;
+      } else {
+        bj = bk;
+        bk = polygon_[i + 3];
+      }
+
       si = sj;
     }
-
-    q_.set_size(nq);
-    p_.swap(q_);
+    polygon_.set_size(n);
   }
 
   double squared_radius(const vec4& c) const {
+    if (polygon_.size() == 0) return 0.0;
     double r = 0.0;
-    for (size_t k = 0; k < p_.size(); k++) {
-      const vec4 p = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
+    uint8_t bi = polygon_.back();
+    for (size_t k = 0; k < polygon_.size(); k++) {
+      vec4 p = cell_.compute(plane_[bi], plane_[polygon_[k]]);
       double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
       if (rk > r) r = rk;
+      bi = polygon_[k];
     }
     return r;
   }
 
   void get_properties(VoronoiCellProperties& props, bool reset) const {
     if (reset) props.reset();
-    for (size_t k = 0; k < p_.size(); k++) ASSERT(p_[k].bl != p_[k].br);
-    cell_.get_properties(p_, plane_, props);
+    cell_.get_properties(polygon_, plane_, props);
     props.rmax = max_radius_;
   }
 
   bool append_to_mesh(VoronoiMesh& mesh, index_t site) const {
-    if (p_.size() < 3) return false;
+    if (polygon_.size() < 3) return false;
 
     // initialize arrays for Voronoi polygon and Delaunay triangle
-    std::vector<index_t> polygon(p_.size());
+    std::vector<index_t> polygon(polygon_.size());
     std::array<index_t, 3> t;
     t[0] = site;
 
     index_t v_offset = mesh.vertices().n();
-    for (size_t k = 0; k < p_.size(); k++) {
-      vec4 p = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
+    for (size_t k = 0; k < polygon_.size(); k++) {
+      uint8_t bi = polygon_[k];
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()];
+      vec4 p = cell_.compute(plane_[bi], plane_[bj]);
       if (p.w == 0.0) p.w = 1.0;
       p = p / p.w;
       mesh.vertices().add(&p.x);
       polygon[k] = k + v_offset;
 
       // add Delaunay triangle associated with this Voronoi vertex
-      auto tj = bisector_to_site_[p_[k].bl];
-      auto tk = bisector_to_site_[p_[k].br];
+      auto tj = bisector_to_site_[bi];
+      auto tk = bisector_to_site_[bj];
       if (tj < 0) tj = kMaxSite;
       if (tk < 0) tk = kMaxSite;
       t[1] = tj;
@@ -240,15 +254,17 @@ class VoronoiPolygon {
   }
 
   void save_facets(VoronoiMesh& mesh, index_t site_i) const {
-    if (p_.size() < 3) return;
+    if (polygon_.size() < 3) return;
 
     // last point in the polygon
-    size_t m = p_.size() - 1;
-    vec4 p = cell_.compute(plane_[p_[m].bl], plane_[p_[m].br]);
+    size_t m = polygon_.size() - 1;
+    vec4 p = cell_.compute(plane_[polygon_[m]], plane_[polygon_[0]]);
     if (p.w == 0.0) p.w = 1.0;
     p = p / p.w;
-    for (size_t k = 0; k < p_.size(); k++) {
-      vec4 q = cell_.compute(plane_[p_[k].bl], plane_[p_[k].br]);
+    for (size_t k = 0; k < polygon_.size(); k++) {
+      uint8_t bi = polygon_[k];
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()];
+      vec4 q = cell_.compute(plane_[bi], plane_[bj]);
       if (q.w == 0.0) q.w = 1.0;
       q = q / q.w;
 
@@ -260,8 +276,7 @@ class VoronoiPolygon {
       p = q;
 
       // add Delaunay triangle associated with this Voronoi vertex
-      auto site_j = bisector_to_site_[p_[k].bl];
-      ASSERT(p_[k].bl == p_[m].br);
+      auto site_j = bisector_to_site_[bi];
       m = k;
       // ASSERT(site_j >= 0);
       if (site_j < 0) {
@@ -276,10 +291,12 @@ class VoronoiPolygon {
   void save_delaunay(VoronoiMesh& mesh, index_t site) const {
     std::array<uint32_t, 3> t;
     t[0] = site;
-    for (size_t k = 0; k < p_.size(); k++) {
+    for (size_t k = 0; k < polygon_.size(); k++) {
       // add Delaunay triangle associated with this Voronoi vertex
-      auto tj = bisector_to_site_[p_[k].bl];
-      auto tk = bisector_to_site_[p_[k].br];
+      uint8_t bi = polygon_[k];
+      uint8_t bj = polygon_[(k + 1) % polygon_.size()];
+      auto tj = bisector_to_site_[bi];
+      auto tk = bisector_to_site_[bj];
       if (tj < 0) continue;
       if (tk < 0) continue;
       t[1] = tj;
@@ -289,23 +306,30 @@ class VoronoiPolygon {
   }
 
   Cell_t& cell() { return cell_; }
-  auto& vertices() { return p_; }
+  auto& vertices() { return polygon_; }
   auto& planes() { return plane_; }
   const auto* sites() const { return sites_; }
   const auto& bisector_to_site(uint8_t b) { return bisector_to_site_[b]; }
 
  private:
   Cell_t cell_;
-  pool<Vertex_t> p_;
-  pool<Vertex_t> q_;
-  pool<vec4> plane_;
+  device_vector<Vertex_t> polygon_;
+  device_vector<vec4> plane_;
+  device_vector<int64_t> bisector_to_site_;
+
   const index_t* neighbors_;
   const uint16_t* max_neighbors_;
   uint32_t n_neighbors_{0};
   const coord_t* sites_;
+  size_t n_sites_{0};
   const coord_t* weights_{nullptr};
-  int64_t bisector_to_site_[256];  // 256 since bisectors are uint8_t
-  int64_t neighbor_data_[256];
+  device_vector<index_t> neighbor_data_;
+  device_vector<coord_t> distance_data_;
+
+  // for element-based clipping
+  device_vector<index_t> site_stack_;
+  device_hash_set<index_t> site_visited_;
+
   double max_radius_;
 
   // only CPU
@@ -315,47 +339,73 @@ class VoronoiPolygon {
 template <>
 VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
     const TriangulationDomain& domain, int dim, uint64_t triangle,
-    uint64_t site, ElementVoronoiWorkspace& workspace,
-    VoronoiCellProperties* properties, VoronoiMesh& mesh) {
+    uint64_t site, VoronoiCellProperties* properties, VoronoiMesh& mesh) {
   assert(sites_);
   assert(neighbors_);
 
+  site_stack_.clear();
+  site_visited_.clear();
+
   // get the first site
   size_t i = site;
-  workspace.site_stack.push_back(i);
-  workspace.site_visited.insert(i);
+  site_stack_.push_back(i);
+  site_visited_.insert(i);
   int iter = 0;
-  while (!workspace.site_stack.empty()) {
+  while (!site_stack_.empty()) {
     iter++;
     clear();
-    i = workspace.site_stack.back();
-    workspace.site_stack.pop_back();
+    i = site_stack_.back();
+    site_stack_.pop_back();
     const coord_t* zi = sites_ + i * dim;
     const vec4 ui(zi, dim);
     const coord_t wi = 0.0;
-    domain.initialize(triangle, *this);
-    for (size_t j = 1; j < n_neighbors_; j++) {
-      // get the next point, TODO and weight
-      const index_t n = neighbors_[i * n_neighbors_ + j];
-      if (workspace.site_visited.find(n) == workspace.site_visited.end()) {
-        workspace.site_stack.push_back(n);
-        workspace.site_visited.insert(n);
+
+    size_t n_neighbors = n_neighbors_;
+    neighbor_data_.resize(n_neighbors);
+    for (int j = 0; j < n_neighbors; j++) {
+      neighbor_data_[j] = neighbors_[i * n_neighbors_ + j];
+    }
+
+    bool security_radius_reached = false;
+    for (int attempt = 1; attempt < kMaxClippingAttempts; ++attempt) {
+      clear();
+      domain.initialize(triangle, *this);
+      bisector_to_site_.set_size(plane_.size());
+      for (size_t j = 1; j < n_neighbors; j++) {
+        // get the next point, TODO and weight
+        const index_t n = neighbor_data_[j];
+        if (!site_visited_.contains(n)) {
+          site_stack_.push_back(n);
+          site_visited_.insert(n);
+        }
+        const coord_t* zj = sites_ + n * dim;
+        const vec4 uj(zj, dim);
+        const coord_t wj = 0.0;
+
+        // create the plane and clip
+        const vec4 eqn = plane_equation(ui, uj, wi, wj);
+        const uint8_t b = new_plane(eqn, n);
+        clip_by_plane(b);
+
+        // check if no more bisectors contribute to the cell
+        double sr = squared_radius(ui);
+        security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
+        if (security_radius_reached) break;
       }
-      const coord_t* zj = sites_ + n * dim;
-      const vec4 uj(zj, dim);
-      const coord_t wj = 0.0;
-
-      // create the plane and clip
-      const vec4 eqn = plane_equation(ui, uj, wi, wj);
-      const uint8_t b = new_plane(eqn, n);
-      clip_by_plane(b);
-
-      // check if no more bisectors contribute to the cell
-      double sr = squared_radius(ui);
-      if (4.01 * sr < distance_squared(ui, uj)) break;
+      if (security_radius_reached) break;
+      // retrieve more neighbors and keep clipping
+      if (!tree_) break;
+      n_neighbors *= 2;
+      if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
+      if (n_neighbors < neighbor_data_.size()) break;
+      neighbor_data_.resize(n_neighbors);
+      distance_data_.resize(n_neighbors);
+      trees::NearestNeighborSearch<index_t, coord_t> search(
+          n_neighbors, neighbor_data_.data(), distance_data_.data());
+      tree_->knearest(zi, search);
     }
     // append to the mesh and properties if necessary
-    if (mesh.save_mesh()) append_to_mesh(mesh, i);
+    if (mesh.save_mesh() && security_radius_reached) append_to_mesh(mesh, i);
     if (properties) get_properties(properties[i], false);
   }
   return VoronoiStatusCode::kSuccess;

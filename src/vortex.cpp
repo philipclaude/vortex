@@ -56,11 +56,13 @@ void run_visualizer(argparse::ArgumentParser& program) {
   int n_groups = 1;
   for (int k = 0; k < mesh.polygons().n(); k++)
     n_groups = std::max(n_groups, mesh.polygons().group(k));
-  std::vector<int> site2color(n_groups);
+  LOG << "n_groups = " << n_groups;
+  std::vector<int> site2color(n_groups + 1);
   for (size_t k = 0; k < n_groups; k++)
     site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
   for (size_t k = 0; k < mesh.polygons().n(); k++) {
     int group = mesh.polygons().group(k);  // the group is the site
+    ASSERT(group < site2color.size()) << "group = " << group;
     mesh.polygons().set_group(k, site2color[group]);
   }
 
@@ -443,7 +445,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
     TriangulationDomain domain(p, np, t, nt);
     calculate_voronoi_diagram(domain);
   }
-  if (save) voronoi.merge();
+  // if (save) voronoi.merge();
 
   if (program.present<std::string>("--output")) {
     LOG << fmt::format("writing {} polygons", voronoi.polygons().n());

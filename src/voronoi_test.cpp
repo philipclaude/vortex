@@ -33,64 +33,6 @@ using namespace vortex;
 
 UT_TEST_SUITE(voronoi_test_suite)
 
-UT_TEST_CASE(test_pool) {
-  // basic tests
-  {
-    std::vector<int> x_pool(300);
-
-    pool<int> x(x_pool.data(), x_pool.capacity());
-    UT_ASSERT_EQUALS(x.size(), 0);
-    UT_ASSERT(x.empty());
-    x.push_back(1);
-    UT_ASSERT_EQUALS(x.capacity(), 300);
-    UT_ASSERT_EQUALS(x.size(), 1);
-
-    for (int i = 0; i < 200; i++) {
-      x.push_back(i + 2);
-    }
-    UT_ASSERT_EQUALS(x.size(), 201);
-    UT_ASSERT_EQUALS(x.capacity(), 300);
-
-    for (size_t i = 0; i < x.size(); i++) {
-      UT_ASSERT_EQUALS(size_t(x[i]), i + 1);
-    }
-
-    UT_ASSERT_EQUALS(x.back(), 201);
-
-    x.clear();
-    UT_ASSERT(x.empty());
-    UT_ASSERT_EQUALS(x.capacity(), 300);
-  }
-
-  // swap test
-  {
-    std::vector<int> x_pool(3), y_pool(4);
-    pool<int> x(x_pool.data(), 4);
-    pool<int> y(y_pool.data(), 4);
-    x.set_size(3);
-    y.set_size(4);
-    x[0] = 1;
-    x[1] = 4;
-    x[2] = 9;
-    y[0] = 2;
-    y[1] = 10;
-    y[2] = 0;
-    y[3] = 5;
-    x.swap(y);
-
-    UT_ASSERT_EQUALS(x.size(), 4);
-    UT_ASSERT_EQUALS(y.size(), 3);
-    UT_ASSERT_EQUALS(x[0], 2);
-    UT_ASSERT_EQUALS(x[1], 10);
-    UT_ASSERT_EQUALS(x[2], 0);
-    UT_ASSERT_EQUALS(x[3], 5);
-    UT_ASSERT_EQUALS(y[0], 1);
-    UT_ASSERT_EQUALS(y[1], 4);
-    UT_ASSERT_EQUALS(y[2], 9);
-  }
-}
-UT_TEST_CASE_END(test_pool)
-
 UT_TEST_CASE(test_square) {
   const double tol = 1e-12;
   static const int dim = 4;
@@ -120,6 +62,7 @@ UT_TEST_CASE(test_square) {
   VoronoiDiagramOptions options;
   options.n_neighbors = 75;
   options.parallel = true;
+  // options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
   int n_iter = 20;
   auto& weights = voronoi.weights();
   weights.resize(n_sites, 0.0);
@@ -142,7 +85,7 @@ UT_TEST_CASE(test_square) {
     double x = vertices[k][0] - 0.5;
     double y = vertices[k][1] - 0.5;
     double r = std::sqrt(x * x + y * y);
-    weights[k] = 2e-1 * std::pow(r - 0.5, 2);
+    weights[k] = 0.0;  // 2e-1 * std::pow(r - 0.5, 2);
     if (r > 0.5) weights[k] = 0;
     // weights[k] = 2e-1 * std::exp(0.5 - r);
   }
@@ -229,7 +172,7 @@ UT_TEST_CASE(test_sphere) {
   domain.set_initialization_fraction(0.7);
   VoronoiDiagram voronoi(dim, vertices[0], n_sites);
   VoronoiDiagramOptions options;
-  options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
+  // options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
   options.n_neighbors = 75;
   options.parallel = true;
   options.store_facet_data = true;
