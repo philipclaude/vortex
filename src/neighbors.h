@@ -34,6 +34,8 @@ class VoronoiDiagram;
 
 #define MAX_NEIGHBOR_CAPACITY 256
 
+enum class NeighborSearchLimit : uint8_t { kDistanceBased, kCapacityBased };
+
 template <typename T>
 class queue {
  public:
@@ -100,6 +102,7 @@ struct NearestNeighborsWorkspace {
   size_t total_neighbors{0};
   double max_distance{0};
   int max_level{2};
+  NeighborSearchLimit limit{NeighborSearchLimit::kCapacityBased};
 };
 
 class VoronoiNeighbors {

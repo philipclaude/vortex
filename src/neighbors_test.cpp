@@ -30,7 +30,7 @@ using namespace vortex;
 
 UT_TEST_SUITE(neighbors_test_suite)
 
-UT_TEST_CASE_SKIP(test1) {
+UT_TEST_CASE(test1) {
   SphereDomain domain;
   static const int dim = 4;
   size_t n_sites = 5e4;
@@ -76,6 +76,7 @@ UT_TEST_CASE_SKIP(test1) {
   neighbors.build();
   NearestNeighborsWorkspace search(options.n_neighbors);
   search.max_level = 10;
+  search.limit = NeighborSearchLimit::kDistanceBased;
 
   for (size_t k = 0; k < n_sites; k++) {
     // check the nearest neighbors match those from the kdtree
