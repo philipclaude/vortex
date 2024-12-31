@@ -22,7 +22,10 @@ class thread_memory_pool {
   static constexpr size_t NUM_THREADS = _NUM_THREADS;
   thread_memory_pool() {}
 
-  T* block(size_t tid) { return data_ + CAPACITY * tid; }
+  T* block(size_t tid) {
+    assert(tid < NUM_THREADS);
+    return data_ + CAPACITY * tid;
+  }
 
  private:
   SHARED T data_[NUM_THREADS * CAPACITY];

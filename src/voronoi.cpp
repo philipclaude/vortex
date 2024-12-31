@@ -669,6 +669,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   timer.start();
   if (!options.parallel) n_threads = 1;
   // n_threads = 1;
+  if (n_threads > VORTEX_NUM_CORES) n_threads = VORTEX_NUM_CORES;
   std::mutex append_mesh_lock;
   set_save_mesh(options.store_mesh);
   set_save_facets(options.store_facet_data);
@@ -829,6 +830,7 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   size_t n_elems = domain.n_elems();
   status_.resize(n_elems, VoronoiStatusCode::kIncomplete);
   if (n_threads >= n_elems) n_threads = 1;
+  if (n_threads > VORTEX_NUM_CORES) n_threads = VORTEX_NUM_CORES;
   // n_threads = 1;
   VoronoiCellMemoryPool pool;
   size_t n_elems_per_block = n_elems / n_threads;

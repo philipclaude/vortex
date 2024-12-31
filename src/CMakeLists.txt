@@ -26,7 +26,7 @@ set(SOURCES
   util.cpp
   voronoi.cpp)
 
-cmake_host_system_information(RESULT num_cores QUERY NUMBER_OF_PHYSICAL_CORES)
+cmake_host_system_information(RESULT num_cores QUERY NUMBER_OF_LOGICAL_CORES)
 message(STATUS "num cores = ${num_cores}")
 
 # create an object library for all the sources
