@@ -1,5 +1,6 @@
 # add all the source files
 set(SOURCES
+  animation.cpp
   array2d.cpp
   elements.cpp
   fem.cpp

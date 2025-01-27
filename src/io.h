@@ -31,12 +31,18 @@ namespace meshb {
 /// @param filename Path to the .meshb file.
 /// @param mesh Destination of the mesh.
 void read(const std::string& filename, Mesh& mesh);
+void read(const std::string& filename, Mesh& mesh,
+          std::vector<float>& densities);
 
 /// @brief Writes a .meshb file.
 /// @param mesh Mesh object to write.
 /// @param filename Path to the output .meshb file.
 /// @param twod whether we are writing vertices in 2d.
 void write(const Mesh& mesh, const std::string& filename, bool twod = false);
+void write(const Mesh& mesh, const std::string& filename, bool twod,
+           const std::vector<float>& densities);
+
+void write_points(const Mesh& mesh, const std::string& filename, bool twod);
 
 template <int n>
 void write_sol(const std::vector<std::array<double, n>>& sol, bool at_vertices,
@@ -76,7 +82,7 @@ inline void read_mesh(const std::string& filename, Mesh& mesh) {
   std::transform(ext.begin(), ext.end(), ext.begin(),
                  [](unsigned char c) { return std::tolower(c); });
 
-  if (ext == "mesh" || ext == "meshb")
+  if (ext == "mesh" || ext == "meshb" || ext == "sol" || ext == "solb")
     meshb::read(filename, mesh);
   else if (ext == "obj")
     obj::read(filename, mesh);

@@ -21,6 +21,7 @@
 #include <fstream>
 #include <set>
 
+#include "animation.h"
 #include "mesh.h"
 #include "numerics.h"
 #include "shaders/colormaps.h"
@@ -29,24 +30,6 @@
 #include "wings.h"
 #include "wings/util/glm.h"
 #include "wings/util/shader.h"
-
-#define GL_GLEXT_PROTOTYPES
-#ifdef __APPLE__
-#define __gl_h_
-#define GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
-#define GL_SILENCE_DEPRECATION
-#include <OpenGL/OpenGL.h>
-#include <OpenGL/gl3.h>
-#else
-#include <GL/gl.h>
-#endif
-
-#define VORTEX_GL_VERSION_MAJOR 3
-#define VORTEX_GL_VERSION_MINOR 3
-
-#ifndef VORTEX_SOURCE_DIR
-#define VORTEX_SOURCE_DIR "./"
-#endif
 
 namespace vortex {
 
@@ -285,26 +268,19 @@ void GLPrimitive::write(const Vertices& vertices, const Topology<Quad>& quads) {
   split_primitives_ = true;
 }
 
-class ShaderLibrary {
- public:
-  void create();
+void ShaderLibrary::add(const std::string& name, const std::string& prefix,
+                        const std::vector<std::string>& macros, bool with_gs) {
+  shaders_.insert({name, wings::ShaderProgram()});
+  std::string base = std::string(VORTEX_SOURCE_DIR) + "/shaders/";
+  shaders_[name].set_source(base, prefix, with_gs, false, macros);
+}
 
-  void add(const std::string& name, const std::string& prefix,
-           const std::vector<std::string>& macros, bool with_gs = false) {
-    shaders_.insert({name, wings::ShaderProgram()});
-    std::string base = std::string(VORTEX_SOURCE_DIR) + "/shaders/";
-    shaders_[name].set_source(base, prefix, with_gs, false, macros);
-  }
-
-  const wings::ShaderProgram& operator[](const std::string& name) const {
-    ASSERT(shaders_.find(name) != shaders_.end())
-        << "could not find shader " << name;
-    return shaders_.at(name);
-  }
-
- private:
-  std::map<std::string, wings::ShaderProgram> shaders_;
-};
+const wings::ShaderProgram& ShaderLibrary::operator[](
+    const std::string& name) const {
+  ASSERT(shaders_.find(name) != shaders_.end())
+      << "could not find shader " << name;
+  return shaders_.at(name);
+}
 
 void ShaderLibrary::create() {
   std::string version = "#version " + std::to_string(VORTEX_GL_VERSION_MAJOR) +
@@ -323,6 +299,7 @@ void ShaderLibrary::create() {
       {version, "#define ORDER 1", "#define SPLIT_PRIMITIVES"});
   add("earth", "earth", {version});
   add("text", "text", {version}, true);
+  add("particles", "particles", {version});
 }
 
 struct PickableObject {
@@ -463,13 +440,18 @@ class MeshScene : public wings::Scene {
     bool earth{true};
     bool image{false};
     bool numbers{false};
+    bool animating{false};
     float near{1e-3f};
     float far{1e3f};
     bool picking_sphere{false};
+    int time{0};
   };
 
  public:
-  MeshScene(const Mesh& mesh) : mesh_(mesh), earth_(false) {
+  MeshScene(const Mesh& mesh,
+            const ParticleAnimationParameters& particle_params =
+                ParticleAnimationParameters())
+      : mesh_(mesh), earth_(false) {
     context_ =
         wings::RenderingContext::create(wings::RenderingContextType::kOpenGL);
     context_->print();
@@ -488,6 +470,17 @@ class MeshScene : public wings::Scene {
 
     write(&mesh_.fields());
     build_pickables();
+
+    if (particle_params.active()) {
+#if ANIMATION_VERSION == 0
+      animation_ =
+          std::make_unique<ParticleAnimation>(particle_params, context_.get());
+#elif ANIMATION_VERSION == 1
+      animation_ = std::make_unique<ParticleAnimation>(particle_params);
+#endif
+      animation_->setup();
+      animation_->load();
+    }
   }
 
   void build_pickables() {
@@ -795,9 +788,30 @@ class MeshScene : public wings::Scene {
 
   bool render(const wings::ClientInput& input, int client_idx,
               std::string* msg) {
+    // Timing variables
+    static auto last_time = std::chrono::high_resolution_clock::now();
+    static int frame_count = 0;
+
     ClientView& view = view_[client_idx];
     bool updated = false;
     switch (input.type) {
+      case wings::InputType::AnimationRequest: {
+        view.time += 1;
+        *msg = "#" + std::to_string(view.time);
+        if (input.looping) {
+          view.time = view.time % animation_->params().time.size();
+        } else {
+          // Ensure view.time stays within bounds if not looping
+          if (view.time >= animation_->params().time.size()) {
+            view.time = animation_->params().time.size() - 1;
+            view.animating =
+                false;  // Stop animating when the last frame is reached
+          }
+        }
+        view.animating = true;
+        // updated = true;
+        break;
+      }
       case wings::InputType::MouseMotion: {
         if (input.dragging) {
           if (!input.modifier) {
@@ -960,10 +974,21 @@ class MeshScene : public wings::Scene {
         updated = true;
         break;
       }
+      case wings::InputType::SetTime: {
+        view.time = input.time;
+        break;
+      }
+      case wings::InputType::SetFrames: {
+        if (animation_) {
+          *msg = "~" + std::to_string(animation_->params().total_frames);
+          updated = true;
+        }
+        break;
+      }
       default:
         break;
     }
-    if (!updated) return false;
+    if (!updated && !view.animating) return false;
 
     // write shader uniforms
     GL_CALL(glViewport(0, 0, view.canvas.width, view.canvas.height));
@@ -975,6 +1000,7 @@ class MeshScene : public wings::Scene {
     glEnable(GL_POLYGON_SMOOTH);
     glDepthMask(GL_TRUE);
     glEnable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_MULTISAMPLE);
     glPolygonOffset(1, 1);
     // glEnable(GL_BLEND);
     //  glEnable(GL_STENCIL_TEST);
@@ -1154,6 +1180,51 @@ class MeshScene : public wings::Scene {
       GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     }
 
+    if (view.animating && animation_) {
+      // set common uniforms (view, colormap, screen size)
+      for (const auto& shader_name : animation_->shader_names()) {
+        auto& shader = shaders_[shader_name];
+        shader.use();
+        shader.set_uniform("u_ModelViewProjectionMatrix", mvp_matrix);
+        shader.set_uniform("u_ModelViewMatrix", model_view_matrix);
+        shader.set_uniform("u_NormalMatrix", normal_matrix);
+        shader.set_uniform("u_width", view.canvas.width);
+        shader.set_uniform("u_height", view.canvas.height);
+        wings::vec4f eye_h = {view.eye[0], view.eye[1], view.eye[2], 1.0};
+        auto im = wings::glm::inverse(view.model_matrix);
+        shader.set_uniform("u_InverseModel", im);
+        shader.set_uniform("u_Camera", wings::glm::inverse(view.view_matrix));
+        shader.set_uniform("u_eye", (im * eye_h).xyz());
+        shader.set_uniform("u_center", view.center);
+        shader.set_uniform("u_fov", view.fov);
+        shader.set_uniform("u_width", int(view.canvas.width));
+        shader.set_uniform("u_height", int(view.canvas.height));
+
+        // bind the desired colormap
+        glActiveTexture(GL_TEXTURE0 + kColormap);
+        GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, colormap_texture_));
+        shader.set_uniform("colormap", int(kColormap));
+      }
+
+      // render the particles
+      int time_step = view.animating ? view.time : -1;
+
+      animation_->render(shaders_, time_step);
+
+      // End of render step
+      frame_count++;
+
+      auto now = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> elapsed = now - last_time;
+
+      if (elapsed.count() >= 1.0) {
+        double fps = frame_count / elapsed.count();
+        std::cout << "FPS: " << fps << std::endl;
+        frame_count = 0;
+        last_time = now;
+      }
+    }
+
     // save the pixels in the wings::Scene
     // width_ = view.canvas.width;
     // height_ = view.canvas.height;
@@ -1187,6 +1258,17 @@ class MeshScene : public wings::Scene {
       }
     }
     view.center = view.center / (1.0f * mesh_.vertices().n());
+
+    if (animation_) {
+      // TODO update xmin, xmax, view.center, aabb_ (.min, .max)
+      // using the bounding box of the particles
+      LOG << fmt::format("[WARNING]: need to compute actual bounding box");
+      xmin = {-1, -1, -1};
+      xmax = {1, 1, 1};
+      aabb_.min = xmin;
+      aabb_.max = xmax;
+      view.center = {0, 0, 0};
+    }
     view.center_translation.eye();
     view.inverse_center_translation.eye();
     for (int d = 0; d < 3; d++) {
@@ -1256,10 +1338,12 @@ class MeshScene : public wings::Scene {
   std::vector<int> draw_order_;
   ShaderLibrary shaders_;
   std::vector<PickableObject> pickables_;
+  std::unique_ptr<ParticleAnimation> animation_{nullptr};
 };
 
-Viewer::Viewer(const Mesh& mesh, int port) {
-  scene_ = std::make_unique<MeshScene>(mesh);
+Viewer::Viewer(const Mesh& mesh,
+               const ParticleAnimationParameters& particle_params, int port) {
+  scene_ = std::make_unique<MeshScene>(mesh, particle_params);
   renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
 }
 

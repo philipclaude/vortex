@@ -48,6 +48,26 @@ UT_TEST_CASE(meshb_test) {
   UT_ASSERT_EQUALS(mesh.vertices().dim(), 3);
   UT_ASSERT_EQUALS(mesh.vertices().n(), sphere.vertices().n());
   UT_ASSERT_EQUALS(mesh.triangles().n(), sphere.triangles().n());
+
+  SubdividedIcosahedron sphere1(4);
+  std::vector<float> densities(sphere1.vertices().n(), 1.0f);
+  // Write the mesh with densities
+  meshb::write(sphere1, "sphere1.solb", false, densities);
+
+  // Read the mesh and densities
+  Mesh mesh1(3);
+  std::vector<float> read_densities;
+  meshb::read("sphere1.solb", mesh1, read_densities);
+
+  // Verify the mesh and densities
+  UT_ASSERT_EQUALS(mesh1.vertices().dim(), 3);
+  UT_ASSERT_EQUALS(mesh1.vertices().n(), sphere1.vertices().n());
+  UT_ASSERT_EQUALS(mesh1.triangles().n(), sphere1.triangles().n());
+  UT_ASSERT_EQUALS(densities.size(), read_densities.size());
+
+  for (size_t i = 0; i < densities.size(); ++i) {
+    UT_ASSERT_EQUALS(densities[i], read_densities[i]);
+  }
 }
 UT_TEST_CASE_END(meshb_test)
 

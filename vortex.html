@@ -1,571 +1,600 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
 
-    <title>vortex</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/solid.min.css"
-      rel="stylesheet"
-    />
-    <link rel=icon
-    href=https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4/svgs/solid/fan.svg>
+  <title>vortex</title>
 
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-      integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3"
-      crossorigin="anonymous"
-    />
-    <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
-      integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
-      crossorigin="anonymous"
-    ></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/solid.min.css" rel="stylesheet" />
+  <link rel=icon href=https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4/svgs/solid/fan.svg>
 
-    <style>
-      #text {
-        background-color: transparent;
-        position: absolute;
-        left: 0px;
-        top: 0px;
-        z-index: 10;
-      }
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
+    crossorigin="anonymous"></script>
+  <script src="https://kit.fontawesome.com/35fc964a0e.js" crossorigin="anonymous"></script>
 
-      .container {
-        position: relative;
-      }
+  <style>
+    #text {
+      background-color: transparent;
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      z-index: 10;
+    }
 
-      .form-select {
-        width: fit-content;
-        display: inline-block;
-      }
+    .container {
+      position: relative;
+    }
 
-      .center {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-      }
-    </style>
-  </head>
+    .form-select {
+      width: fit-content;
+      display: inline-block;
+    }
 
-  <body style="background-color: lightgray">
-    <div id="wrapper">
-      <div class="avoid-nav" id="page-content-wrapper">
-        <div
-          class="btn btn-primary"
-          style="
+    .center {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    #toggle-loop.active {
+      background-color: #101010;
+      color: white;
+    }
+  </style>
+</head>
+
+<body style="background-color: lightgray">
+  <div id="wrapper">
+    <div class="avoid-nav" id="page-content-wrapper">
+      <div class="btn btn-primary" style="
             width: 100%;
             height: 40px;
             background-color: black;
             color: white;
             border-color: black;
             border-radius: 0px;
-          "
-          onclick="connect();"
-        >
-          vortex
-        </div>
+          " onclick="connect();">
+        vortex
+      </div>
+      <div id="fps-container"
+        style="position: absolute; top: 10px; left: 10px; z-index: 10; color: white; font-weight: bold;">
+        FPS: <span id="fps-value">0</span>
+      </div>
 
+      <hr />
+
+      <div class="container-fluid">
+        <div class="" style="display: inline-block">
+          <button class="float-right btn btn-primary" id="button-save-png" onclick="saveImage()">
+            export
+          </button>
+        </div>
+        &nbsp;&nbsp;
+        <div style="display: inline-block">
+          <input class="btn btn-light" onchange="setHeight();" style="width: 100px; color: black" id="input-height"
+            type="number" step="100" value="600" />
+          &nbsp;&nbsp;
+          <label class="form-check-label" for="input-height">height</label>
+          &nbsp;&nbsp;
+        </div>
+        <div style="display: inline-block">
+          <select class="form-select" id="clip-dropdown" oninput="clip();">
+            <option>[clip]</option>
+            <option>X+</option>
+            <option>Y+</option>
+            <option>Z+</option>
+            <option>X-</option>
+            <option>Y-</option>
+            <option>Z-</option>
+          </select>
+        </div>
+        <div class="form-check" style="display: inline-block; vertical-align: bottom">
+          <center>
+            <label class="form-check-label" for="clip-distance">distance</label>
+          </center>
+          <input class="form-range" style="width: 125px; display: block" type="range" id="clip-distance"
+            oninput="clip();" value="0" min="-100" max="100" />
+        </div>
+        &nbsp;
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-plane" type="checkbox" checked onchange="clip();" />
+          <label class="form-check-label" for="checkbox-plane">show plane</label>
+        </div>
+        &nbsp;&nbsp;
+        <div style="display: inline-block">
+          <select class="form-select" id="colormap-dropdown" onchange="selectColormap();">
+            <option>[colormap]</option>
+            <option>blue-white-red</option>
+            <option>blue-green-red</option>
+            <option>jet</option>
+            <option>hsv</option>
+            <option>hot</option>
+            <option>viridis</option>
+            <option>giraffe</option>
+          </select>
+        </div>
+        <div style="display: inline-block">
+          <button class="btn btn-primary" id="center-view" onclick="centerView();">
+            center
+          </button>
+        </div>
         <hr />
-
-        <div class="container-fluid">
-          <div class="" style="display: inline-block">
-            <button
-              class="float-right btn btn-primary"
-              id="button-save-png"
-              onclick="saveImage()"
-            >
-              export
-            </button>
-          </div>
-          &nbsp;&nbsp;
-          <div style="display: inline-block">
-            <input
-              class="btn btn-light"
-              onchange="setHeight();"
-              style="width: 100px; color: black"
-              id="input-height"
-              type="number"
-              step="100"
-              value="600"
-            />
-            &nbsp;&nbsp;
-            <label class="form-check-label" for="input-height">height</label>
-            &nbsp;&nbsp;
-          </div>
-          <div style="display: inline-block">
-            <select class="form-select" id="clip-dropdown" oninput="clip();">
-              <option>[clip]</option>
-              <option>X+</option>
-              <option>Y+</option>
-              <option>Z+</option>
-              <option>X-</option>
-              <option>Y-</option>
-              <option>Z-</option>
-            </select>
-          </div>
-          <div
-            class="form-check"
-            style="display: inline-block; vertical-align: bottom"
-          >
-            <center>
-              <label class="form-check-label" for="clip-distance"
-                >distance</label
-              >
-            </center>
-            <input
-              class="form-range"
-              style="width: 125px; display: block"
-              type="range"
-              id="clip-distance"
-              oninput="clip();"
-              value="0"
-              min="-100"
-              max="100"
-            />
-          </div>
-          &nbsp;
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-plane"
-              type="checkbox"
-              checked
-              onchange="clip();"
-            />
-            <label class="form-check-label" for="checkbox-plane"
-              >show plane</label
-            >
-          </div>
-          &nbsp;&nbsp;
-          <div style="display: inline-block">
-            <select
-              class="form-select"
-              id="colormap-dropdown"
-              onchange="selectColormap();"
-            >
-              <option>[colormap]</option>
-              <option>blue-white-red</option>
-              <option>blue-green-red</option>
-              <option>jet</option>
-              <option>hsv</option>
-              <option>hot</option>
-              <option>viridis</option>
-              <option>giraffe</option>
-            </select>
-          </div>
-          <div style="display: inline-block">
-            <button
-              class="btn btn-primary"
-              id="center-view"
-              onclick="centerView();"
-            >
-              center
-            </button>
-          </div>
-          <hr />
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-nodes"
-              type="checkbox"
-              checked
-              onchange='togglePrimitive("checkbox-nodes", "n");'
-            />
-            <label class="form-check-label" for="checkbox-nodes">nodes</label>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-edges"
-              type="checkbox"
-              onchange='togglePrimitive("checkbox-edges", "e");'
-            />
-            <label class="form-check-label" for="checkbox-edges">lines</label>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-wireframe"
-              type="checkbox"
-              checked
-              onchange='togglePrimitive("checkbox-wireframe", "w");'
-            />
-            <label class="form-check-label" for="checkbox-wireframe"
-              >edges</label
-            >
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-triangles"
-              type="checkbox"
-              checked
-              onchange='togglePrimitive("checkbox-triangles", "t");'
-            />
-            <label class="form-check-label" for="checkbox-triangles"
-              >triangles</label
-            >
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-polygons"
-              type="checkbox"
-              checked
-              onchange='togglePrimitive("checkbox-polygons", "p");'
-            />
-            <label class="form-check-label" for="checkbox-polygons"
-              >polygons</label
-            >
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-points"
-              type="checkbox"
-              onchange='togglePrimitive("checkbox-points", "v");'
-            />
-            <label class="form-check-label" for="checkbox-points">points</label>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-lighting"
-              type="checkbox"
-              checked
-              onchange="toggleLighting();"
-            />
-            <label class="form-check-label" for="checkbox-lighting"
-              >lighting</label
-            >
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-earth"
-              type="checkbox"
-              checked
-              onchange="toggleEarth();"
-            />
-            <label class="form-check-label" for="checkbox-earth">earth</label>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <input
-              class="form-check-input"
-              id="checkbox-image"
-              type="checkbox"
-              onchange="toggleImage();"
-            />
-            <label class="form-check-label" for="checkbox-earth">image</label>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <select
-              class="form-select"
-              id="dropdown-vertex-numbers"
-              onchange="toggleNumbers();"
-            >
-              <option>[vertex #]</option>
-              <option>all</option>
-              <option>picked</option>
-            </select>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <select
-              class="form-select"
-              id="dropdown-picking-type"
-              onchange="togglePicking();"
-            >
-              <option>mesh</option>
-              <option>sphere</option>
-            </select>
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" id="size-label"></label>
-          </div>
-          <br />
-          <hr />
-          <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" for="qualitys"
-              >static quality</label
-            >
-            <input
-              class="form-range"
-              style="display: block; width: 125px"
-              id="qualitys"
-              type="range"
-              min="5"
-              max="100"
-              step="5"
-              value="100"
-              onchange="setQuality();"
-            />
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" for="qualityd"
-              >dynamic quality</label
-            >
-            <input
-              class="form-range"
-              style="display: block; width: 125px"
-              id="qualityd"
-              type="range"
-              min="5"
-              max="100"
-              step="5"
-              value="80"
-            />
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" for="transparency"
-              >transparency</label
-            >
-            <input
-              class="form-range"
-              style="display: block; width: 125px"
-              id="transparency"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value="100"
-              onchange="setTransparency()"
-              ;
-            />
-          </div>
-          <div style="display: inline-block">
-            <textarea id="message-area" style="width: 500px"> </textarea>
-          </div>
-          <hr />
-          <div style="width: 100%; position: relative">
-            <img
-              class="center"
-              id="image"
-              width="600"
-              height="600"
-              style="width: inherit; border-radius: 4px"
-            />
-          </div>
-          <hr />
-          <b>Instructions:</b>
-          <ul>
-            <li>Click and drag the mouse to rotate.</li>
-            <li>
-              Hold <code>shift</code>, click and drag the mouse to translate.
-            </li>
-            <li>Scroll to zoom in or out.</li>
-            <li>Press the <code>f</code> key to cycle through the fields.</li>
-            <li>Double-click an element to highlight it.</li>
-            <li>
-              Press the <code>c</code> key to center the view on a highlighted
-              element.
-            </li>
-            <li>Not currently implemented: transparency, export, clipping.</li>
-          </ul>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-nodes" type="checkbox" checked
+            onchange='togglePrimitive("checkbox-nodes", "n");' />
+          <label class="form-check-label" for="checkbox-nodes">nodes</label>
         </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-edges" type="checkbox"
+            onchange='togglePrimitive("checkbox-edges", "e");' />
+          <label class="form-check-label" for="checkbox-edges">lines</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-wireframe" type="checkbox" checked
+            onchange='togglePrimitive("checkbox-wireframe", "w");' />
+          <label class="form-check-label" for="checkbox-wireframe">edges</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-triangles" type="checkbox" checked
+            onchange='togglePrimitive("checkbox-triangles", "t");' />
+          <label class="form-check-label" for="checkbox-triangles">triangles</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-polygons" type="checkbox" checked
+            onchange='togglePrimitive("checkbox-polygons", "p");' />
+          <label class="form-check-label" for="checkbox-polygons">polygons</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-points" type="checkbox"
+            onchange='togglePrimitive("checkbox-points", "v");' />
+          <label class="form-check-label" for="checkbox-points">points</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-lighting" type="checkbox" checked onchange="toggleLighting();" />
+          <label class="form-check-label" for="checkbox-lighting">lighting</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-earth" type="checkbox" checked onchange="toggleEarth();" />
+          <label class="form-check-label" for="checkbox-earth">earth</label>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <input class="form-check-input" id="checkbox-image" type="checkbox" onchange="toggleImage();" />
+          <label class="form-check-label" for="checkbox-earth">image</label>
+        </div>
+        &nbsp;
+        <div id="controls" style="display: inline-block">
+          <button id="start-frame" onclick="goToStartFrame();"><i class="fa-solid fa-backward-step"></i></button>
+          <button id="prev-frame" onclick="goToPrevFrame();"><i class="fa-solid fa-angle-left"></i></button>
+          <button id="toggle-play-pause" onclick="toggleAnimation();"><i class="fa-solid fa-play"></i></button>
+          <button id="next-frame" onclick="goToNextFrame();"><i class="fa-solid fa-chevron-right"></i></button>
+          <button id="end-frame" onclick="goToEndFrame();"><i class="fa-solid fa-forward-step"></i></button>
+          <button id="toggle-loop" onclick="toggleLooping();">&#8634;</button>
+          <input type="number" id="time-input" value="0" min="0" step="1" onchange="goToSpecificFrame();" />
+        </div>
+        &nbsp;&nbsp;
+        <div class="form-check" style="display: inline-block">
+          <select class="form-select" id="dropdown-vertex-numbers" onchange="toggleNumbers();">
+            <option>[vertex #]</option>
+            <option>all</option>
+            <option>picked</option>
+          </select>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <select class="form-select" id="dropdown-picking-type" onchange="togglePicking();">
+            <option>mesh</option>
+            <option>sphere</option>
+          </select>
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <label class="form-check-label" id="size-label"></label>
+        </div>
+        <br />
+        <hr />
+        <div class="form-check" style="display: inline-block">
+          <label class="form-check-label" for="qualitys">static quality</label>
+          <input class="form-range" style="display: block; width: 125px" id="qualitys" type="range" min="5" max="100"
+            step="5" value="100" onchange="setQuality();" />
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <label class="form-check-label" for="qualityd">dynamic quality</label>
+          <input class="form-range" style="display: block; width: 125px" id="qualityd" type="range" min="5" max="100"
+            step="5" value="80" />
+        </div>
+        <div class="form-check" style="display: inline-block">
+          <label class="form-check-label" for="transparency">transparency</label>
+          <input class="form-range" style="display: block; width: 125px" id="transparency" type="range" min="0"
+            max="100" step="1" value="100" onchange="setTransparency()" ; />
+        </div>
+        <div style="display: inline-block">
+          <textarea id="message-area" style="width: 500px"> </textarea>
+        </div>
+        <hr />
+        <div style="width: 100%; position: relative">
+          <img class="center" id="image" width="600" height="600" style="width: inherit; border-radius: 4px" />
+        </div>
+        <hr />
+        <b>Instructions:</b>
+        <ul>
+          <li>Click and drag the mouse to rotate.</li>
+          <li>
+            Hold <code>shift</code>, click and drag the mouse to translate.
+          </li>
+          <li>Scroll to zoom in or out.</li>
+          <li>Press the <code>f</code> key to cycle through the fields.</li>
+          <li>Double-click an element to highlight it.</li>
+          <li>
+            Press the <code>c</code> key to center the view on a highlighted
+            element.
+          </li>
+          <li>Not currently implemented: transparency, export, clipping.</li>
+        </ul>
       </div>
     </div>
-  </body>
+  </div>
+</body>
 
-  <script>
-    let ws;
-    let img = document.getElementById("image");
-    let connect = function (url) {
-      let url_default = "ws://localhost:{WEBSOCKET_PORT}";
-      if (window.location.protocol == "file:")
-        url_default = "ws://localhost:7681";
+<script>
+  let ws;
+  let max_frames = -1;
+  let current_time = -1;
+  let requestId;
+  let animating = false;
+  var count = 1;
 
-      if (!url) url = prompt("connect to websocket server:", url_default);
-      if (url == undefined) return;
-      let websocket = window["MozWebSocket"]
-        ? window["MozWebSocket"]
-        : window["WebSocket"];
+  let fpsContainer = document.getElementById('fps-container');
+  let fpsValue = document.getElementById('fps-value');
+  let frameCount = 0;
+  let startTime = Date.now();
 
-      ws = new websocket(url);
-      ws.onopen = function (e) {
-        console.log("opened websocket connection");
-        window.onresize();
-      };
-      ws.onclose = function (evt) {
-        console.log("connection closed");
-      };
-      ws.onmessage = async (evt) => {
-        if (evt.data[0] == "*") {
-          document.getElementById("message-area").innerHTML =
-            evt.data.substring(1);
-          return;
-        }
-        const data = evt.data;
-        img.src = "data:image/jpg;base64," + data;
-        document.getElementById("size-label").innerHTML =
-          parseInt(data.length / 1000) + " kB";
-      };
+  let img = document.getElementById("image");
+  let connect = function (url) {
+    let url_default = "ws://localhost:{WEBSOCKET_PORT}";
+    if (window.location.protocol == "file:")
+      url_default = "ws://localhost:7681";
+
+    if (!url) url = prompt("connect to websocket server:", url_default);
+    if (url == undefined) return;
+    let websocket = window["MozWebSocket"]
+      ? window["MozWebSocket"]
+      : window["WebSocket"];
+
+    ws = new websocket(url);
+    ws.onopen = function (e) {
+      console.log("opened websocket connection");
+      ws.send("F");
+      window.onresize();
     };
+    ws.onclose = function (evt) {
+      console.log("connection closed");
+    };
+    ws.onmessage = async (evt) => {
+      if (evt.data[0] == "*") {
+        console.log(evt.data);
+        document.getElementById("message-area").innerHTML =
+          evt.data.substring(1);
+        return;
+      }
+      if (evt.data[0] == "#") {
+        //console.log(evt.data);
+        current_time = evt.data.substring(1);
+        document.getElementById("time-input").value = current_time;
+        return;
+      }
+      if (evt.data[0] == "~") {
+        //console.log(evt.data);
+        max_frames = parseInt(evt.data.substring(1)) - 1;
+        return;
+      }
+      const data = evt.data;
+      img.src = "data:image/jpg;base64," + data;
+      document.getElementById("size-label").innerHTML =
+        parseInt(data.length / 1000) + " kB";
+      // Update FPS
+      frameCount++;
+      let currentTime = Date.now();
+      let elapsedTime = (currentTime - startTime) / 1000;
+      if (elapsedTime >= 1.0) {
+        let fps = frameCount / elapsedTime;
+        fpsValue.innerHTML = fps.toFixed(2);
+        frameCount = 0;
+        startTime = currentTime;
+      }
+    };
+  };
 
-    let dragging = false;
-    let scrolling = undefined,
-      scrolling_timeout;
-    let quality0 = document.getElementById("qualitys").value;
-    let ctrlKey = false;
-    let shiftKey = false;
-    img.addEventListener("mousedown", function (e) {
+  let dragging = false;
+  let scrolling = undefined,
+    scrolling_timeout;
+  let quality0 = document.getElementById("qualitys").value;
+  let ctrlKey = false;
+  let shiftKey = false;
+  let looping = false;
+
+  img.addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    quality0 = document.getElementById("qualitys").value;
+    document.getElementById("qualitys").value =
+      document.getElementById("qualityd").value;
+    setQuality();
+    dragging = true;
+  });
+
+  img.addEventListener("mouseup", function (e) {
+    e.preventDefault();
+    dragging = false;
+    document.getElementById("qualitys").value = quality0;
+    setQuality();
+  });
+
+
+
+  function throttle(func, delay) {
+    let lastFunc; // Reference to the timeout
+    let lastRan; // Previously called time of the function
+    return function (...args) {
+      const context = this;
+      if (!lastRan) {
+        func.apply(context, args);
+        lastRan = Date.now();
+      } else {
+        clearTimeout(lastFunc);
+        lastFunc = setTimeout(function () {
+          if ((Date.now() - lastRan) >= delay) {
+            func.apply(context, args);
+            lastRan = Date.now();
+          }
+        }, delay - (Date.now() - lastRan));
+      }
+    };
+  }
+
+  const throttledSend = throttle((msg) => ws.send(msg), 20);
+
+  img.addEventListener("mousemove", function (e) {
+    const mod = e.ctrlKey || e.shiftKey;
+    const x = ("0000" + e.clientX).slice(-5);
+    const y = ("0000" + e.clientY).slice(-5);
+    const msg = "M" + (dragging ? "D" : "d") + (mod ? "M" : "m") + x + y;
+    //ws.send(msg);
+    throttledSend(msg);
+  });
+
+  img.addEventListener(
+    "wheel",
+    function (e) {
       e.preventDefault();
-      quality0 = document.getElementById("qualitys").value;
-      document.getElementById("qualitys").value =
-        document.getElementById("qualityd").value;
-      setQuality();
-      dragging = true;
-    });
-
-    img.addEventListener("mouseup", function (e) {
-      e.preventDefault();
-      dragging = false;
-      document.getElementById("qualitys").value = quality0;
-      setQuality();
-    });
-
-    img.addEventListener("mousemove", function (e) {
-      const mod = e.ctrlKey || e.shiftKey;
-      const x = ("0000" + e.clientX).slice(-5);
-      const y = ("0000" + e.clientY).slice(-5);
-      const msg = "M" + (dragging ? "D" : "d") + (mod ? "M" : "m") + x + y;
+      if (!scrolling) {
+        // initial scroll event
+        quality0 = document.getElementById("qualitys").value;
+        document.getElementById("qualitys").value =
+          document.getElementById("qualityd").value;
+        setQuality();
+        scrolling = true;
+        return;
+      }
+      window.clearTimeout(scrolling_timeout);
+      // set a timeout to run after scrolling ends
+      scrolling_timeout = setTimeout(function () {
+        document.getElementById("qualitys").value = quality0;
+        setQuality();
+        scrolling = false;
+      }, 60);
+      const msg = "W" + (e.deltaY > 0 ? "-" : "+");
       ws.send(msg);
-    });
+      //throttledSend(msg);
+    },
+    false
+  );
 
-    img.addEventListener(
-      "wheel",
-      function (e) {
-        e.preventDefault();
-        if (!scrolling) {
-          // initial scroll event
-          quality0 = document.getElementById("qualitys").value;
-          document.getElementById("qualitys").value =
-            document.getElementById("qualityd").value;
-          setQuality();
-          scrolling = true;
-          return;
-        }
-        window.clearTimeout(scrolling_timeout);
-        // set a timeout to run after scrolling ends
-        scrolling_timeout = setTimeout(function () {
-          document.getElementById("qualitys").value = quality0;
-          setQuality();
-          scrolling = false;
-        }, 60);
-        const msg = "W" + (e.deltaY > 0 ? "-" : "+");
-        ws.send(msg);
-      },
-      false
-    );
+  img.addEventListener("dblclick", function (e) {
+    let X = e.pageX - e.target.offsetLeft;
+    const x = ("0000" + X).slice(-5);
+    const y = ("0000" + e.offsetY).slice(-5);
+    const msg = "D" + x + y;
+    //ws.send(msg);
+    throttledSend(msg);
+  });
 
-    img.addEventListener("dblclick", function (e) {
-      let X = e.pageX - e.target.offsetLeft;
-      const x = ("0000" + X).slice(-5);
-      const y = ("0000" + e.offsetY).slice(-5);
-      const msg = "D" + x + y;
-      ws.send(msg);
-    });
+  window.addEventListener("keydown", function (e) {
+    if (e.key == "f") toggleField();
+    if (e.key == "c") centerView();
+  });
 
-    window.addEventListener("keydown", function (e) {
-      if (e.key == "f") toggleField();
-      if (e.key == "c") centerView();
-    });
+  const setQuality = function () {
+    //ws.send("KIQ" + document.getElementById("qualitys").value);
+    throttledSend("KIQ" + document.getElementById("qualitys").value);
+  };
 
-    const setQuality = function () {
-      ws.send("KIQ" + document.getElementById("qualitys").value);
-    };
+  const setTransparency = function () {
+    //ws.send("KIa" + document.getElementById("transparency").value);
+    throttledSend("KIa" + document.getElementById("transparency").value);
+  };
 
-    const setTransparency = function () {
-      ws.send("KIa" + document.getElementById("transparency").value);
-    };
-
-    let timeout;
-    window.onresize = function () {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        const w = 4 * Math.floor(window.innerWidth / 4);
-        img.width = w;
-        img.setAttribute("width", w);
-        ws.send("KIW" + w);
-        setQuality(); // request an image update
-      }, 100);
-    };
-
-    const checkboxResult = (id) => {
-      if (document.getElementById(id).checked) return 1;
-      return 0;
-    };
-
-    const togglePrimitive = (id, c) => {
-      ws.send("KI" + c + checkboxResult(id));
-    };
-
-    const selectColormap = () => {
-      const dropdown = document.getElementById("colormap-dropdown");
-      let idx = dropdown.selectedIndex;
-      if (idx == 0) idx = 8; // default to giraffe colormap
-      ws.send("KSC" + dropdown.options[idx].value);
-    };
-
-    const clip = () => {
-      const dropdown = document.getElementById("clip-dropdown");
-      const distance = document.getElementById("clip-distance").value;
-      const visible = checkboxResult("checkbox-plane");
-      let idx = dropdown.selectedIndex;
-      ws.send("KSc" + idx + visible + distance);
-    };
-
-    const centerView = () => {
-      ws.send("KSp");
-    };
-
-    const toggleField = () => {
-      ws.send("KSf");
-    };
-
-    const toggleLighting = () => {
-      const checkbox = document.getElementById("checkbox-lighting");
-      let result = checkbox.checked ? 1 : 0;
-      ws.send("KIL" + result);
-    };
-
-    const toggleEarth = () => {
-      const checkbox = document.getElementById("checkbox-earth");
-      let result = checkbox.checked ? 1 : 0;
-      ws.send("KIE" + result);
-    };
-
-    const toggleImage = () => {
-      const checkbox = document.getElementById("checkbox-image");
-      let result = checkbox.checked ? 1 : 0;
-      ws.send("KII" + result);
-    };
-
-    const toggleNumbers = () => {
-      const dropdown = document.getElementById("dropdown-vertex-numbers");
-      ws.send("KI#" + dropdown.selectedIndex);
-    };
-
-    const togglePicking = () => {
-      const dropdown = document.getElementById("dropdown-picking-type");
-      ws.send("KIx" + dropdown.selectedIndex);
-    };
-
-    const setHeight = () => {
-      const h = document.getElementById("input-height").value;
-      img.setAttribute("height", h);
-      ws.send("KIH" + h);
+  let timeout;
+  window.onresize = function () {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      const w = 4 * Math.floor(window.innerWidth / 4);
+      img.width = w;
+      img.setAttribute("width", w);
+      //ws.send("KIW" + w);
+      throttledSend("KIW" + w);
       setQuality(); // request an image update
-    };
+    }, 100);
+  };
 
-    window.onload = () => {
-      connect("ws://localhost:7681");
-    };
-  </script>
+  const checkboxResult = (id) => {
+    if (document.getElementById(id).checked) return 1;
+    return 0;
+  };
+
+  const togglePrimitive = (id, c) => {
+    //ws.send("KI" + c + checkboxResult(id));
+    throttledSend("KI" + c + checkboxResult(id));
+  };
+
+  const selectColormap = () => {
+    const dropdown = document.getElementById("colormap-dropdown");
+    let idx = dropdown.selectedIndex;
+    if (idx == 0) idx = 8; // default to giraffe colormap
+    //ws.send("KSC" + dropdown.options[idx].value);
+    throttledSend("KSC" + dropdown.options[idx].value);
+  };
+
+  const clip = () => {
+    const dropdown = document.getElementById("clip-dropdown");
+    const distance = document.getElementById("clip-distance").value;
+    const visible = checkboxResult("checkbox-plane");
+    let idx = dropdown.selectedIndex;
+    //ws.send("KSc" + idx + visible + distance);
+    throttledSend("KSc" + idx + visible + distance);
+  };
+
+  const centerView = () => {
+    //ws.send("KSp");
+    throttledSend("KSp");
+  };
+
+  const toggleField = () => {
+    //ws.send("KSf");
+    throttledSend("KSf");
+  };
+
+  const toggleLighting = () => {
+    const checkbox = document.getElementById("checkbox-lighting");
+    let result = checkbox.checked ? 1 : 0;
+    //ws.send("KIL" + result);
+    throttledSend("KIL" + result);
+  };
+
+  const toggleEarth = () => {
+    const checkbox = document.getElementById("checkbox-earth");
+    let result = checkbox.checked ? 1 : 0;
+    //ws.send("KIE" + result);
+    throttledSend("KIE" + result);
+  };
+
+  const toggleImage = () => {
+    const checkbox = document.getElementById("checkbox-image");
+    let result = checkbox.checked ? 1 : 0;
+    //ws.send("KII" + result);
+    throttledSend("KII" + result);
+  };
+
+  const toggleNumbers = () => {
+    const dropdown = document.getElementById("dropdown-vertex-numbers");
+    //ws.send("KI#" + dropdown.selectedIndex);
+    throttledSend("KI#" + dropdown.selectedIndex);
+  };
+
+  const togglePicking = () => {
+    const dropdown = document.getElementById("dropdown-picking-type");
+    //ws.send("KIx" + dropdown.selectedIndex);
+    throttledSend("KIx" + dropdown.selectedIndex);
+
+  };
+
+  const setHeight = () => {
+    const h = document.getElementById("input-height").value;
+    img.setAttribute("height", h);
+    //ws.send("KIH" + h);
+    throttledSend("KIH" + h);
+    setQuality(); // request an image update
+  };
+
+
+  window.onload = () => {
+    connect("ws://localhost:7681");
+  };
+
+  const updateFrame = () => {
+    const a = ("00000000" + current_time).slice(-9);
+    const msg = "S" + a;
+    //ws.send(msg);
+    throttledSend(msg);
+  };
+
+  const goToStartFrame = () => {
+    current_time = 0;
+    updateFrame();
+  };
+
+  const goToPrevFrame = () => {
+    current_time = Math.max(0, current_time - 1);
+    updateFrame();
+  };
+
+  const toggleAnimation = () => {
+    if (animating) {
+      pauseAnimation();
+    } else {
+      playAnimation();
+    }
+  };
+
+  const pauseAnimation = () => {
+    if (requestId) {
+      cancelAnimationFrame(requestId);
+      requestId = undefined;
+      animating = false;
+      document.getElementById("toggle-play-pause").innerHTML = '<i class="fa-solid fa-play"></i>';
+    }
+  };
+
+  const playAnimation = () => {
+    if (!requestId) {
+      animating = true;
+      animate();
+      document.getElementById("toggle-play-pause").innerHTML = '<i class="fa-solid fa-pause"></i>';
+    }
+  };
+
+  const goToNextFrame = () => {
+    current_time = Math.min(max_frames, current_time + 1);
+    updateFrame();
+  };
+
+  const goToEndFrame = () => {
+    current_time = max_frames;
+    updateFrame();
+  };
+
+  const toggleLooping = () => {
+    looping = !looping;
+    document.getElementById("toggle-loop").classList.toggle("active", looping);
+  };
+
+  const goToSpecificFrame = () => {
+    const timeInput = document.getElementById("time-input");
+    current_time = Math.min(max_frames, Math.max(0, parseInt(timeInput.value, 10)));
+    updateFrame();
+  };
+
+  const animate = () => {
+    if (current_time < max_frames) {
+      const a = ("00000000" + current_time).slice(-9);
+      const loopFlag = looping ? "L" : "l"; // Set the loop flag
+      const msg = "A" + loopFlag + a;
+      //ws.send(msg);
+      throttledSend(msg);
+      requestId = requestAnimationFrame(animate);
+    } else {
+      if (looping) {
+        current_time = 0;
+        requestAnimationFrame(animate);
+      } else {
+        animating = false;
+        cancelAnimationFrame(requestId);
+        requestId = undefined;
+        document.getElementById("toggle-play-pause").innerHTML = '<i class="fa-solid fa-play"></i>';
+      }
+    }
+  };
+</script>
+
 </html>
