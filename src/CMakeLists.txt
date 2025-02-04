@@ -18,9 +18,11 @@ set(SOURCES
   mesher.cpp
   neighbors.cpp
   numerics.cpp
+  operators.cpp
   particles.cpp
   #predicates.c
   quadrature.cpp
+  shallow_water.cpp
   texture.cpp
   triangulate.cpp
   util.cpp
@@ -55,6 +57,7 @@ set_target_properties(vortex_static PROPERTIES OUTPUT_NAME vortex CLEAN_DIRECT_O
 add_custom_target(vortex_lib DEPENDS ${VORTEX_LIBS})
 target_link_libraries(vortex_shared ${VORTEX_EXTERNAL_LIBRARIES})
 target_link_libraries(vortex_static ${VORTEX_EXTERNAL_LIBRARIES})
+set(VORTEX_SHARED vortex_shared)
 
 # create executables
 add_executable(vortex vortex.cpp)

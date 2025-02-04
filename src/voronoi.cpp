@@ -102,6 +102,11 @@ vec4 SphericalVoronoiPolygon::compute(const vec4& pi, const vec4& pj) const {
 
   coord_t discriminant = b * b - c;
   if (discriminant < 0) return {1e10, 1e10, 1e10, 1};
+  if (std::isnan(discriminant)) {
+    LOG << fmt::format("n1 = {}, {}, {}", n1.x, n1.y, n1.z);
+    LOG << fmt::format("n2 = {}, {}, {}", n2.x, n2.y, n2.z);
+    LOG << fmt::format("h1 = {}, h2 = {}", h1, h2);
+  }
   ASSERT(discriminant >= 0.0) << fmt::format("sqrt({})", discriminant);
 
   coord_t t1 = -b + sqrt(discriminant);
@@ -260,7 +265,8 @@ class VoronoiThreadBlock : public VoronoiMesh {
                      size_t tid)
       : VoronoiMesh(3),
         domain_(domain),  // copy the domain
-        cell_(pool, tid) {
+        cell_(pool, tid),
+        max_radius_(0) {
     allocate(20);
   }
 
@@ -302,6 +308,7 @@ class VoronoiThreadBlock : public VoronoiMesh {
   void set_status_ptr(VoronoiStatusCode* s) { status_ = s; }
   void set_weights_ptr(const coord_t* w) { weights_ = w; }
   Cell_t& cell() { return cell_; }
+  double max_radius() const { return max_radius_; }
 
  protected:
   // only CPU
@@ -313,6 +320,8 @@ class VoronoiThreadBlock : public VoronoiMesh {
   VoronoiCellProperties* properties_{nullptr};
   VoronoiStatusCode* status_{nullptr};
   const coord_t* weights_;
+
+  double max_radius_{0};
 };
 
 template <typename Domain_t>
@@ -322,6 +331,7 @@ class SiteThreadBlock : public VoronoiThreadBlock<Domain_t> {
   using Base_t = VoronoiThreadBlock<Domain_t>;
   using Base_t::append_mesh_lock_;
   using Base_t::cell_;
+  using Base_t::max_radius_;
   using Base_t::properties_;
   using Base_t::status_;
   using Base_t::vertices_;
@@ -341,6 +351,9 @@ class SiteThreadBlock : public VoronoiThreadBlock<Domain_t> {
     for (size_t k = m; k < n; ++k) {
       // if (status_[k] == VoronoiStatusCode::kSuccess) continue;
       status_[k] = compute(dim, k, mesh);
+
+      // save the maximum radius
+      if (cell_.max_radius() > max_radius_) max_radius_ = cell_.max_radius();
     }
     if (mesh.save_mesh()) {
       append_mesh_lock_->lock();
@@ -368,6 +381,7 @@ class ElementThreadBlock : public VoronoiThreadBlock<Domain_t> {
   using Base_t::append_mesh_lock_;
   using Base_t::cell_;
   using Base_t::domain_;
+  using Base_t::max_radius_;
   using Base_t::properties_;
   using Base_t::status_;
   using Base_t::vertices_;
@@ -662,6 +676,7 @@ void VoronoiDiagram::compute(const Domain_t& domain,
 
   // always add sites first for the Delaunay triangulation
   if (options.store_mesh) {
+    vertices_.clear();
     for (size_t k = 0; k < n_sites_; k++) vertices_.add(sites_ + k * dim_);
   }
 
@@ -676,6 +691,10 @@ void VoronoiDiagram::compute(const Domain_t& domain,
   set_save_delaunay(options.store_delaunay_triangles);
   facets_.clear();
   delaunay_.clear();
+  polygons_.clear();
+  triangles_.clear();
+  lines_.clear();
+
   std::vector<std::thread> threads;
   std::vector<std::shared_ptr<ThreadBlock_t>> blocks;
   properties_.resize(n_sites_);
@@ -711,6 +730,12 @@ void VoronoiDiagram::compute(const Domain_t& domain,
     LOG << "voronoi computed in " << timer.seconds() << " s.";
   }
   statistics_.t_voronoi = timer.seconds();
+
+  // save the max radius
+  max_radius_ = 0;
+  for (const auto& block : blocks) {
+    if (block->max_radius() > max_radius_) max_radius_ = block->max_radius();
+  }
 
   // merge the facets
   if (options.store_facet_data) {
@@ -857,6 +882,12 @@ void VoronoiDiagram::compute(const TriangulationDomain& domain,
   if (options.verbose)
     LOG << "voronoi computed in " << timer.seconds() << " s.";
 
+  // save the max radius
+  max_radius_ = 0;
+  for (const auto& block : blocks) {
+    if (block->max_radius() > max_radius_) max_radius_ = block->max_radius();
+  }
+
   uint64_t n_incomplete = 0;
   for (auto s : status_) {
     if (s == VoronoiStatusCode::kRadiusNotReached) n_incomplete++;
@@ -870,7 +901,7 @@ void lift_sites(Vertices& sites, const std::vector<double>& weights) {
   ASSERT(sites.dim() == 4);
   double wmax = *std::max_element(weights.begin(), weights.end());
   for (size_t k = 0; k < sites.n(); k++) {
-    sites[k][3] = std::sqrt(wmax - weights[k]);
+    sites[k][3] = std::sqrt(std::max(0.0, wmax - weights[k]));
   }
 }
 

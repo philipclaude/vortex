@@ -45,6 +45,7 @@ struct SimulationOptions {
   int n_smoothing_iterations{10};
   NearestNeighborAlgorithm neighbor_algorithm{
       NearestNeighborAlgorithm::kKdtree};
+  bool skip_initial_calculation{false};
 };
 
 struct SimulationConvergence {
@@ -72,7 +73,7 @@ template <typename Domain_t>
 void project_point(double* x);
 
 template <typename Domain_t>
-void project_velocity(double* v);
+void project_velocity(double* x, double* v);
 
 class Particles : public Vertices {
  public:
@@ -206,6 +207,7 @@ class ParticleSimulation {
     voro_opts.store_facet_data = true;
     voro_opts.n_neighbors = sim_opts.n_neighbors;
     voro_opts.verbose = false;
+    voro_opts.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
 
     // utility to get the minimum volume in the voronoi diagram
     auto min_volume = [this]() -> double {
@@ -231,7 +233,8 @@ class ParticleSimulation {
          convergence.n_iterations < sim_opts.max_iter;
          convergence.n_iterations++) {
       // calculate the power diagram with the current weights
-      calculate_power_diagram(domain, voro_opts);
+      if (convergence.n_iterations > 0 || !sim_opts.skip_initial_calculation)
+        calculate_power_diagram(domain, voro_opts);
 
       // calculate the minimum volume of the voronoi diagram (zero weights)
       if (convergence.n_iterations == 0) {

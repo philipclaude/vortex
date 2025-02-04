@@ -23,6 +23,7 @@
 #include <stlext.h>
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <nlohmann/json_fwd.hpp>
 
@@ -36,6 +37,8 @@
 #ifndef VORTEX_NUM_CORES
 #define VORTEX_NUM_CORES 1
 #endif
+
+#define NEW_FACETS 1
 
 namespace trees {
 template <typename coord_t, typename index_t>
@@ -293,6 +296,8 @@ inline vec4 plane_equation(const vec4& ui, const vec4& uj, const coord_t& wi,
   // https://en.wikipedia.org/wiki/Radical_axis
   // the weight is the radius squared, M1 = ui.xyz() and M2 = uj.xyz()
   coord_t d = length((uj - ui).xyz());
+  if (d == 0.0) return {1e20, 1e20, 1e20, 1e20};
+  ASSERT(d > 0) << d;
   coord_t d1 = (d * d + wi - wj) / (2.0 * d);
   vec4 m = ui + d1 * (uj - ui) / d;  // (uj - ui) / d is unit_vector(M2 - M1)
   vec3 n = unit_vector((ui - uj).xyz());  // normal points *into* cell i
@@ -334,8 +339,19 @@ struct VoronoiCellProperties {
     moment = {0, 0, 0};
     volume = 0;
   }
-  double rmin{0};
-  double rmax{1e6};
+};
+
+struct VoronoiFacetData {
+  VoronoiFacetData(uint32_t a, uint32_t b, double l, vec3 c) {
+    bi = a;
+    bj = b;
+    length = l;
+    midpoint = c;
+  }
+  int32_t bi;
+  int32_t bj;
+  double length;
+  vec3 midpoint;
 };
 
 struct VoronoiDiagramProperties {
@@ -363,10 +379,15 @@ class VoronoiMesh : public Mesh {
   bool save_facets() const { return save_facets_; }
   bool save_delaunay() const { return save_delaunay_; }
 
-  void add(uint32_t bi, uint32_t bj, double volume) {
+  void add_facet(int32_t bi, int32_t bj, double volume, vec3 midpoint) {
+#if NEW_FACETS
+    if (bj >= 0 && bi > bj) return;
+    facets_.emplace_back(bi, bj, volume, midpoint);
+#else
     if (bi > bj) std::swap(bi, bj);
     auto it = facets_.find({bi, bj});
     if (it == facets_.end()) facets_.insert({{bi, bj}, volume});
+#endif
   }
 
   void add_triangle(std::array<uint32_t, 3> triangle) {
@@ -381,8 +402,12 @@ class VoronoiMesh : public Mesh {
   auto& delaunay() { return delaunay_; }
 
   void append(const VoronoiMesh& mesh) {
+#if NEW_FACETS
+    for (const auto& facet : mesh.facets()) facets_.push_back(facet);
+#else
     for (const auto& [b, volume] : mesh.facets())
-      add(b.first, b.second, volume);
+      add_facet(b.first, b.second, volume);
+#endif
     n_incomplete_ += mesh.n_incomplete();
     n_boundary_facets_ += mesh.n_boundary_facets();
     boundary_area_ += mesh.boundary_area();
@@ -401,12 +426,19 @@ class VoronoiMesh : public Mesh {
   double& boundary_area() { return boundary_area_; }
   double boundary_area() const { return boundary_area_; }
 
+  const auto& properties() const { return properties_; }
+  auto& properties() { return properties_; }
+
  protected:
   bool save_mesh_{false};
   bool save_facets_{false};
   bool save_delaunay_{false};
-  using facet_length_t = float;
-  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, facet_length_t> facets_;
+  std::vector<VoronoiCellProperties> properties_;
+#if NEW_FACETS
+  std::vector<VoronoiFacetData> facets_;
+#else
+  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, double> facets_;
+#endif
   absl::flat_hash_set<std::array<uint32_t, 3>> delaunay_;
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};
@@ -432,9 +464,6 @@ class VoronoiDiagram : public VoronoiMesh {
   template <typename Domain_t>
   void compute(const Domain_t& domain,
                VoronoiDiagramOptions options = VoronoiDiagramOptions());
-
-  const auto& properties() const { return properties_; }
-  auto& properties() { return properties_; }
   auto& status() { return status_; }
   const auto& status() const { return status_; }
   auto& weights() { return weights_; }
@@ -449,13 +478,16 @@ class VoronoiDiagram : public VoronoiMesh {
   void merge();
 
   double max_radius() const {
-    auto props = *std::max_element(
-        properties_.begin(), properties_.end(),
-        [](const auto& pa, const auto& pb) { return pa.rmax > pb.rmax; });
-    return props.rmax;
+    // auto props = *std::max_element(
+    //     properties_.begin(), properties_.end(),
+    //     [](const auto& pa, const auto& pb) { return pa.rmax > pb.rmax; });
+    // return props.rmax;
+    return max_radius_;
   }
 
   uint64_t n_sites() const { return n_sites_; }
+  const coord_t* sites() const { return sites_; }
+  int dim() const { return dim_; }
 
   void create_sqtree(int ns);
   const auto& statistics() const { return statistics_; }
@@ -468,7 +500,6 @@ class VoronoiDiagram : public VoronoiMesh {
   int dim_;
   const coord_t* sites_;
   uint64_t n_sites_;
-  std::vector<VoronoiCellProperties> properties_;
   std::vector<VoronoiStatusCode> status_;
   std::vector<double> weights_;
   VoronoiNeighbors neighbors_;
@@ -477,6 +508,7 @@ class VoronoiDiagram : public VoronoiMesh {
   VoronoiStatistics average_statistics_;
   std::vector<VoronoiStatistics> statistics_history_;
   bool track_statistics_history_{true};
+  double max_radius_{0};
 };
 
 /// @brief Lift the sites to 4d where the fourth coordinate = sqrt(wmax -
@@ -564,6 +596,24 @@ struct SphereDomain {
     coord_t phi = acos(2.0 * irand(0, 1) - 1.0);
     return {cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi)};
   }
+
+  static void project(const coord_t* x, const coord_t* u, coord_t* v) {
+    vec3d n(x);
+    n = normalize(n);
+    double u_dot_n = u[0] * n[0] + u[1] * n[1] + u[2] * n[2];
+    for (int i = 0; i < 3; i++) v[i] = u[i] - u_dot_n * n[i];
+  }
+
+  template <typename V>
+  static double length(const V& x, const V& y) {
+    // static_assert(V::DIM == 3);
+    // return std::acos(std::clamp(dot(x, y), -1.0, 1.0));
+    const V c = cross(x, y);
+    return std::atan2(std::sqrt(dot(c, c)), dot(x, y));
+  }
+
+  static vec3 project(const vec3& x) { return unit_vector(x); }
+
   double area() const { return 4 * M_PI * radius * radius; }
 };
 
@@ -619,9 +669,21 @@ struct SquareDomain {
     points_[3] = {pll[0], pur[1], 0};
   }
 
+  /// @ brief Initializes a square domain from a point and two vectors defining
+  /// the plane
+  SquareDomain(vec3 p, vec3 u, vec3 v) {
+    points_[0] = p;
+    points_[1] = p + u;
+    points_[2] = p + u + v;
+    points_[3] = p + v;
+  }
+
   double xlength() const { return points_[1][0] - points_[0][0]; }
   double ylength() const { return points_[2][1] - points_[0][1]; }
-  double area() const { return xlength() * ylength(); }
+  double area() const {
+    const vec3 n = cross(points_[1] - points_[0], points_[3] - points_[0]);
+    return std::sqrt(dot(n, n));
+  }
 
   /// @brief Copies a square domain
   SquareDomain(const SquareDomain& domain) {
@@ -633,6 +695,17 @@ struct SquareDomain {
     const double y = points_[0][1] + rand() * ylength() / RAND_MAX;
     return {x, y, 0};
   }
+
+  static void project(const coord_t*, const coord_t* u, coord_t* v) {
+    for (int i = 0; i < 3; i++) v[i] = u[i];
+  }
+
+  template <typename V>
+  static double length(const V& x, const V& y) {
+    return std::sqrt(dot(y - x, y - x));
+  }
+
+  static vec3 project(const vec3& x) { return x; }
 
   /// @brief Initializes the Voronoi polygon (cell) to the entire square
   /// domain.
