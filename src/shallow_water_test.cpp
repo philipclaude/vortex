@@ -19,6 +19,7 @@
 #include "shallow_water.h"
 
 #include <cmath>
+#include <filesystem>
 
 #include "io.h"
 #include "library.h"
