@@ -164,6 +164,11 @@ class ParticleSimulation {
     Timer timer;
     timer.start();
     int n_iter = sim_opts.n_smoothing_iterations;
+    if (n_iter == 0) {
+      LOG << "compute";
+      voronoi_.compute(domain, voro_opts);  // calculate voronoi diagram
+      LOG << "done";
+    }
     for (int iter = 1; iter <= n_iter; ++iter) {
       voro_opts.store_mesh = sim_opts.save_initial_mesh && iter == n_iter;
       voro_opts.store_facet_data = iter == n_iter;

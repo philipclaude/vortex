@@ -1,3 +1,21 @@
+//
+//  vortex: Voronoi mesher and fluid simulator for the Earth's oceans and
+//  atmosphere.
+//
+//  Copyright 2023 - 2025 Philip Claude Caplan
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
 #include "operators.h"
 
 #include "math/linalg.h"
@@ -5,8 +23,6 @@
 #include "voronoi.h"
 
 namespace vortex {
-
-#define USE_PROJECTION 0
 
 template <typename Domain_t>
 VoronoiOperators<Domain_t>::VoronoiOperators(const VoronoiDiagram& voronoi)
@@ -47,22 +63,17 @@ void VoronoiOperators<Domain_t>::calculate_gradient(const coord_t* f,
     ASSERT(wi > 0 || wj > 0) << fmt::format("wi = {}, wj = {}", wi, wj);
     ASSERT(rij > 0);
     ASSERT(!std::isnan(lij));
-
-    vec3d gi, gj;
+    vec3d cij = mij - 0.5 * (xi + xj);
     for (int d = 0; d < 3; d++) {
-      gi[d] = lij * (xi[d] - mij[d]) * (fi - fj) / (rij * wi);
-      gj[d] = lij * (xj[d] - mij[d]) * (fj - fi) / (rij * wj);
-    }
-
-    vec3d grad_i = gi, grad_j = gj;
-#if USE_PROJECTION
-    Domain_t::project(&xi[0], &gi[0], &grad_i[0]);
-    Domain_t::project(&xj[0], &gj[0], &grad_j[0]);
+#if 0
+      grad_f[3 * i + d] += lij * (xi[d] - mij[d]) * (fi - fj) / (rij * wi);
+      grad_f[3 * j + d] += lij * (xj[d] - mij[d]) * (fj - fi) / (rij * wj);
+#else
+      grad_f[3 * i + d] += lij * cij[d] * (fj - fi) / (rij * wi);
+      grad_f[3 * j + d] += lij * cij[d] * (fi - fj) / (rij * wj);
+      grad_f[3 * i + d] -= 0.5 * lij * (fi + fj) * (xi[d] - xj[d]) / (rij * wi);
+      grad_f[3 * j + d] -= 0.5 * lij * (fi + fj) * (xj[d] - xi[d]) / (rij * wj);
 #endif
-
-    for (int d = 0; d < 3; d++) {
-      grad_f[i * 3 + d] += grad_i[d];
-      grad_f[j * 3 + d] += grad_j[d];
     }
   }
 }
@@ -98,15 +109,10 @@ void VoronoiOperators<Domain_t>::calculate_divergence(const coord_t* u,
     const double lij = facet.length;
     const double wi = voronoi_.properties()[i].volume;
     const double wj = voronoi_.properties()[j].volume;
+    const vec3d uij = ui - uj;
 
-    vec3d uij = ui - uj;
-    vec3d gi = uij, gj = uij;
-#if USE_PROJECTION
-    Domain_t::project(&xi[0], &uij[0], &gi[0]);
-    Domain_t::project(&xj[0], &uij[0], &gj[0]);
-#endif
-    div_u[i] += lij * dot(xi - mij, gi) / (rij * wi);
-    div_u[j] -= lij * dot(xj - mij, gj) / (rij * wj);
+    div_u[i] += lij * dot(xi - mij, uij) / (rij * wi);
+    div_u[j] -= lij * dot(xj - mij, uij) / (rij * wj);
   }
 }
 

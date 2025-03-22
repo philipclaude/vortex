@@ -23,6 +23,7 @@ set(SOURCES
   #predicates.c
   quadrature.cpp
   shallow_water.cpp
+  shallow_water_cases.cpp
   texture.cpp
   triangulate.cpp
   util.cpp

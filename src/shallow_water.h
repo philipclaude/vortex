@@ -38,16 +38,21 @@ static inline std::string days_hours_minutes(double s) {
   return fmt::format("{:03d}:{:02d}:{:02d}", d, h, m);
 }
 
+static inline int days_to_seconds(double d) { return d * 24 * 3600; }
+
 typedef std::function<double(const coord_t*)> ScalarFunction;
 typedef std::function<vec3d(const coord_t*)> VectorFunction;
 
 struct ShallowWaterOptions {
   bool project_points{false};
-  bool project_velocity{false};
+  bool project_velocity{true};
   bool advect_from_centroid{true};
   bool use_analytic_velocity{false};
   bool conserve_mass{true};
   bool smoothing_iterations{0};
+  bool constrain{true};
+  bool add_artificial_viscosity{true};
+  double spring_stiffness{0};
   ScalarFunction surface_height;
   ScalarFunction initial_height;
   ScalarFunction analytic_height;
@@ -59,48 +64,67 @@ struct ShallowWaterOptions {
   ScalarFunction coriolis_parameter;
 
   bool save_latlon{true};
+  EarthProperties earth;
 };
 
 template <typename Domain_t>
 class ShallowWaterSimulation : public ParticleSimulation {
  public:
   ShallowWaterSimulation(const Domain_t& domain, int np, const coord_t* xp,
-                         int dim)
+                         int dim, const ShallowWaterOptions& test_case)
       : ParticleSimulation(np, xp, dim),
         domain_(domain),
         height_(np, 0.0),
-        volume_(np, 0.0) {
+        volume_(np, 0.0),
+        options_(test_case) {
     timer_.start();
     for (int i = 0; i < np; i++) particles_.density()[i] = 1.0;
   }
 
   void setup();
-  void start();
 
-  void forward_euler_step(SimulationOptions& options);
+  double forward_euler_step(const SimulationOptions& options);
   void compute_artificial_viscosity(std::vector<double>& fv);
+  void stabilize_pressure(const std::vector<double>& h,
+                          std::vector<double>& dh);
 
   void print_header(int n_bars = 100) const;
   void save(const std::string& filename) const;
 
-  auto& options() { return options_; }
-
+  double total_area() const;
   double total_mass() const;
   double total_momentum() const;
   double total_energy() const;
 
+  const auto& height() const { return height_; }
+
  private:
   const Domain_t& domain_;
   Timer timer_;
-  double simulation_rate_{0};  // # time steps per second (of wall-clock time)
   std::vector<double> height_;
   EarthProperties earth_;
-  ShallowWaterOptions options_;
   std::vector<double> volume_;
+  const ShallowWaterOptions& options_;
 
   double initial_mass_;
   double initial_momentum_;
   double initial_energy_;
+};
+
+struct WilliamsonCase1 : ShallowWaterOptions {
+  WilliamsonCase1();
+};
+
+struct WilliamsonCase2 : ShallowWaterOptions {
+  WilliamsonCase2();
+};
+
+struct WilliamsonCase5 : ShallowWaterOptions {
+  WilliamsonCase5();
+};
+
+struct WilliamsonCase6 : ShallowWaterOptions {
+  WilliamsonCase6();
 };
 
 }  // namespace vortex

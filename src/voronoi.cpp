@@ -2,7 +2,7 @@
 //  vortex: Voronoi mesher and fluid simulator for the Earth's oceans and
 //  atmosphere.
 //
-//  Copyright 2023 - 2024 Philip Claude Caplan
+//  Copyright 2023 - 2025 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -54,6 +54,9 @@ void SphereDomain::initialize(vec4 site,
   // compute the normal and tangent to the sphere
   vec3 n = unit_vector(center);
   vec3 t = unit_vector(vec3{-n.y, n.x, 0.0});
+  if (n.x * n.x + n.y * n.y == 0.0) {
+    t = {1, 0, 0};
+  }
   vec3 u = cross(t, n);
 
   vec3 p0 = center - r * u;
@@ -130,10 +133,20 @@ void SphericalVoronoiPolygon::get_properties(
     VoronoiCellProperties& props) const {
   if (p.size() < 3) return;
 
+  // https://math.stackexchange.com/questions/1143354/numerically-stable-method-for-angle-between-3d-vectors
+  auto get_angle = [](const vec3& u, const vec3& v) {
+    return 2 * atan2(length(u - v), length(u + v));
+  };
+
   vec4 ah = compute(planes[p[0]], planes[p[1]]);
   vec4 bh = compute(planes[p[1]], planes[p[2]]);
   vec3 a = (1.0 / ah.w) * ah.xyz();
   vec3 b = (1.0 / bh.w) * bh.xyz();
+
+  // https://stackoverflow.com/questions/19897187/locating-the-centroid-center-of-mass-of-spherical-polygons#answer-38201499
+  coord_t tab = get_angle(a, b);
+  props.moment = props.moment + 0.5 * tab * unit_vector(cross(a, b));
+
   for (size_t k = 2; k < p.size(); k++) {
     vec4 ch = compute(planes[p[k]], planes[p[(k + 1) % p.size()]]);
     vec3 c = (1.0 / ch.w) * ch.xyz();
@@ -143,12 +156,15 @@ void SphericalVoronoiPolygon::get_properties(
     coord_t den = 1.0 + dot(a, b) + dot(b, c) + dot(a, c);
     coord_t ak = 2.0 * std::atan2(num, den);
     ASSERT(ak == ak);
-    vec3 ck = unit_vector((1.0 / 3.0) * (a + b + c));
 
-    props.moment = props.moment + ak * ck;
+    const coord_t tbc = get_angle(b, c);
+    props.moment = props.moment + 0.5 * tbc * unit_vector(cross(b, c));
     props.volume += ak;
     b = c;
   }
+
+  tab = get_angle(b, a);
+  props.moment = props.moment + 0.5 * tab * unit_vector(cross(b, a));
 }
 
 void PlanarVoronoiPolygon::initialize(const vec3* points, const size_t n_points,

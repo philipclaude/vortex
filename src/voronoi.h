@@ -2,7 +2,7 @@
 //  vortex: Voronoi mesher and fluid simulator for the Earth's oceans and
 //  atmosphere.
 //
-//  Copyright 2023 - 2024 Philip Claude Caplan
+//  Copyright 2023 - 2025 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -296,8 +296,8 @@ inline vec4 plane_equation(const vec4& ui, const vec4& uj, const coord_t& wi,
   // https://en.wikipedia.org/wiki/Radical_axis
   // the weight is the radius squared, M1 = ui.xyz() and M2 = uj.xyz()
   coord_t d = length((uj - ui).xyz());
-  if (d == 0.0) return {1e20, 1e20, 1e20, 1e20};
   ASSERT(d > 0) << d;
+  if (d == 0.0) return {1e20, 1e20, 1e20, 1e20};
   coord_t d1 = (d * d + wi - wj) / (2.0 * d);
   vec4 m = ui + d1 * (uj - ui) / d;  // (uj - ui) / d is unit_vector(M2 - M1)
   vec3 n = unit_vector((ui - uj).xyz());  // normal points *into* cell i

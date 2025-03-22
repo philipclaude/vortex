@@ -26,15 +26,12 @@ namespace vortex {
 
 template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::setup() {
-  for (size_t k = 0; k < particles_.n(); k++)
+  for (size_t k = 0; k < particles_.n(); k++) {
     height_[k] = options_.initial_height(particles_[k]) -
                  options_.surface_height(particles_[k]);
+  }
   particles_.set_velocity(options_.initial_velocity);
   particles_.set_density([](const double* x) { return 1.0; });
-}
-
-template <typename Domain_t>
-void ShallowWaterSimulation<Domain_t>::start() {
   for (size_t k = 0; k < particles_.n(); k++) {
     volume_[k] = height_[k] * voronoi_.properties()[k].volume;
   }
@@ -44,15 +41,17 @@ void ShallowWaterSimulation<Domain_t>::start() {
 }
 
 template <typename Domain_t>
-void ShallowWaterSimulation<Domain_t>::forward_euler_step(
-    SimulationOptions& options) {
+double ShallowWaterSimulation<Domain_t>::forward_euler_step(
+    const SimulationOptions& options) {
   calculate_properties();  // mass, volume, centroids, max displacement
   auto& velocity = particles_.velocity();
   const size_t n = particles_.n();
   int dim = particles_.dim();
 
+  // differential operators are calculated on a unit sphere, so they should be
+  // scaled by 1/a since (d/dx)_earth = (d/dx)_unit_sphere / earth_radius
   const double a = earth_.radius;
-  const double g = earth_.gravity;
+  const double g = earth_.gravity;  // to calculate gravity wave speeds
 
   // save target area
   std::vector<double> area(n, 0.0);
@@ -60,10 +59,10 @@ void ShallowWaterSimulation<Domain_t>::forward_euler_step(
     area[k] = volume_[k] / height_[k];
   }
 
-  // from the initial Voronoi diagram, determine the maximum time step that
+  // from the latest Voronoi diagram, determine the maximum time step that
   // can be taken so points always remain in the current cell
   double dt = options.time_step;
-  for (size_t k = 0; k < particles_.n(); k++) {
+  for (size_t k = 0; k < n; k++) {
     vec3d u(velocity[k]);
     double um = length(u);
     double cm = std::sqrt(g * height_[k]);
@@ -74,14 +73,12 @@ void ShallowWaterSimulation<Domain_t>::forward_euler_step(
   }
 
   // find a time step such that we at least have a Voronoi diagram
-  options.restart_zero_weights = true;
   std::vector<double> position(n * dim);
   for (size_t k = 0; k < n; k++) {
     for (int d = 0; d < 3; d++) position[3 * k + d] = particles_(k, d);
   }
-  std::vector<double> weights(voronoi_.weights());
   while (true) {
-    for (size_t k = 0; k < particles_.n(); k++) {
+    for (size_t k = 0; k < n; k++) {
       voronoi_.weights()[k] = 0.0;
       vec3d x(particles_[k]);
       vec3d u(velocity[k]);
@@ -133,22 +130,19 @@ void ShallowWaterSimulation<Domain_t>::forward_euler_step(
     dt = 0.5 * dt;
   }
 
-  // advance the height field
+  // calculate gradient of original total height before advection
+  ops.set_boundary_value(0.0);
+  std::vector<double> grad_h(3 * n);
+  std::vector<double> height(n, 0);
   for (size_t k = 0; k < n; k++) {
+    height[k] = height_[k] + options_.surface_height(particles_[k]);
+  }
+  ops.calculate_gradient(height.data(), grad_h.data());
+
+  // advance the height field according to governing differential equation
+  for (size_t k = 0; k < n; k++) {
+    ASSERT(height_[k] > 0);
     height_[k] -= dt * height_[k] * div_u[k] / a;
-  }
-
-  // determine the area we need to conserve mass (volume for incompressible)
-  double at = 0.0;
-  for (size_t k = 0; k < n; k++) {
-    area[k] = volume_[k] / height_[k];
-    ASSERT(area[k] > 0) << area[k];
-    at += area[k];
-  }
-
-  //  renormalize the areas
-  for (size_t k = 0; k < n; k++) {
-    area[k] *= 4 * M_PI / at;
   }
 
   // update particle positions using the time step and current velocity
@@ -166,76 +160,93 @@ void ShallowWaterSimulation<Domain_t>::forward_euler_step(
     if (options_.project_points) project_point<Domain_t>(particles_[k]);
   }
 
+  // smooth the particles
+  for (int iter = 0; iter < 0; iter++) {
+    voronoi_.smooth(particles_, true);
+    VoronoiDiagramOptions voro_opts;
+    voro_opts.verbose = false;
+    calculate_power_diagram(domain_, voro_opts);
+  }
+
   SimulationConvergence convergence;
-#if 1
   if (options_.conserve_mass) {
-    options.max_iter = 5;
-    options.skip_initial_calculation = true;
+    // determine the area we need to conserve mass (volume for incompressible)
+    double at = 0.0;
+    for (size_t k = 0; k < n; k++) {
+      area[k] = volume_[k] / height_[k];
+      ASSERT(area[k] > 0) << area[k];
+      at += area[k];
+    }
+
+    // renormalize the areas to make the optimal transport solution tractable
+    for (size_t k = 0; k < n; k++) {
+      area[k] *= domain_.area() / at;
+    }
+
+    // solve semi-discrete optimal transport problem to reproduce cell areas
     convergence = optimize_volumes(domain_, options, area);
-  }
-#endif
-  calculate_properties();  // mass, volume, centroids, max displacement
+    calculate_properties();  // mass, volume, centroids, max displacement
 
-  // update height
-  double total_area = 0.0;
-  for (size_t i = 0; i < n; i++) {
-    // double hs = options_.surface_height(particles_[i]);
-    height_[i] = volume_[i] / voronoi_.properties()[i].volume;
-    total_area += voronoi_.properties()[i].volume;
+    // update height to satisfy conservation of mass
+    for (size_t i = 0; i < n; i++) {
+      height_[i] = volume_[i] / voronoi_.properties()[i].volume;
+    }
   }
-
-  // calculate gradient of updated height
-  ops.set_boundary_value(0.0);
-  std::vector<double> grad_h(3 * n);
-  std::vector<double> height(n, 0);
-  for (size_t k = 0; k < n; k++) {
-    height[k] = height_[k] + options_.surface_height(particles_[k]);
-  }
-  ops.calculate_gradient(height.data(), grad_h.data());
 
   // compute artificial viscosity
   std::vector<double> viscous(3 * n, 0.0);
-  compute_artificial_viscosity(viscous);
+  // if (options_.add_artificial_viscosity)
+  // compute_artificial_viscosity(viscous);
+  stabilize_pressure(height, grad_h);
 
   // update velocity
-  for (size_t i = 0; i < n; i++) {
-    vec3d x(particles_[i]);  // on unit sphere
-    // vec3d x(particles_.centroids()[i]);
-    vec3d u(velocity[i]);
-    double f = options_.coriolis_parameter(particles_[i]);
-    vec3d force = f * cross(x, u);  // coriolis force
-    force = force + dot(u, u) * x / a;
-    vec3d fv(&viscous[3 * i]);  // derivative needs to be scaled by 1/a
-    force = force + fv / a;
+  if (!options_.use_analytic_velocity) {
+    for (size_t i = 0; i < n; i++) {
+      vec3d x(particles_[i]);  // on unit sphere
+      vec3d c(particles_.centroids()[i]);
+      vec3d u(velocity[i]);
+      double f = options_.coriolis_parameter(&x[0]);
+      vec3d force = f * cross(x, u);  // coriolis force
+      if (options_.constrain) force = force + dot(u, u) * x / a;
+      vec3d fv(&viscous[3 * i]);  // derivative needs to be scaled by 1/a
+      force = force + 0.0 * fv / a;
 
-    for (int d = 0; d < 3; d++) {
-      velocity(i, d) -= dt * (g * grad_h[3 * i + d] / a + force[d]);
-      ASSERT(!std::isnan(velocity(i, d)));
+      vec3d fs = options_.spring_stiffness * (x - c);
+      force = force + fs;
+
+      for (int d = 0; d < 3; d++) {
+        velocity(i, d) -= dt * (g * grad_h[3 * i + d] / a + force[d]);
+      }
+      if (options_.project_velocity)
+        project_velocity<Domain_t>(particles_[i], velocity[i]);
     }
-    project_velocity<Domain_t>(particles_[i], velocity[i]);
+  } else {
+    // use the analytic velocity, e.g. for Williamson Case 1
+    for (size_t i = 0; i < n; i++) {
+      vec3d u = options_.analytic_velocity(particles_[i]);
+      for (int d = 0; d < 3; d++) {
+        velocity(i, d) = u[d];
+      }
+    }
   }
 
-  if (options.iteration % options.print_frequency == 0) {
-    timer_.stop();
-    simulation_rate_ = double(options.print_frequency / timer_.seconds());
-    print_header();
-    timer_.start();
-  }
-
-  double area_error = std::fabs(domain_.area() - total_area);
-  double mass_error =
-      100 * std::fabs(total_mass() - initial_mass_) / initial_mass_;
+  // monitor the simulation
+  if (options.iteration % options.print_frequency == 0) print_header();
+  double sdpd = options.time / timer_.seconds();
+  double area_error = (domain_.area() - total_area());
+  double mass_error = 100 * (total_mass() - initial_mass_) / initial_mass_;
   double momentum_error =
-      100 * std::fabs(total_momentum() - initial_momentum_) / initial_momentum_;
+      100 * (total_momentum() - initial_momentum_) / initial_momentum_;
   double energy_error =
-      100 * std::fabs(total_energy() - initial_energy_) / initial_energy_;
+      100 * (total_energy() - initial_energy_) / initial_energy_;
   std::cout << fmt::format(
-      "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:1.1e} | {:1.1e} | {:1.1e} "
-      "| {:1.1e} |\n",
+      "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:+1.1e} | {:+1.1e} | "
+      "{:+1.1e} "
+      "| {:+1.1e} | {:6.1f} | \n",
       options.iteration, days_hours_minutes(options.time), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
-      momentum_error, energy_error);
-  options.time += dt;
+      momentum_error, energy_error, sdpd);
+  return dt;
 }
 
 template <typename Domain_t>
@@ -243,6 +254,7 @@ void ShallowWaterSimulation<Domain_t>::compute_artificial_viscosity(
     std::vector<double>& fv) {
   const size_t n = particles_.n();
   double g = earth_.gravity;
+  double a = earth_.radius;
   double eps = 1e-6;
 
   fv.resize(3 * n, 0);
@@ -276,15 +288,54 @@ void ShallowWaterSimulation<Domain_t>::compute_artificial_viscosity(
     double wi = voronoi_.properties()[i].volume;
     double wj = voronoi_.properties()[j].volume;
 
-    vec3d gi, gj;
     for (int d = 0; d < 3; d++) {
-      gi[d] = -lij * (ri[d] - mij[d]) * pi_ij / (xij * wi);
-      gj[d] = -lij * (rj[d] - mij[d]) * pi_ij / (xij * wj);
+      fv[3 * i + d] += -lij * (ri[d] - mij[d]) * pi_ij / (xij * wi);
+      fv[3 * j + d] += -lij * (rj[d] - mij[d]) * pi_ij / (xij * wj);
     }
+  }
+}
 
-    for (int d = 0; d < 3; d++) {
-      fv[3 * i + d] += gi[d];
-      fv[3 * j + d] += gj[d];
+template <typename Domain_t>
+void ShallowWaterSimulation<Domain_t>::stabilize_pressure(
+    const std::vector<double>& h, std::vector<double>& dh) {
+  const size_t n = particles_.n();
+
+  // compute laplacian of height field
+  std::vector<double> lh(n, 0);
+  ASSERT(voronoi_.facets().size() > 0);
+  for (const auto& facet : voronoi_.facets()) {
+    if (facet.bj < 0) continue;
+    if (facet.bi >= particles_.n()) continue;
+    if (facet.bj >= particles_.n()) continue;
+    size_t i = facet.bi;
+    size_t j = facet.bj;
+    vec3d ri(particles_[i]);
+    vec3d rj(particles_[j]);
+    vec3d rij = ri - rj;
+    const double lij = facet.length;
+    double xij = std::sqrt(dot(rij, rij));
+
+    double hi = height_[i];
+    double hj = height_[j];
+
+    double wi = voronoi_.properties()[i].volume;
+    double wj = voronoi_.properties()[j].volume;
+
+    double hij = hi - hj;
+    lh[i] -= lij * hij / (xij * wi);
+    lh[j] += lij * hij / (xij * wj);
+  }
+
+  // stabilize the pressure gradient
+  const double d = 2;
+  const double fd = 0.5 * (d + 1) / d;
+  for (size_t k = 0; k < n; k++) {
+    if (lh[k] < 0) continue;
+    vec3d xi(particles_[k]);
+    vec3d ci(particles_.centroids()[k]);
+    vec3d dhs = fd * lh[k] * (ci - xi);
+    for (int j = 0; j < 3; j++) {
+      dh[3 * k + j] -= dhs[j];
     }
   }
 }
@@ -293,10 +344,10 @@ template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::print_header(int n_bars) const {
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
   std::cout << fmt::format(
-      "| {:6s} | {:9s} | {:7s} | {:10s} | {:7s} | {:7s} | {:7s} | {:7s} | "
-      "@{:3.1f} steps / s\n",
+      "| {:6s} | {:9s} | {:7s} | {:10s} | {:8s} | {:8s} | {:8s} | {:8s} | "
+      "{:6s} |\n",
       "Step", "day:hr:mn", "dt (s)", "Rw", "Ra (%)", "Rm (%)", "Rp (%) ",
-      "Re (%)", simulation_rate_);
+      "Re (%)", "SDPD");
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
 }
 
@@ -343,6 +394,15 @@ void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
   fwrite(&height_data[0], 4, n, fid);
   fprintf(fid, "\n");
   fclose(fid);
+}
+
+template <typename Domain_t>
+double ShallowWaterSimulation<Domain_t>::total_area() const {
+  double area = 0.0;
+  for (size_t i = 0; i < particles_.n(); i++) {
+    area += voronoi_.properties()[i].volume;
+  }
+  return area;
 }
 
 template <typename Domain_t>
