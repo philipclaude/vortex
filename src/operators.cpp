@@ -65,7 +65,7 @@ void VoronoiOperators<Domain_t>::calculate_gradient(const coord_t* f,
     ASSERT(!std::isnan(lij));
     vec3d cij = mij - 0.5 * (xi + xj);
     for (int d = 0; d < 3; d++) {
-#if 0
+#if 1
       grad_f[3 * i + d] += lij * (xi[d] - mij[d]) * (fi - fj) / (rij * wi);
       grad_f[3 * j + d] += lij * (xj[d] - mij[d]) * (fj - fi) / (rij * wj);
 #else
