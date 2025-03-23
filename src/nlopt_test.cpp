@@ -1,6 +1,8 @@
 #include <fmt/format.h>
 
+#if VORTEX_WITH_NLOPT
 #include <nlopt.hpp>
+#endif
 
 #include "log.h"
 #include "tester.h"
