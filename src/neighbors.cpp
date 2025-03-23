@@ -34,7 +34,6 @@ void VoronoiNeighbors::build() {
   // count how many vertices are in each vertex one-ring
   const auto& facets = voronoi_.facets();
   std::vector<uint32_t> count(voronoi_.n_sites(), 0);
-#if NEW_FACETS
   for (const auto& facet : facets) {
     int32_t p = facet.bi;
     int32_t q = facet.bj;
@@ -42,15 +41,6 @@ void VoronoiNeighbors::build() {
     count[p]++;
     count[q]++;
   }
-
-#else
-  for (const auto& [f, _] : facets) {
-    uint32_t p = f.first;
-    uint32_t q = f.second;
-    count[p]++;
-    count[q]++;
-  }
-#endif
 
   std::vector<index_t> first(voronoi_.n_sites(), 0);
   size_t m = count[0];
@@ -65,7 +55,6 @@ void VoronoiNeighbors::build() {
 
   // save ring data
   std::vector<uint32_t> idx(voronoi_.n_sites(), 0);
-#if NEW_FACETS
   for (const auto& facet : facets) {
     int32_t p = facet.bi;
     int32_t q = facet.bj;
@@ -73,14 +62,6 @@ void VoronoiNeighbors::build() {
     ring_(p, idx[p]++) = q;
     ring_(q, idx[q]++) = p;
   }
-#else
-  for (const auto& [f, _] : facets) {
-    uint32_t p = f.first;
-    uint32_t q = f.second;
-    ring_(p, idx[p]++) = q;
-    ring_(q, idx[q]++) = p;
-  }
-#endif
 }
 
 double distance_squared(const double* p, const double* q, int dim) {

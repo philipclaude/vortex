@@ -104,12 +104,11 @@ void ParticleSimulation::compute_search_direction(
     const std::vector<double>& target_volumes) {
   hessian_.clear();
 
-// add regularization?
-// for (size_t k = 0; k < particles_.n(); k++)
-//  hessian_(k, k) = 1e-3 * target_volumes[k];
+  // add regularization?
+  // for (size_t k = 0; k < particles_.n(); k++)
+  //  hessian_(k, k) = 1e-3 * target_volumes[k];
 
-// set up the sparse matrix
-#if NEW_FACETS
+  // set up the sparse matrix
   ASSERT(voronoi_.facets().size() > 0);
   for (const auto& facet : voronoi_.facets()) {
     if (facet.bj < 0) continue;
@@ -125,20 +124,6 @@ void ParticleSimulation::compute_search_direction(
     hessian_(site_i, site_i) -= delta_ij;
     hessian_(site_j, site_j) -= delta_ij;
   }
-
-#else
-  for (const auto& [b, volume] : voronoi_.facets()) {
-    size_t site_i = b.first;
-    size_t site_j = b.second;
-    vec3d pi(particles_[site_i]);
-    vec3d pj(particles_[site_j]);
-    double delta_ij = 0.5 * volume / length(pi - pj);
-    hessian_(site_i, site_j) = delta_ij;
-    hessian_(site_j, site_i) = delta_ij;
-    hessian_(site_i, site_i) -= delta_ij;
-    hessian_(site_j, site_j) -= delta_ij;
-  }
-#endif
 
   // solve for the search direction
   // a tolerance of 1e-3 should give a good enough direction
@@ -161,7 +146,6 @@ void ParticleSimulation::calculate_properties() {
   }
 
   // determine the maximum displacement as the min (bisector distance)/2
-#if NEW_FACETS
   for (const auto& facet : voronoi_.facets()) {
     if (facet.bj < 0) continue;
     if (facet.bi >= particles_.n()) continue;
@@ -182,18 +166,6 @@ void ParticleSimulation::calculate_properties() {
     if (d < max_displacement_[site_i]) max_displacement_[site_i] = d;
     if (d < max_displacement_[site_j]) max_displacement_[site_j] = d;
   }
-#else
-  const auto& facets = voronoi_.facets();
-  for (const auto& [b, _] : facets) {
-    size_t site_i = b.first;
-    size_t site_j = b.second;
-    vec3d pi(particles_[site_i]);
-    vec3d pj(particles_[site_j]);
-    double d = 0.5 * length(pi - pj);  // TODO use weights
-    if (d < max_displacement_[site_i]) max_displacement_[site_i] = d;
-    if (d < max_displacement_[site_j]) max_displacement_[site_j] = d;
-  }
-#endif
 }
 
 }  // namespace vortex

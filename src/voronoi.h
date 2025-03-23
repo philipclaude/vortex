@@ -38,8 +38,6 @@
 #define VORTEX_NUM_CORES 1
 #endif
 
-#define NEW_FACETS 1
-
 namespace trees {
 template <typename coord_t, typename index_t>
 class KdTreeNd;
@@ -380,14 +378,8 @@ class VoronoiMesh : public Mesh {
   bool save_delaunay() const { return save_delaunay_; }
 
   void add_facet(int32_t bi, int32_t bj, double volume, vec3 midpoint) {
-#if NEW_FACETS
     if (bj >= 0 && bi > bj) return;
     facets_.emplace_back(bi, bj, volume, midpoint);
-#else
-    if (bi > bj) std::swap(bi, bj);
-    auto it = facets_.find({bi, bj});
-    if (it == facets_.end()) facets_.insert({{bi, bj}, volume});
-#endif
   }
 
   void add_triangle(std::array<uint32_t, 3> triangle) {
@@ -402,12 +394,7 @@ class VoronoiMesh : public Mesh {
   auto& delaunay() { return delaunay_; }
 
   void append(const VoronoiMesh& mesh) {
-#if NEW_FACETS
     for (const auto& facet : mesh.facets()) facets_.push_back(facet);
-#else
-    for (const auto& [b, volume] : mesh.facets())
-      add_facet(b.first, b.second, volume);
-#endif
     n_incomplete_ += mesh.n_incomplete();
     n_boundary_facets_ += mesh.n_boundary_facets();
     boundary_area_ += mesh.boundary_area();
@@ -434,11 +421,7 @@ class VoronoiMesh : public Mesh {
   bool save_facets_{false};
   bool save_delaunay_{false};
   std::vector<VoronoiCellProperties> properties_;
-#if NEW_FACETS
   std::vector<VoronoiFacetData> facets_;
-#else
-  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, double> facets_;
-#endif
   absl::flat_hash_set<std::array<uint32_t, 3>> delaunay_;
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};

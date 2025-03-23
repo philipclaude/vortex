@@ -195,9 +195,8 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
 
   // compute artificial viscosity
   std::vector<double> viscous(3 * n, 0.0);
-  // if (options_.add_artificial_viscosity)
-  // compute_artificial_viscosity(viscous);
-  stabilize_pressure(height, grad_h);
+  if (options_.add_artificial_viscosity) compute_artificial_viscosity(viscous);
+  // stabilize_pressure(height, grad_h);
 
   // update velocity
   if (!options_.use_analytic_velocity) {
@@ -209,7 +208,7 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
       vec3d force = f * cross(x, u);  // coriolis force
       if (options_.constrain) force = force + dot(u, u) * x / a;
       vec3d fv(&viscous[3 * i]);  // derivative needs to be scaled by 1/a
-      force = force + 0.0 * fv / a;
+      force = force + 1.0 * fv / a;
 
       vec3d fs = options_.spring_stiffness * (x - c);
       force = force + fs;
