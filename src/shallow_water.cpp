@@ -304,10 +304,10 @@ void ShallowWaterSimulation<Domain_t>::stabilize_pressure(
   ASSERT(voronoi_.facets().size() > 0);
   for (const auto& facet : voronoi_.facets()) {
     if (facet.bj < 0) continue;
-    if (facet.bi >= particles_.n()) continue;
-    if (facet.bj >= particles_.n()) continue;
     size_t i = facet.bi;
     size_t j = facet.bj;
+    if (i >= particles_.n()) continue;
+    if (j >= particles_.n()) continue;
     vec3d ri(particles_[i]);
     vec3d rj(particles_[j]);
     vec3d rij = ri - rj;

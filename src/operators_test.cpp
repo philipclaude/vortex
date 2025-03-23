@@ -136,7 +136,7 @@ UT_TEST_CASE(test_square) {
 
   std::vector<double> f(n_sites, 0.0), grad_f(n_sites * 3, 0.0);
 
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
     f[i] = 0.5 * p[0] + 1.25 * p[1];
   }
@@ -144,7 +144,7 @@ UT_TEST_CASE(test_square) {
   VoronoiOperators<Domain_t> ops(voronoi);
   ops.calculate_gradient(f.data(), grad_f.data());
 
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     // skip boundary polygons since the gradient is not accurate for these
     // (missing boundary term)
     vec3d gi(&grad_f[3 * i]);
@@ -154,14 +154,14 @@ UT_TEST_CASE(test_square) {
   }
 
   std::vector<double> u(n_sites * 3, 0.0), div_u(n_sites, 0.0);
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
     u[3 * i] = p[0] * 0.5;
     u[3 * i + 1] = p[1] * 1.25;
     u[3 * i + 2] = 0.0;
   }
   ops.calculate_divergence(u.data(), div_u.data());
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     if (div_u[i] >= 1e20) continue;  // skip boundary polygons
     UT_ASSERT_NEAR(div_u[i], 1.75, 1e-12);
   }
@@ -278,7 +278,7 @@ UT_TEST_CASE(test_plane) {
 
   std::vector<double> f(n_sites, 0.0), grad_f(n_sites * 3, 0.0);
 
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
     f[i] = 1.5 * p[0] + 1.25 * p[1] + 2.75 * p[2];
   }
@@ -297,7 +297,7 @@ UT_TEST_CASE(test_plane) {
   ga = projection * ga;
   LOG << fmt::format("ga = {}, {}, {}", ga[0], ga[1], ga[2]);
 
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     // skip boundary polygons since the gradient is not accurate for these
     // (missing boundary term)
     vec3d gi(&grad_f[3 * i]);
@@ -308,7 +308,7 @@ UT_TEST_CASE(test_plane) {
   }
 
   std::vector<double> u(n_sites * 3, 0.0), div_u(n_sites, 0.0);
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
     u[3 * i] = p[0] * ga[0];
     u[3 * i + 1] = p[1] * ga[1];
@@ -434,7 +434,7 @@ UT_TEST_CASE(test_sphere) {
 
   std::vector<double> f(n_sites, 0.0), grad_f(n_sites * 3, 0.0);
 
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
     f[i] = 0.5 * p[0] + 1.25 * p[1] + 2.75 * p[2];
 
@@ -448,7 +448,7 @@ UT_TEST_CASE(test_sphere) {
 
   double emin = 1e20;
   double emax = 0.0;
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d gi(&grad_f[3 * i]);
     UT_ASSERT(gi[0] < 1e20);  // should be closed
 
@@ -483,14 +483,14 @@ UT_TEST_CASE(test_sphere) {
   std::vector<double> u(n_sites * 3, 0.0), div_u(n_sites, 0.0);
   emin = 1e20;
   emax = 0.0;
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
     u[3 * i + 0] = a * p[0];
     u[3 * i + 1] = b * p[1];
     u[3 * i + 2] = c * p[2];
   }
   ops.calculate_divergence(u.data(), div_u.data());
-  for (int i = 0; i < n_sites; i++) {
+  for (size_t i = 0; i < n_sites; i++) {
     UT_ASSERT(div_u[i] < 1e20);
     vec3d x(vertices[i]);
     // LOG << div_u[i];

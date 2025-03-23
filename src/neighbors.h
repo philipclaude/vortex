@@ -61,7 +61,7 @@ class queue {
 };
 
 struct NearestNeighborsWorkspace {
-  NearestNeighborsWorkspace(int k, int nmax = 200) : n_neighbors(k) {
+  NearestNeighborsWorkspace(size_t k, size_t nmax = 200) : n_neighbors(k) {
     neighbors.reserve(nmax);
   }
 
@@ -96,7 +96,7 @@ struct NearestNeighborsWorkspace {
     neighbors.insert({n, l});
   }
 
-  const int n_neighbors;
+  const size_t n_neighbors;
   std::unordered_map<uint32_t, uint8_t> neighbors;
   queue<std::pair<uint32_t, double>> sites;
   size_t total_neighbors{0};

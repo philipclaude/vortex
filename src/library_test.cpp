@@ -106,9 +106,9 @@ UT_TEST_CASE(grid_polygon_test) {
       // testing sum area of each polygon (actually quad here)
       double total_area = 0.0;
       for (size_t k = 0; k < polygons.n(); k++) {
-        const auto& polygon = polygons[k];
-        const auto& vertex_indices = polygons.length(k);
-        for (size_t v = 1; v < vertex_indices - 1; ++v) {
+        const auto* polygon = polygons[k];
+        UT_ASSERT_EQUALS(polygons.length(k), 4);
+        for (size_t v = 1; v < 3; ++v) {
           const coord_t* p0 = vertices[polygon[0]];
           const coord_t* p1 = vertices[polygon[v]];
           const coord_t* p2 = vertices[polygon[v + 1]];

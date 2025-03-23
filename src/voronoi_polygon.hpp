@@ -378,7 +378,7 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
 
     size_t n_neighbors = n_neighbors_;
     neighbor_data_.resize(n_neighbors);
-    for (int j = 0; j < n_neighbors; j++) {
+    for (size_t j = 0; j < n_neighbors; j++) {
       neighbor_data_[j] = neighbors_[i * n_neighbors_ + j];
     }
 
