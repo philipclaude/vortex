@@ -2,7 +2,7 @@
 //  vortex: Voronoi mesher and fluid simulator for the Earth's oceans and
 //  atmosphere.
 //
-//  Copyright 2023 - 2024 Philip Claude Caplan
+//  Copyright 2023 - 2025 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -89,11 +89,17 @@ UT_TEST_CASE(test_square_uniform) {
 
   // check the mass
   const auto& props = voronoi.properties();
-  for (auto& p : props) UT_ASSERT_NEAR(p.volume, v_target, 1e-8);
+  double total_volume = 0.0;
+  for (auto& p : props) {
+    UT_ASSERT_NEAR(p.volume, v_target, 1e-8);
+    total_volume += p.volume;
+  }
+  LOG << props.size();
+  LOG << fmt::format("total volume = {}", total_volume);
 
   // save the mesh
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
-  if (voronoi.polygons().n() > 0) meshb::write(voronoi, "particles.meshb");
+  if (voronoi.polygons().n() > 0) meshb::write(voronoi, "particles0.meshb");
 }
 UT_TEST_CASE_END(test_square_uniform)
 
@@ -161,11 +167,16 @@ UT_TEST_CASE(test_sphere_uniform) {
 
   // check the mass
   const auto& props = voronoi.properties();
-  for (auto& p : props) UT_ASSERT_NEAR(p.volume, v_target, 1e-8);
+  double total_volume = 0.0;
+  for (auto& p : props) {
+    UT_ASSERT_NEAR(p.volume, v_target, 1e-8);
+    total_volume += p.volume;
+  }
+  LOG << fmt::format("total volume = {}", total_volume);
 
   // save the mesh
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
-  if (voronoi.polygons().n() > 0) meshb::write(voronoi, "particles.meshb");
+  if (voronoi.polygons().n() > 0) meshb::write(voronoi, "particles1.meshb");
 }
 UT_TEST_CASE_END(test_sphere_uniform)
 
@@ -238,8 +249,12 @@ UT_TEST_CASE(test_sphere_nonuniform) {
 
   // check the mass
   const auto& props = voronoi.properties();
-  for (size_t k = 0; k < n_sites; k++)
+  double total_volume = 0.0;
+  for (size_t k = 0; k < n_sites; k++) {
     UT_ASSERT_NEAR(props[k].volume, target_volume[k], 1e-8);
+    total_volume += props[k].volume;
+  }
+  LOG << fmt::format("total volume = {}", total_volume);
 
   // save the mesh
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());

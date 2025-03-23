@@ -39,13 +39,13 @@ UT_TEST_CASE(grid_triangle_test) {
       int n1t = i * 100;
       int n2t = j * 100;
       Grid<Triangle> mesh({n1t, n2t});
-      int vertst = mesh.vertices().n();
-      int trit = mesh.triangles().n();
-      UT_ASSERT_EQUALS(vertst, ((n1t + 1) * (n2t + 1)));
-      UT_ASSERT_EQUALS(trit, (2 * n1t * n2t));
+      size_t vertst = mesh.vertices().n();
+      size_t trit = mesh.triangles().n();
+      UT_ASSERT_EQUALS(vertst, size_t((n1t + 1) * (n2t + 1)));
+      UT_ASSERT_EQUALS(trit, size_t(2 * n1t * n2t));
       // testing sum area of each triangle
       double tot_areat = 0;
-      for (int k = 0; k < trit; k++) {
+      for (size_t k = 0; k < trit; k++) {
         auto* t = mesh.triangles()[k];
         const auto* p1t = mesh.vertices()[t[0]];
         const auto* p2t = mesh.vertices()[t[1]];
@@ -67,13 +67,13 @@ UT_TEST_CASE(grid_quad_test) {
       int n1q = i * 100;
       int n2q = j * 100;
       Grid<Quad> mesh({n1q, n2q});
-      int vertsq = mesh.vertices().n();
-      int quads = mesh.quads().n();
-      UT_ASSERT_EQUALS(vertsq, ((n1q + 1) * (n2q + 1)));
-      UT_ASSERT_EQUALS(quads, (n1q * n2q));
+      size_t vertsq = mesh.vertices().n();
+      size_t quads = mesh.quads().n();
+      UT_ASSERT_EQUALS(vertsq, size_t((n1q + 1) * (n2q + 1)));
+      UT_ASSERT_EQUALS(quads, size_t(n1q * n2q));
       // testing sum area of each quad
       double tot_areaq = 0;
-      for (int k = 0; k < quads; k++) {
+      for (size_t k = 0; k < quads; k++) {
         auto* t = mesh.quads()[k];
         const auto* p1q = mesh.vertices()[t[0]];
         const auto* p2q = mesh.vertices()[t[1]];
@@ -101,14 +101,14 @@ UT_TEST_CASE(grid_polygon_test) {
       Grid<Polygon> mesh({nx, ny});
       auto& polygons = mesh.polygons();
       auto& vertices = mesh.vertices();
-      UT_ASSERT_EQUALS(vertices.n(), (nx + 1) * (ny + 1));
-      UT_ASSERT_EQUALS(polygons.n(), nx * ny);
+      UT_ASSERT_EQUALS(vertices.n(), size_t((nx + 1) * (ny + 1)));
+      UT_ASSERT_EQUALS(polygons.n(), size_t(nx * ny));
       // testing sum area of each polygon (actually quad here)
       double total_area = 0.0;
-      for (int k = 0; k < polygons.n(); k++) {
-        const auto& polygon = polygons[k];
-        const auto& vertex_indices = polygons.length(k);
-        for (size_t v = 1; v < vertex_indices - 1; ++v) {
+      for (size_t k = 0; k < polygons.n(); k++) {
+        const auto* polygon = polygons[k];
+        UT_ASSERT_EQUALS(polygons.length(k), 4);
+        for (size_t v = 1; v < 3; ++v) {
           const coord_t* p0 = vertices[polygon[0]];
           const coord_t* p1 = vertices[polygon[v]];
           const coord_t* p2 = vertices[polygon[v + 1]];
@@ -134,12 +134,12 @@ UT_TEST_CASE(sphere_test) {
     std::vector<double> meshsize;
     for (int i = 0; i < 7; i++) {
       SubdividedSphere<Shape_t> mesh(i);
-      int tris = mesh.triangles().n();
-      int tris_check = std::pow(4, i) * Shape_t::n_faces;
+      size_t tris = mesh.triangles().n();
+      size_t tris_check = std::pow(4, i) * Shape_t::n_faces;
       UT_ASSERT_EQUALS(tris, tris_check);
       double tot_areas = 0;
       double strt_areas = 0;
-      for (int k = 0; k < tris; k++) {
+      for (size_t k = 0; k < tris; k++) {
         const auto* t = mesh.triangles()[k];
         const coord_t* p1 = mesh.vertices()[t[0]];
         const coord_t* p2 = mesh.vertices()[t[1]];
@@ -173,7 +173,7 @@ UT_TEST_CASE_END(sphere_test)
 UT_TEST_CASE(squircle_test) {
   auto get_area = [](const Mesh& m) -> double {
     double area = 0;
-    for (int k = 0; k < m.triangles().n(); k++) {
+    for (size_t k = 0; k < m.triangles().n(); k++) {
       const auto* t = m.triangles()[k];
       const auto* p1 = m.vertices()[t[0]];
       const auto* p2 = m.vertices()[t[1]];
@@ -183,10 +183,10 @@ UT_TEST_CASE(squircle_test) {
     return area;
   };
 
-  int n = 50;
+  size_t n = 50;
   double r = 0.1;
-  int nr = n;
-  int nt = 2 * n;
+  size_t nr = n;
+  size_t nt = 2 * n;
   Squircle mesh(r, nr, nt);
   meshb::write(mesh, "circle_square.meshb");
   UT_ASSERT_NEAR(get_area(mesh), 4.0 - M_PI * r * r, 1e-4);

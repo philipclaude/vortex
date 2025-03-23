@@ -1,12 +1,15 @@
 #include <fmt/format.h>
 
+#if VORTEX_WITH_NLOPT
 #include <nlopt.hpp>
+#endif
 
 #include "log.h"
 #include "tester.h"
 
 UT_TEST_SUITE(nlopt_test_suite)
 
+#if VORTEX_WITH_NLOPT
 struct nlopt_data {
   double k;
   double p;
@@ -371,4 +374,8 @@ UT_TEST_CASE(test4) {
   UT_ASSERT_EQUALS(result, nlopt::SUCCESS);
 }
 UT_TEST_CASE_END(test4)
+#else
+UT_TEST_CASE(test1) {}
+UT_TEST_CASE_END(test1)
+#endif
 UT_TEST_SUITE_END(nlopt_test_suite)

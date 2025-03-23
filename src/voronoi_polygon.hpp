@@ -2,7 +2,7 @@
 //  vortex: Voronoi mesher and fluid simulator for the Earth's oceans and
 //  atmosphere.
 //
-//  Copyright 2023 - 2024 Philip Claude Caplan
+//  Copyright 2023 - 2025 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -93,6 +93,7 @@ class VoronoiPolygon {
       neighbor_data_[j] = neighbors_[site * n_neighbors_ + j];
 
     bool security_radius_reached = false;
+    VoronoiStatusCode status = VoronoiStatusCode::kIncomplete;
     for (int attempt = 1; !security_radius_reached; ++attempt) {
       // initialize the cell
       clear();
@@ -116,23 +117,28 @@ class VoronoiPolygon {
         // check if no more bisectors contribute to the cell
         double sr = squared_radius(ui);
         max_radius_ = std::sqrt(sr);
-        security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
+        // security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
+        security_radius_reached =
+            4.01 * sr < pow(Domain_t::length(ui.xyz(), uj.xyz()), 2) - wi + wj;
         if (security_radius_reached) break;
       }
 
-      // append to the mesh if necessary
-      if (mesh.save_mesh()) append_to_mesh(mesh, site);
-      if (mesh.save_facets()) save_facets(mesh, site);
-      if (mesh.save_delaunay()) save_delaunay(mesh, site);
-
-      if (security_radius_reached) break;
-      if (!tree_ || attempt == kMaxClippingAttempts)
-        return VoronoiStatusCode::kRadiusNotReached;
+      if (security_radius_reached) {
+        status = VoronoiStatusCode::kSuccess;
+        break;
+      }
+      if (!tree_ || attempt == kMaxClippingAttempts) {
+        status = VoronoiStatusCode::kRadiusNotReached;
+        break;
+      }
 
       // get more neighbors
       n_neighbors *= 2;
       if (n_sites_ < n_neighbors) n_neighbors = n_sites_;
-      if (n_neighbors < neighbor_data_.size()) break;
+      if (n_neighbors < neighbor_data_.size()) {
+        status = VoronoiStatusCode::kIncomplete;
+        break;
+      }
       neighbor_data_.resize(n_neighbors);
       distance_data_.resize(n_neighbors);
       trees::NearestNeighborSearch<index_t, coord_t> search(
@@ -141,7 +147,12 @@ class VoronoiPolygon {
       ASSERT(neighbor_data_[0] == site);
     }
 
-    return VoronoiStatusCode::kSuccess;
+    // append to the mesh if necessary
+    if (mesh.save_mesh()) append_to_mesh(mesh, site);
+    if (mesh.save_facets()) save_facets(mesh, site);
+    if (mesh.save_delaunay()) save_delaunay(mesh, site);
+
+    return status;
   }
 
   VoronoiStatusCode compute(const TriangulationDomain& domain, int dim,
@@ -217,7 +228,6 @@ class VoronoiPolygon {
   void get_properties(VoronoiCellProperties& props, bool reset) const {
     if (reset) props.reset();
     cell_.get_properties(polygon_, plane_, props);
-    props.rmax = max_radius_;
   }
 
   bool append_to_mesh(VoronoiMesh& mesh, index_t site) const {
@@ -269,8 +279,12 @@ class VoronoiPolygon {
       q = q / q.w;
 
       // TODO(philip) use the specialized cell_ to compute geometric quantities
-      double l = length(p.xyz() - q.xyz());
+      double l = Domain_t::length(p.xyz(), q.xyz());
+      ASSERT(!std::isnan(l));
+      // double l = length(p.xyz() - q.xyz());
       // double l = std::acos(dot(p.xyz(), q.xyz()));
+      // vec3 c = 0.5 * (p.xyz() + q.xyz());
+      vec3 c = Domain_t::project(0.5 * (p.xyz() + q.xyz()));
 
       // save the vertex for the next iteration
       p = q;
@@ -282,9 +296,10 @@ class VoronoiPolygon {
       if (site_j < 0) {
         // mesh.n_boundary_facets()++;
         // mesh.boundary_area() += l;
+        mesh.add_facet(site_i, -1, 0.0, c);
         continue;
       }
-      mesh.add(site_i, site_j, l);
+      mesh.add_facet(site_i, site_j, l, c);
     }
   }
 
@@ -310,6 +325,7 @@ class VoronoiPolygon {
   auto& planes() { return plane_; }
   const auto* sites() const { return sites_; }
   const auto& bisector_to_site(uint8_t b) { return bisector_to_site_[b]; }
+  double max_radius() const { return max_radius_; }
 
  private:
   Cell_t cell_;
@@ -330,7 +346,7 @@ class VoronoiPolygon {
   device_vector<index_t> site_stack_;
   device_hash_set<index_t> site_visited_;
 
-  double max_radius_;
+  double max_radius_{0};
 
   // only CPU
   trees::KdTreeNd<coord_t, index_t>* tree_{nullptr};
@@ -362,7 +378,7 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
 
     size_t n_neighbors = n_neighbors_;
     neighbor_data_.resize(n_neighbors);
-    for (int j = 0; j < n_neighbors; j++) {
+    for (size_t j = 0; j < n_neighbors; j++) {
       neighbor_data_[j] = neighbors_[i * n_neighbors_ + j];
     }
 
@@ -389,6 +405,7 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
 
         // check if no more bisectors contribute to the cell
         double sr = squared_radius(ui);
+        max_radius_ = std::sqrt(sr);
         security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
         if (security_radius_reached) break;
       }

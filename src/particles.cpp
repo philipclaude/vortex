@@ -1,3 +1,21 @@
+//
+//  vortex: Voronoi mesher and fluid simulator for the Earth's oceans and
+//  atmosphere.
+//
+//  Copyright 2023 - 2025 Philip Claude Caplan
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
 #include "particles.h"
 
 #include "io.h"
@@ -29,14 +47,14 @@ void project_point<SphereDomain>(double* x) {
 }
 
 template <>
-void project_velocity<SquareDomain>(double* v) {}
+void project_velocity<SquareDomain>(double* x, double* v) {}
 
 template <>
-void project_velocity<SphereDomain>(double* v) {
-  vec3d p(v);
+void project_velocity<SphereDomain>(double* x, double* v) {
+  vec3d n(x);
   vec3d u(v);
-  p = normalize(p);
-  vec3d ur = dot(u, p) * p;  // radial component of velocity
+  n = normalize(n);
+  vec3d ur = dot(u, n) * n;  // radial component of velocity
   vec3d ut = u - ur;         // tangential component of velocity
   for (int d = 0; d < 3; d++) v[d] = ut[d];
 }
@@ -91,12 +109,16 @@ void ParticleSimulation::compute_search_direction(
   //  hessian_(k, k) = 1e-3 * target_volumes[k];
 
   // set up the sparse matrix
-  for (const auto& [b, volume] : voronoi_.facets()) {
-    size_t site_i = b.first;
-    size_t site_j = b.second;
+  ASSERT(voronoi_.facets().size() > 0);
+  for (const auto& facet : voronoi_.facets()) {
+    if (facet.bj < 0) continue;
+    size_t site_i = facet.bi;
+    size_t site_j = facet.bj;
+    if (site_i >= particles_.n()) continue;
+    if (site_j >= particles_.n()) continue;
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
-    double delta_ij = 0.5 * volume / length(pi - pj);
+    double delta_ij = 0.5 * facet.length / length(pi - pj);
     hessian_(site_i, site_j) = delta_ij;
     hessian_(site_j, site_i) = delta_ij;
     hessian_(site_i, site_i) -= delta_ij;
@@ -122,16 +144,25 @@ void ParticleSimulation::calculate_properties() {
           voronoi_.properties()[k].moment[d] / particles_.volume()[k];
     max_displacement_[k] = std::numeric_limits<double>::max();
   }
-  // voronoi_.weights().resize(particles_.n(), 0);
 
   // determine the maximum displacement as the min (bisector distance)/2
-  const auto& facets = voronoi_.facets();
-  for (const auto& [b, _] : facets) {
-    size_t site_i = b.first;
-    size_t site_j = b.second;
+  for (const auto& facet : voronoi_.facets()) {
+    if (facet.bj < 0) continue;
+    size_t site_i = facet.bi;
+    size_t site_j = facet.bj;
+    if (site_i >= particles_.n()) continue;
+    if (site_j >= particles_.n()) continue;
+    ASSERT(site_i < particles_.n());
+    ASSERT(site_j < particles_.n());
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
-    double d = 0.5 * length(pi - pj);
+    double wi = voronoi_.weights()[site_i];
+    double wj = voronoi_.weights()[site_j];
+    coord_t l = length(pj - pi);
+    coord_t d1 = (l * l + wi - wj) / (2.0 * l);
+    vec3d m = pi + d1 * (pj - pi) / l;
+
+    double d = 0.5 * length(pi - m);
     if (d < max_displacement_[site_i]) max_displacement_[site_i] = d;
     if (d < max_displacement_[site_j]) max_displacement_[site_j] = d;
   }

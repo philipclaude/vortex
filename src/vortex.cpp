@@ -54,15 +54,15 @@ void run_visualizer(argparse::ArgumentParser& program) {
   // will have similar colors and won't visually stand out
   size_t n_colors = 20;
   int n_groups = 1;
-  for (int k = 0; k < mesh.polygons().n(); k++)
+  for (size_t k = 0; k < mesh.polygons().n(); k++)
     n_groups = std::max(n_groups, mesh.polygons().group(k));
   LOG << "n_groups = " << n_groups;
   std::vector<int> site2color(n_groups + 1);
-  for (size_t k = 0; k < n_groups; k++)
+  for (int k = 0; k < n_groups; k++)
     site2color[k] = int(n_colors * double(rand()) / double(RAND_MAX));
   for (size_t k = 0; k < mesh.polygons().n(); k++) {
     int group = mesh.polygons().group(k);  // the group is the site
-    ASSERT(group < site2color.size()) << "group = " << group;
+    ASSERT(size_t(group) < site2color.size()) << "group = " << group;
     mesh.polygons().set_group(k, site2color[group]);
   }
 

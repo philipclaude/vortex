@@ -95,7 +95,7 @@ void write(const Vertices& vertices, const std::string& filename);
 
 namespace io {
 template <typename T>
-void swap_end(T& var) {
+inline void swap_end(T& var) {
   // https://stackoverflow.com/questions/10913666/error-writing-binary-vtk-files
   char* varArray = reinterpret_cast<char*>(&var);
   for (long i = 0; i < static_cast<long>(sizeof(var) / 2); i++)

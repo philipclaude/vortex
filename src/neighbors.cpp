@@ -34,9 +34,10 @@ void VoronoiNeighbors::build() {
   // count how many vertices are in each vertex one-ring
   const auto& facets = voronoi_.facets();
   std::vector<uint32_t> count(voronoi_.n_sites(), 0);
-  for (const auto& [f, _] : facets) {
-    uint32_t p = f.first;
-    uint32_t q = f.second;
+  for (const auto& facet : facets) {
+    int32_t p = facet.bi;
+    int32_t q = facet.bj;
+    if (q < 0) continue;
     count[p]++;
     count[q]++;
   }
@@ -54,9 +55,10 @@ void VoronoiNeighbors::build() {
 
   // save ring data
   std::vector<uint32_t> idx(voronoi_.n_sites(), 0);
-  for (const auto& [f, _] : facets) {
-    uint32_t p = f.first;
-    uint32_t q = f.second;
+  for (const auto& facet : facets) {
+    int32_t p = facet.bi;
+    int32_t q = facet.bj;
+    if (q < 0) continue;
     ring_(p, idx[p]++) = q;
     ring_(q, idx[q]++) = p;
   }
@@ -128,11 +130,11 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
   triangles_.reserve(T::n_faces * std::pow(4, ns));
   children.reserve(T::n_faces * std::pow(4, ns));
   std::unordered_map<Edge, index_t> edges;
-  int n_triangles0 = 0;
+  size_t n_triangles0 = 0;
   for (int j = 0; j < ns; j++) {
     // perform the subdivision
     edges.clear();
-    int n_triangles = triangles_.n();
+    size_t n_triangles = triangles_.n();
     for (size_t k = n_triangles0; k < n_triangles; k++) {
       int edge_indices[3];
       for (int j = 0; j < 3; j++) {
@@ -300,7 +302,7 @@ void SphereQuadtree::build() {
   min_leaf_size_ = std::numeric_limits<int>::max();
   max_leaf_size_ = 0;
   for (const auto& pts : triangle2points_) {
-    size_t n = pts.size();
+    int n = pts.size();
     if (n < min_leaf_size_) min_leaf_size_ = n;
     if (n > max_leaf_size_) max_leaf_size_ = n;
   }

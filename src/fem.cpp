@@ -32,7 +32,7 @@ void BoundaryConditions::import(const Topology<Line>& lines) {
   for (size_t k = 0; k < lines.n(); k++) {
     int e0 = lines[k][0];
     int e1 = lines[k][1];
-    int bnd = lines.group(k);
+    uint32_t bnd = lines.group(k);
     bc_map_.insert({{e0, e1}, bnd});
   }
   LOG << fmt::format("imported {} boundary edges", bc_map_.size());
@@ -138,7 +138,7 @@ template <typename Element_t>
 double PoissonSolver<Element_t>::calculate_error_rms(
     const ExactSolution& u_exact) const {
   double error = 0;
-  for (size_t k = 0; k < sol_.m(); k++) {
+  for (int k = 0; k < sol_.m(); k++) {
     vec3d p(vertices_[k]);
     double ue = u_exact(p);
     error += (sol_[k] - ue) * (sol_[k] - ue);

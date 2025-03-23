@@ -211,7 +211,7 @@ class device_hash_set {
     new_data = (T*)malloc(sizeof(T) * capacity);
     new_taken = (bool*)malloc(sizeof(bool) * capacity);
 #endif
-    for (int k = 0; k < capacity; k++) {
+    for (size_t k = 0; k < capacity; k++) {
       new_taken[k] = false;
       new_data[k] = std::numeric_limits<T>::max();
     }

@@ -31,6 +31,8 @@ set(WITH_GMF_FORTRAN FALSE)
 set(WINGS_BUILD_APPS FALSE)
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(ABSL_USE_SYSTEM_INCLUDES ON)
+set(WITH_NLOPT FALSE)
+set(WITH_ABSL FALSE)
 
 add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern/fmt/include)
@@ -44,9 +46,24 @@ add_extern_repository(OpenNL GIT_REPOSITORY "https://github.com/middleburygcl/ge
 add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middleburygcl/geogram.psm.Predicates" SKIP_CONFIG TRUE)
 add_extern_repository(trees GIT_REPOSITORY "https://github.com/middleburygcl/trees.git" SKIP_CONFIG TRUE)
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middleburygcl/stlext.git" SKIP_CONFIG TRUE)
-add_extern_repository(abseil GIT_REPOSITORY "https://github.com/abseil/abseil-cpp")
-add_extern_repository(nlopt GIT_REPOSITORY "https://github.com/stevengj/nlopt")
 add_extern_repository(json GIT_REPOSITORY "https://github.com/nlohmann/json")
+
+if (WITH_ABSL)
+	add_extern_repository(abseil GIT_REPOSITORY "https://github.com/abseil/abseil-cpp")
+	add_definitions(-DVORTEX_WITH_ABSL=1)
+else()
+	add_definitions(-DVORTEX_WITH_ABSL=0)
+endif()
+
+
+
+if (WITH_NLOPT)
+	add_extern_repository(nlopt GIT_REPOSITORY "https://github.com/stevengj/nlopt")
+	add_definitions(-DVORTEX_WITH_NLOPT=1)
+else()
+	add_definitions(-DVORTEX_WITH_NLOPT=0)
+endif()
+
 
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
@@ -61,8 +78,13 @@ add_library(vortex_wings ${WINGS_SOURCES})
 target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
 
 # external repositories
-set(external_libraries fmt argparse vortex_wings nlopt)
-set(external_libraries ${external_libraries} absl::hash absl::container_memory absl::flat_hash_set absl::memory)
+set(external_libraries fmt argparse vortex_wings)
+if (WITH_NLOPT)
+	set(external_libraries ${external_libraries} nlopt)
+endif()
+if (WITH_ABSL)
+	set(external_libraries ${external_libraries} absl::hash absl::container_memory absl::flat_hash_set absl::memory)
+endif()
 
 # OpenGL
 set(GL_LIBRARIES)
@@ -101,7 +123,6 @@ set(VORTEX_EXTERNAL_LIBRARIES ${external_libraries} ${GL_LIBRARIES})
 
 # set all include directories
 set(VORTEX_INCLUDE_DIRS
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/abseil
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/libmeshb/sources
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenNL/OpenNL_psm
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/PCK
@@ -113,6 +134,9 @@ set(VORTEX_INCLUDE_DIRS
   ${CMAKE_CURRENT_SOURCE_DIR}/extern/stlext
 	${CMAKE_CURRENT_SOURCE_DIR}/extern/json/include
 )
+if (WITH_ABSL)
+	set(VORTEX_INCLUDE_DIRS ${VORTEX_INCLUDE_DIRS} 	${CMAKE_CURRENT_SOURCE_DIR}/extern/abseil)
+endif()
 
 
 set(EXTERN_SOURCES

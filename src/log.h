@@ -34,7 +34,9 @@ class Timer {
   void stop() { b = std::chrono::high_resolution_clock::now(); }
   double seconds() const { return milliseconds() / 1000.0; }
   double milliseconds() const {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(b - a).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::high_resolution_clock::now() - a)
+        .count();
   }
 
  private:
