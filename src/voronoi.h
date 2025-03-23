@@ -46,9 +46,9 @@ namespace vortex {
 
 struct VoronoiStatistics {
   VoronoiStatistics() { reset(); }
-  int n_neighbors;
-  int n_sites;
-  int n_triangles;
+  size_t n_neighbors;
+  size_t n_sites;
+  size_t n_triangles;
   double t_kdtree_build;
   double t_kdtree_query;
   double t_bfs_build;
@@ -316,7 +316,7 @@ struct VoronoiDiagramOptions {
             // building the kdtree (-1 means use all dimensions)
             // This is useful when building a kdtree of planar points in 3d
             // (i.e. each point has a z-coordinate of 0).
-  int n_neighbors{50};  // number of nearest neighbors to precompute
+  size_t n_neighbors{50};  // number of nearest neighbors to precompute
   bool verbose{true};   // whether to print timing info during the calculation
   bool parallel{true};  // whether to parallelize the calculation
   Mesh* mesh{nullptr};  // destination of the mesh when store_mesh is true
