@@ -112,10 +112,10 @@ void ParticleSimulation::compute_search_direction(
   ASSERT(voronoi_.facets().size() > 0);
   for (const auto& facet : voronoi_.facets()) {
     if (facet.bj < 0) continue;
-    if (facet.bi >= particles_.n()) continue;
-    if (facet.bj >= particles_.n()) continue;
     size_t site_i = facet.bi;
     size_t site_j = facet.bj;
+    if (site_i >= particles_.n()) continue;
+    if (site_j >= particles_.n()) continue;
     vec3d pi(particles_[site_i]);
     vec3d pj(particles_[site_j]);
     double delta_ij = 0.5 * facet.length / length(pi - pj);
@@ -148,10 +148,10 @@ void ParticleSimulation::calculate_properties() {
   // determine the maximum displacement as the min (bisector distance)/2
   for (const auto& facet : voronoi_.facets()) {
     if (facet.bj < 0) continue;
-    if (facet.bi >= particles_.n()) continue;
-    if (facet.bj >= particles_.n()) continue;
     size_t site_i = facet.bi;
     size_t site_j = facet.bj;
+    if (site_i >= particles_.n()) continue;
+    if (site_j >= particles_.n()) continue;
     ASSERT(site_i < particles_.n());
     ASSERT(site_j < particles_.n());
     vec3d pi(particles_[site_i]);

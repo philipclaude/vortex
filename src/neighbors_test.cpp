@@ -127,7 +127,7 @@ UT_TEST_CASE(test2) {
     vertices.add(x);
   }
 
-  int n_neighbors = 50;
+  size_t n_neighbors = 50;
 
   VoronoiDiagramOptions options;
   options.n_neighbors = n_neighbors;
