@@ -39,13 +39,13 @@ void VoronoiOperators<Domain_t>::calculate_gradient(const coord_t* f,
   ASSERT(facets.size() > 0);
 
   // zero gradient
-  for (int i = 0; i < n_sites * 3; i++) grad_f[i] = 0.0;
+  for (size_t i = 0; i < n_sites * 3; i++) grad_f[i] = 0.0;
 
   // add contribution to sites on both sides of each facet
   for (const auto& facet : facets) {
     const auto i = facet.bi;
     const auto j = facet.bj;
-    if (j < 0 || j >= n_sites) {
+    if (j < 0 || size_t(j) >= n_sites) {
       for (int d = 0; d < 3; d++) grad_f[i * 3 + d] = boundary_value_;
       continue;
     }
@@ -63,14 +63,14 @@ void VoronoiOperators<Domain_t>::calculate_gradient(const coord_t* f,
     ASSERT(wi > 0 || wj > 0) << fmt::format("wi = {}, wj = {}", wi, wj);
     ASSERT(rij > 0);
     ASSERT(!std::isnan(lij));
-    vec3d cij = mij - 0.5 * (xi + xj);
     for (int d = 0; d < 3; d++) {
 #if 1
       grad_f[3 * i + d] += lij * (xi[d] - mij[d]) * (fi - fj) / (rij * wi);
       grad_f[3 * j + d] += lij * (xj[d] - mij[d]) * (fj - fi) / (rij * wj);
 #else
-      grad_f[3 * i + d] += lij * cij[d] * (fj - fi) / (rij * wi);
-      grad_f[3 * j + d] += lij * cij[d] * (fi - fj) / (rij * wj);
+      const coord_t cij_d = mij[d] - 0.5 * (xi[d] + xj[d]);
+      grad_f[3 * i + d] += lij * cij_d * (fj - fi) / (rij * wi);
+      grad_f[3 * j + d] += lij * cij_d * (fi - fj) / (rij * wj);
       grad_f[3 * i + d] -= 0.5 * lij * (fi + fj) * (xi[d] - xj[d]) / (rij * wi);
       grad_f[3 * j + d] -= 0.5 * lij * (fi + fj) * (xj[d] - xi[d]) / (rij * wj);
 #endif
@@ -89,13 +89,13 @@ void VoronoiOperators<Domain_t>::calculate_divergence(const coord_t* u,
   ASSERT(facets.size() > 0);
 
   // zero divergence
-  for (int i = 0; i < n_sites; i++) div_u[i] = 0.0;
+  for (size_t i = 0; i < n_sites; i++) div_u[i] = 0.0;
 
   // add contribution to sites on both sides of each facet
   for (const auto& facet : facets) {
     const auto i = facet.bi;
     const auto j = facet.bj;
-    if (j < 0 || j >= n_sites) {
+    if (j < 0 || size_t(j) >= n_sites) {
       for (int d = 0; d < 3; d++) div_u[i] = boundary_value_;
       continue;
     }

@@ -253,17 +253,17 @@ void ShallowWaterSimulation<Domain_t>::compute_artificial_viscosity(
     std::vector<double>& fv) {
   const size_t n = particles_.n();
   double g = earth_.gravity;
-  double a = earth_.radius;
+  // double a = earth_.radius;
   double eps = 1e-6;
 
   fv.resize(3 * n, 0);
   ASSERT(voronoi_.facets().size() > 0);
   for (const auto& facet : voronoi_.facets()) {
     if (facet.bj < 0) continue;
-    if (facet.bi >= particles_.n()) continue;
-    if (facet.bj >= particles_.n()) continue;
     size_t i = facet.bi;
     size_t j = facet.bj;
+    if (i >= particles_.n()) continue;
+    if (j >= particles_.n()) continue;
     vec3d ri(particles_[i]);
     vec3d rj(particles_[j]);
     vec3d rij = ri - rj;
@@ -407,7 +407,7 @@ double ShallowWaterSimulation<Domain_t>::total_area() const {
 template <typename Domain_t>
 double ShallowWaterSimulation<Domain_t>::total_mass() const {
   double mass = 0;
-  for (int k = 0; k < particles_.n(); k++) {
+  for (size_t k = 0; k < particles_.n(); k++) {
     mass += voronoi_.properties()[k].volume * height_[k];
   }
   return mass;
@@ -417,7 +417,7 @@ template <typename Domain_t>
 double ShallowWaterSimulation<Domain_t>::total_momentum() const {
   double g = earth_.gravity;
   double momentum = 0;
-  for (int k = 0; k < particles_.n(); k++) {
+  for (size_t k = 0; k < particles_.n(); k++) {
     double vi = voronoi_.properties()[k].volume;
     vec3d u(particles_.velocity()[k]);
     double hi = height_[k];
@@ -430,7 +430,7 @@ template <typename Domain_t>
 double ShallowWaterSimulation<Domain_t>::total_energy() const {
   double g = earth_.gravity;
   double energy = 0;
-  for (int k = 0; k < particles_.n(); k++) {
+  for (size_t k = 0; k < particles_.n(); k++) {
     double vi = voronoi_.properties()[k].volume;
     vec3d u(particles_.velocity()[k]);
     double hi = height_[k];

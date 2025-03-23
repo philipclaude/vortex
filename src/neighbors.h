@@ -145,7 +145,7 @@ struct SphereQuadtreeWorkspace {
   void add(uint32_t n, double d) { neighbors.emplace_back(n, d); }
 
   std::vector<std::pair<uint32_t, double>> neighbors;
-  const int n_neighbors{0};
+  const size_t n_neighbors{0};
 };
 
 class SphereQuadtree {

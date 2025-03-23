@@ -385,9 +385,9 @@ UT_TEST_CASE(test_sphere) {
   }
 
   for (size_t k = 0; k < weights.size(); k++) {
-    double x = vertices[k][0];
-    double y = vertices[k][1];
-    double r = std::sqrt(x * x + y * y);
+    // double x = vertices[k][0];
+    // double y = vertices[k][1];
+    // double r = std::sqrt(x * x + y * y);
     // weights[k] = 4e-1 * std::pow(r - 0.5, 2);
     //  if (r > 0.5) weights[k] = 0;
     weights[k] = 0.0;  // 2e-1 * std::exp(0.5 - r);
@@ -438,9 +438,9 @@ UT_TEST_CASE(test_sphere) {
     vec3d p(vertices[i]);
     f[i] = 0.5 * p[0] + 1.25 * p[1] + 2.75 * p[2];
 
-    double phi = atan2(p[1], p[0]) + M_PI;
-    double theta = acos(p[2]);
-    // f[i] = 1.25 * phi;  // 12 * sin(3 * phi) * pow(sin(theta), 3.0);
+    // double phi = atan2(p[1], p[0]) + M_PI;
+    // double theta = acos(p[2]);
+    //  f[i] = 1.25 * phi;  // 12 * sin(3 * phi) * pow(sin(theta), 3.0);
   }
 
   VoronoiOperators<Domain_t> ops(voronoi);
