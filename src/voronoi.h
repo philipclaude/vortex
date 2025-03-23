@@ -18,8 +18,12 @@
 //
 #pragma once
 
+#if VORTEX_WITH_ABSL
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
+#else
+#include <unordered_set>
+#endif
 #include <stlext.h>
 
 #include <cassert>
@@ -422,7 +426,11 @@ class VoronoiMesh : public Mesh {
   bool save_delaunay_{false};
   std::vector<VoronoiCellProperties> properties_;
   std::vector<VoronoiFacetData> facets_;
+#if VORTEX_WITH_ABSL
   absl::flat_hash_set<std::array<uint32_t, 3>> delaunay_;
+#else
+  std::unordered_set<std::array<uint32_t, 3>> delaunay_;
+#endif
   size_t n_incomplete_{0};
   size_t n_boundary_facets_{0};
   double boundary_area_{0};

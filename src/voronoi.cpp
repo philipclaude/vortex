@@ -541,9 +541,15 @@ void VoronoiDiagram::create_sqtree(int n_subdiv) {
   sqtree_ = std::make_unique<SphereQuadtree>(sites_, n_sites_, dim_, n_subdiv);
 }
 
+#if VORTEX_WITH_ABSL
 int check_closed_delaunay(
     const absl::flat_hash_set<std::array<uint32_t, 3>>& triangles) {
   absl::flat_hash_set<std::pair<uint32_t, uint32_t>> edges;
+#else
+int check_closed_delaunay(
+    const std::unordered_set<std::array<uint32_t, 3>>& triangles) {
+  std::unordered_set<std::pair<uint32_t, uint32_t>> edges;
+#endif
   for (const auto& t : triangles) {
     for (int j = 0; j < 3; j++) {
       uint32_t p = t[j];
