@@ -30,7 +30,7 @@ if(BUILD_TYPE AND BUILD_TYPE MATCHES "COVERAGE")
   set(COVERAGE_INFO coverage.info)
   set(HTMLDIR coverage_html)
   set(LCOV_FLAGS --capture -q --gcov-tool ${GCOV} --no-external --base-directory ${CMAKE_SOURCE_DIR} --directory . --output-file ${COVERAGE_INFO})
-  set(GENHTML_FLAGS ${COVERAGE_INFO} -q --legend --frames --show-details --demangle-cpp --ignore-errors mismatch --output-directory ${HTMLDIR} -t "vortex code coverage")
+  set(GENHTML_FLAGS ${COVERAGE_INFO} -q --legend --frames --show-details --demangle-cpp --output-directory ${HTMLDIR} -t "vortex code coverage")
   set(LCOV_REMOVES \"_test.*\" \"${CMAKE_BINARY_DIR}*\" \"${CMAKE_SOURCE_DIR}/extern/*\")
 
   # branch coverage slows down lcov, especially when looking at predicates
