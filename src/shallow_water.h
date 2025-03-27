@@ -43,16 +43,19 @@ static inline int days_to_seconds(double d) { return d * 24 * 3600; }
 typedef std::function<double(const coord_t*)> ScalarFunction;
 typedef std::function<vec3d(const coord_t*)> VectorFunction;
 
+enum TimeSteppingScheme : uint8_t { kExplicit, kSemiImplicit };
+
 struct ShallowWaterOptions {
   bool project_points{false};
   bool project_velocity{true};
   bool advect_from_centroid{true};
   bool use_analytic_velocity{false};
-  bool conserve_mass{true};
+  bool use_optimal_transport{true};
   bool smoothing_iterations{0};
   bool constrain{true};
-  bool add_artificial_viscosity{true};
-  double spring_stiffness{0};
+  bool add_artificial_viscosity{false};
+  bool stabilize_pressure_gradient{false};
+  TimeSteppingScheme time_stepping{TimeSteppingScheme::kSemiImplicit};
   ScalarFunction surface_height;
   ScalarFunction initial_height;
   ScalarFunction analytic_height;
@@ -85,8 +88,8 @@ class ShallowWaterSimulation : public ParticleSimulation {
 
   double forward_euler_step(const SimulationOptions& options);
   void compute_artificial_viscosity(std::vector<double>& fv);
-  void stabilize_pressure(const std::vector<double>& h,
-                          std::vector<double>& dh);
+  void stabilize_pressure_gradient(const std::vector<double>& h,
+                                   std::vector<double>& dh);
 
   void print_header(int n_bars = 100) const;
   void save(const std::string& filename) const;

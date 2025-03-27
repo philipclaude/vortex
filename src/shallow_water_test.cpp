@@ -53,7 +53,7 @@ UT_TEST_CASE(test1) {
   }
 #else
   int n_smooth = 0;
-  SubdividedSphere<Icosahedron> mesh(5);
+  SubdividedSphere<Icosahedron> mesh(6);
   size_t n_sites = mesh.vertices().n();
   const auto& sites = mesh.vertices().data();
   LOG << fmt::format("n_sites = {}", n_sites);
@@ -72,9 +72,10 @@ UT_TEST_CASE(test1) {
 
   // set up the fluid simulator
   WilliamsonCase6 test_case;
-  test_case.conserve_mass = true;
-  test_case.add_artificial_viscosity = true;
-  test_case.spring_stiffness = 0;
+  test_case.use_optimal_transport = true;
+  test_case.add_artificial_viscosity = false;
+  test_case.project_velocity = true;
+  test_case.stabilize_pressure_gradient = false;
   ShallowWaterSimulation<Domain_t> solver(domain, n_sites, vertices[0],
                                           vertices.dim(), test_case);
 
@@ -86,7 +87,7 @@ UT_TEST_CASE(test1) {
   solver.initialize(domain, solver_opts);
   solver.setup();
 
-  std::string output_dir = "swe";
+  std::string output_dir = "swe-case6-s6";
   std::string prefix = output_dir + "/particles";
   size_t n_removed = std::filesystem::remove_all(output_dir);
   LOG << fmt::format("removed {} files with prefix {}", n_removed, prefix);
