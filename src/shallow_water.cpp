@@ -41,7 +41,7 @@ void ShallowWaterSimulation<Domain_t>::setup() {
 }
 
 template <typename Domain_t>
-double ShallowWaterSimulation<Domain_t>::forward_euler_step(
+double ShallowWaterSimulation<Domain_t>::time_step(
     const SimulationOptions& options) {
   calculate_properties();  // mass, volume, centroids, max displacement
   auto& velocity = particles_.velocity();
@@ -114,6 +114,7 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
   }
 
   // limit time step so height is always positive
+  // TODO is this necessary with semi-implicit time stepping?
   VoronoiOperators<Domain_t> ops(voronoi_);
   std::vector<double> div_u(n);
   ops.calculate_divergence(velocity[0], div_u.data());
@@ -140,9 +141,62 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
   ops.calculate_gradient(height.data(), grad_h.data());
 
   // advance the height field according to governing differential equation
-  for (size_t k = 0; k < n; k++) {
-    ASSERT(height_[k] > 0);
-    height_[k] -= dt * height_[k] * div_u[k] / a;
+  if (options_.time_stepping == TimeSteppingScheme::kExplicit) {
+    for (size_t k = 0; k < n; k++) {
+      ASSERT(height_[k] > 0);
+      height_[k] -= dt * height_[k] * div_u[k] / a;
+    }
+  } else if (options_.time_stepping == TimeSteppingScheme::kSemiImplicit) {
+    // build system to solve for h^{n+1}
+    std::vector<double> force(3 * n);
+    for (size_t i = 0; i < n; i++) {
+      vec3d x(particles_[i]);  // on unit sphere
+      vec3d c(particles_.centroids()[i]);
+      vec3d u(velocity[i]);
+      double f = options_.coriolis_parameter(&c[0]);
+      vec3d fc = f * cross(c, u);  // coriolis force
+      if (options_.constrain) fc = fc + dot(u, u) * c / a;
+      for (int d = 0; d < 3; d++) {
+        force[3 * i + d] = u[d] - dt * fc[d];
+      }
+    }
+    std::vector<double> div_f(n);
+    ops.calculate_divergence(force.data(), div_f.data());
+
+    vecd<double> rhs(n);
+    spmat<double> H(n, n);
+    for (size_t i = 0; i < n; i++) {
+      H(i, i) = 1.0;
+      rhs(i) = height_[i] * (1 - dt * div_f[i] / a) / a;
+    }
+    for (const auto& facet : voronoi_.facets()) {
+      if (facet.bj < 0) continue;
+      size_t i = facet.bi;
+      size_t j = facet.bj;
+      if (i >= particles_.n()) continue;
+      if (j >= particles_.n()) continue;
+      vec3d ri(particles_[i]);
+      vec3d rj(particles_[j]);
+      vec3d rij = ri - rj;
+      const double lij = facet.length;
+      const double wi = voronoi_.properties()[i].volume;
+      const double wj = voronoi_.properties()[j].volume;
+      double xij = std::sqrt(dot(rij, rij));
+      double dij = -height_[i] * g * dt * dt * lij / xij / a / a;
+      H(i, j) = dij / wi;
+      H(j, i) = dij / wj;
+      H(i, i) -= H(i, j);
+      H(j, j) -= H(j, i);
+    }
+    SparseSolverOptions opts;
+    // opts.tol = 1e-3;
+    opts.symmetric = false;
+    opts.max_iterations = 100;
+    vecd<double> dh(n);
+    H.solve_nl(rhs, dh, opts);
+    for (size_t i = 0; i < n; i++) {
+      height_[i] = dh[i];
+    }
   }
 
   // update particle positions using the time step and current velocity
@@ -160,16 +214,8 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
     if (options_.project_points) project_point<Domain_t>(particles_[k]);
   }
 
-  // smooth the particles
-  for (int iter = 0; iter < 0; iter++) {
-    voronoi_.smooth(particles_, true);
-    VoronoiDiagramOptions voro_opts;
-    voro_opts.verbose = false;
-    calculate_power_diagram(domain_, voro_opts);
-  }
-
   SimulationConvergence convergence;
-  if (options_.conserve_mass) {
+  if (options_.use_optimal_transport) {
     // determine the area we need to conserve mass (volume for incompressible)
     double at = 0.0;
     for (size_t k = 0; k < n; k++) {
@@ -191,12 +237,28 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
     for (size_t i = 0; i < n; i++) {
       height_[i] = volume_[i] / voronoi_.properties()[i].volume;
     }
+    for (size_t k = 0; k < n; k++) {
+      height[k] = height_[k] + options_.surface_height(particles_[k]);
+    }
+    ops.calculate_gradient(height.data(), grad_h.data());
+  } else {
+    VoronoiDiagramOptions voro_opts;
+    voro_opts.verbose = false;
+    calculate_power_diagram(domain_, voro_opts);
+    calculate_properties();  // mass, volume, centroids, max displacement
+
+    // update height to satisfy conservation of mass
+    for (size_t i = 0; i < n; i++) {
+      ASSERT(voronoi_.properties()[i].site == i);
+      height_[i] = volume_[i] / voronoi_.properties()[i].volume;
+    }
   }
 
   // compute artificial viscosity
   std::vector<double> viscous(3 * n, 0.0);
   if (options_.add_artificial_viscosity) compute_artificial_viscosity(viscous);
-  // stabilize_pressure(height, grad_h);
+  if (options_.stabilize_pressure_gradient)
+    stabilize_pressure_gradient(height, grad_h);
 
   // update velocity
   if (!options_.use_analytic_velocity) {
@@ -204,14 +266,11 @@ double ShallowWaterSimulation<Domain_t>::forward_euler_step(
       vec3d x(particles_[i]);  // on unit sphere
       vec3d c(particles_.centroids()[i]);
       vec3d u(velocity[i]);
-      double f = options_.coriolis_parameter(&x[0]);
-      vec3d force = f * cross(x, u);  // coriolis force
-      if (options_.constrain) force = force + dot(u, u) * x / a;
+      double f = options_.coriolis_parameter(&c[0]);
+      vec3d force = f * cross(c, u);  // coriolis force
+      if (options_.constrain) force = force + dot(u, u) * c / a;
       vec3d fv(&viscous[3 * i]);  // derivative needs to be scaled by 1/a
-      force = force + 1.0 * fv / a;
-
-      vec3d fs = options_.spring_stiffness * (x - c);
-      force = force + fs;
+      force = force + fv / a;
 
       for (int d = 0; d < 3; d++) {
         velocity(i, d) -= dt * (g * grad_h[3 * i + d] / a + force[d]);
@@ -295,7 +354,7 @@ void ShallowWaterSimulation<Domain_t>::compute_artificial_viscosity(
 }
 
 template <typename Domain_t>
-void ShallowWaterSimulation<Domain_t>::stabilize_pressure(
+void ShallowWaterSimulation<Domain_t>::stabilize_pressure_gradient(
     const std::vector<double>& h, std::vector<double>& dh) {
   const size_t n = particles_.n();
 
