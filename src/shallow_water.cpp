@@ -41,7 +41,7 @@ void ShallowWaterSimulation<Domain_t>::setup() {
 }
 
 template <typename Domain_t>
-double ShallowWaterSimulation<Domain_t>::forward_euler_step(
+double ShallowWaterSimulation<Domain_t>::time_step(
     const SimulationOptions& options) {
   calculate_properties();  // mass, volume, centroids, max displacement
   auto& velocity = particles_.velocity();

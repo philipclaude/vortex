@@ -86,7 +86,7 @@ class ShallowWaterSimulation : public ParticleSimulation {
 
   void setup();
 
-  double forward_euler_step(const SimulationOptions& options);
+  double time_step(const SimulationOptions& options);
   void compute_artificial_viscosity(std::vector<double>& fv);
   void stabilize_pressure_gradient(const std::vector<double>& h,
                                    std::vector<double>& dh);

@@ -105,7 +105,7 @@ UT_TEST_CASE(test1) {
   double hour = 0;
   solver.save(prefix + "0.vtk");
   while (seconds <= days_to_seconds(days)) {
-    double dt = solver.forward_euler_step(solver_opts);
+    double dt = solver.time_step(solver_opts);
     solver_opts.iteration++;
     seconds += dt;
     solver_opts.time = seconds;
