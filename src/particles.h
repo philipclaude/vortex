@@ -193,8 +193,13 @@ class ParticleSimulation {
   template <typename Domain_t>
   void calculate_power_diagram(const Domain_t& domain,
                                VoronoiDiagramOptions opts) {
+    Timer timer;
+    timer.start();
     lift_sites(particles_, voronoi_.weights());
     voronoi_.compute(domain, opts);
+    timer.stop();
+    voronoi_time_ += timer.seconds();
+    n_voronoi_++;
   }
 
   void compute_gradient(const std::vector<double>& target_volume) {
@@ -261,7 +266,11 @@ class ParticleSimulation {
       }
 
       // solve hessian_ * dw_ = gradient_ for dw_ (search direction)
+      Timer timer;
+      timer.start();
       compute_search_direction(target_volume);
+      timer.stop();
+      linear_solver_time_ += timer.seconds();
 
       // backtrack to make sure cells always have an acceptable volume
       const double initial_gradient_norm = convergence.error;
@@ -348,10 +357,22 @@ class ParticleSimulation {
   const auto& voronoi() const { return voronoi_; }
   auto& voronoi() { return voronoi_; }
 
+  void reset_timers() {
+    voronoi_time_ = 0;
+    linear_solver_time_ = 0;
+    n_voronoi_ = 0;
+  }
+
+  double voronoi_time() const { return voronoi_time_; }
+  double linear_solver_time() const { return linear_solver_time_; }
+
  protected:
   Particles particles_;
   VoronoiDiagram voronoi_;
   vecd<double> max_displacement_;
+  double voronoi_time_{0};
+  double linear_solver_time_{0};
+  int n_voronoi_;
 
  private:
   spmat<double> hessian_;

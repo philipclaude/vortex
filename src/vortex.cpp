@@ -32,6 +32,7 @@
 #include "mesher.h"
 #include "numerics.h"
 #include "particles.h"
+#include "shallow_water.h"
 #include "texture.h"
 #include "util.h"
 #include "voronoi.h"
@@ -894,8 +895,37 @@ int main(int argc, char** argv) {
       .nargs(4)
       .default_value(std::vector<double>{0.0, 0.0, 1.0, 1.0})
       .scan<'g', double>();
-
   program.add_subparser(cmd_sim);
+
+  argparse::ArgumentParser cmd_swe("swe");
+  cmd_swe.add_description("solve shallow water equation");
+  cmd_swe.add_argument("--particles")
+      .help("initial particles: icosahedronN, file, or number")
+      .default_value("icosahedron5");
+  cmd_swe.add_argument("--output").help("output directory").default_value("");
+  cmd_swe.add_argument("--days")
+      .help("number simulation days")
+      .default_value(1.0)
+      .scan<'g', double>();
+  cmd_swe.add_argument("--step")
+      .help("time step in seconds")
+      .default_value(30.0)
+      .scan<'g', double>();
+  cmd_swe.add_argument("--case")
+      .help("test case to run: wtc1, wtc2, wtc5, wtc6")
+      .default_value("");
+  cmd_swe.add_argument("--save_vtk_every")
+      .help("frequency (in hours) to save solution data to VTK")
+      .default_value(1)
+      .scan<'i', int>();
+  cmd_swe.add_argument("--save_json_every")
+      .help("frequency (in hours) to solution data to a JSON")
+      .default_value(-1)
+      .scan<'i', int>();
+  cmd_swe.add_argument("--statistics")
+      .help("statistics filename (in output dir)")
+      .default_value("statistics.json");
+  program.add_subparser(cmd_swe);
 
   try {
     program.parse_args(argc, argv);
@@ -917,6 +947,8 @@ int main(int argc, char** argv) {
     vortex::run_merge(program.at<argparse::ArgumentParser>("merge"));
   } else if (program.is_subcommand_used("simulate")) {
     vortex::run_simulation(program.at<argparse::ArgumentParser>("simulate"));
+  } else if (program.is_subcommand_used("swe")) {
+    vortex::run_swe_solver(program.at<argparse::ArgumentParser>("swe"));
   } else {
     std::cout << program.help().str();
   }

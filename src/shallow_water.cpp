@@ -18,8 +18,15 @@
 //
 #include "shallow_water.h"
 
+#include <argparse/argparse.hpp>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
+
 #include "io.h"
+#include "library.h"
 #include "math/spmat.h"
+#include "math/vec.hpp"
 #include "operators.h"
 
 namespace vortex {
@@ -43,6 +50,9 @@ void ShallowWaterSimulation<Domain_t>::setup() {
 template <typename Domain_t>
 double ShallowWaterSimulation<Domain_t>::time_step(
     const SimulationOptions& options) {
+  reset_timers();
+  Timer time_step_timer;
+  time_step_timer.start();
   calculate_properties();  // mass, volume, centroids, max displacement
   auto& velocity = particles_.velocity();
   const size_t n = particles_.n();
@@ -65,10 +75,10 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   for (size_t k = 0; k < n; k++) {
     vec3d u(velocity[k]);
     double um = length(u);
-    double cm = std::sqrt(g * height_[k]);
-    // TODO this should be done from the advection point (site or centroid)
-    // currently max displacement is measured from the site
-    double dt_k = a * max_displacement_[k] / (um + cm);
+    // double cm = std::sqrt(g * height_[k]);
+    //  TODO this should be done from the advection point (site or centroid)
+    //  currently max displacement is measured from the site
+    double dt_k = a * max_displacement_[k] / um;  //(um + cm);
     if (dt_k < dt) dt = dt_k;
   }
 
@@ -141,6 +151,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   ops.calculate_gradient(height.data(), grad_h.data());
 
   // advance the height field according to governing differential equation
+  double linear_solver_time = 0;
   if (options_.time_stepping == TimeSteppingScheme::kExplicit) {
     for (size_t k = 0; k < n; k++) {
       ASSERT(height_[k] > 0);
@@ -163,6 +174,8 @@ double ShallowWaterSimulation<Domain_t>::time_step(
     std::vector<double> div_f(n);
     ops.calculate_divergence(force.data(), div_f.data());
 
+    Timer timer;
+    timer.start();
     vecd<double> rhs(n);
     spmat<double> H(n, n);
     for (size_t i = 0; i < n; i++) {
@@ -191,12 +204,19 @@ double ShallowWaterSimulation<Domain_t>::time_step(
     SparseSolverOptions opts;
     // opts.tol = 1e-3;
     opts.symmetric = false;
-    opts.max_iterations = 100;
+    opts.max_iterations = 50;
     vecd<double> dh(n);
     H.solve_nl(rhs, dh, opts);
+    timer.stop();
+    linear_solver_time = timer.seconds();
     for (size_t i = 0; i < n; i++) {
       height_[i] = dh[i];
     }
+  }
+
+  if (options_.use_analytic_height) {
+    for (size_t k = 0; k < n; k++)
+      height_[k] = options_.analytic_height(particles_[k], options.time);
   }
 
   // update particle positions using the time step and current velocity
@@ -288,22 +308,51 @@ double ShallowWaterSimulation<Domain_t>::time_step(
     }
   }
 
+  // calculate error
+  double h_error = -1;
+  if (options_.has_analytic_height) {
+    h_error = 0.0;
+    double h_total = 0.0;
+    for (size_t k = 0; k < n; k++) {
+      double ha = options_.analytic_height(particles_[k], options.time + dt);
+      double dh = ha - height_[k];
+      h_error += dh * dh;
+      h_total += ha * ha;
+    }
+    h_error = std::sqrt(h_error / h_total);
+  }
+
   // monitor the simulation
   if (options.iteration % options.print_frequency == 0) print_header();
   double sdpd = options.time / timer_.seconds();
   double area_error = (domain_.area() - total_area());
-  double mass_error = 100 * (total_mass() - initial_mass_) / initial_mass_;
+  double mass_error = (total_mass() - initial_mass_) / initial_mass_;
   double momentum_error =
-      100 * (total_momentum() - initial_momentum_) / initial_momentum_;
-  double energy_error =
-      100 * (total_energy() - initial_energy_) / initial_energy_;
+      (total_momentum() - initial_momentum_) / initial_momentum_;
+  double energy_error = (total_energy() - initial_energy_) / initial_energy_;
   std::cout << fmt::format(
       "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:+1.1e} | {:+1.1e} | "
       "{:+1.1e} "
-      "| {:+1.1e} | {:6.1f} | \n",
+      "| {:+1.1e} | {:6.1f} | {:+1.1e} |\n",
       options.iteration, days_hours_minutes(options.time), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
-      momentum_error, energy_error, sdpd);
+      momentum_error, energy_error, sdpd, h_error);
+  time_step_timer.stop();
+
+  statistics_.ra.push_back(area_error);
+  statistics_.rw.push_back(convergence.error);
+  statistics_.rm.push_back(mass_error);
+  statistics_.rp.push_back(momentum_error);
+  statistics_.re.push_back(energy_error);
+  statistics_.sdpd.push_back(sdpd);
+  statistics_.h_error.push_back(h_error);
+  statistics_.time.push_back(options.time + dt);
+  statistics_.voronoi_time.push_back(voronoi_time_);
+  statistics_.n_voronoi.push_back(n_voronoi_);
+  statistics_.linear_solver_time.push_back(linear_solver_time_ +
+                                           linear_solver_time);
+  statistics_.time_step_time.push_back(time_step_timer.seconds());
+
   return dt;
 }
 
@@ -403,9 +452,9 @@ void ShallowWaterSimulation<Domain_t>::print_header(int n_bars) const {
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
   std::cout << fmt::format(
       "| {:6s} | {:9s} | {:7s} | {:10s} | {:8s} | {:8s} | {:8s} | {:8s} | "
-      "{:6s} |\n",
-      "Step", "day:hr:mn", "dt (s)", "Rw", "Ra (%)", "Rm (%)", "Rp (%) ",
-      "Re (%)", "SDPD");
+      "{:6s} | {:8s} |\n",
+      "Step", "day:hr:mn", "dt (s)", "Rw", "Ra", "Rm", "Rp", "Re", "SDPD",
+      "Eh");
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
 }
 
@@ -455,6 +504,27 @@ void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
 }
 
 template <typename Domain_t>
+void ShallowWaterSimulation<Domain_t>::save_json(
+    const std::string& filename) const {
+  nlohmann::json data;
+
+  size_t n = particles_.n();
+  std::vector<double> x(n), y(n), z(n);
+  for (size_t k = 0; k < n; k++) {
+    x[k] = particles_[k][0];
+    y[k] = particles_[k][1];
+    z[k] = particles_[k][2];
+  }
+  data["x"] = x;
+  data["y"] = y;
+  data["z"] = z;
+  data["h"] = height_;
+
+  std::ofstream outfile(filename);
+  outfile << std::setw(4) << data << std::endl;
+}
+
+template <typename Domain_t>
 double ShallowWaterSimulation<Domain_t>::total_area() const {
   double area = 0.0;
   for (size_t i = 0; i < particles_.n(); i++) {
@@ -498,6 +568,130 @@ double ShallowWaterSimulation<Domain_t>::total_energy() const {
     energy += 0.5 * vi * g * ((hi + hs) * (hi + hs) - hs * hs);
   }
   return energy;
+}
+
+void run_swe_solver(const argparse::ArgumentParser& program) {
+  static const int dim = 3;
+  typedef SphereDomain Domain_t;
+  Domain_t domain;
+
+  // create output directory
+  std::string output_dir = program.get<std::string>("--output");
+  if (output_dir.empty()) {
+    output_dir = fmt::format("vortex{}", getpid());
+  } else {
+    size_t n_removed = std::filesystem::remove_all(output_dir);
+    LOG << fmt::format("removed {} files from {}", n_removed, output_dir);
+  }
+  std::filesystem::create_directories(output_dir);
+  std::string prefix = output_dir + "/particles";
+
+  // initialize particles
+  double* sites = nullptr;
+  int n_smooth = 0;
+  size_t n_sites = 0;
+  std::string particles = program.get<std::string>("--particles");
+  std::shared_ptr<SubdividedSphere<Icosahedron>> mesh;
+  if (size_t pos = particles.find("icosahedron") != std::string::npos) {
+    particles.erase(pos - 1, 11);
+    mesh = std::make_shared<SubdividedSphere<Icosahedron>>(
+        std::atoi(particles.data()));
+    ;
+    n_sites = mesh->vertices().n();
+    sites = mesh->vertices()[0];
+    LOG << fmt::format("# sites = {}", n_sites);
+  }
+
+  // construct a better ordering of the points
+  std::vector<index_t> order(n_sites);
+  sort_points_on_zcurve(sites, n_sites, dim, order);
+  Vertices vertices(dim);
+  vertices.reserve(n_sites);
+  coord_t x[dim];
+  for (size_t i = 0; i < n_sites; i++) {
+    for (int d = 0; d < dim; d++) x[d] = sites[dim * order[i] + d];
+    vertices.add(x);
+  }
+
+  // set up the fluid simulator
+  std::shared_ptr<ShallowWaterOptions> test_case_ptr = nullptr;
+  std::string test_case = program.get<std::string>("--case");
+  if (test_case == "wtc1") {
+    test_case_ptr = std::make_shared<WilliamsonCase1>();
+  } else if (test_case == "wtc2") {
+    test_case_ptr = std::make_shared<WilliamsonCase2>();
+  } else if (test_case == "wtc5") {
+    test_case_ptr = std::make_shared<WilliamsonCase5>();
+  } else if (test_case == "wtc6") {
+    test_case_ptr = std::make_shared<WilliamsonCase6>();
+  } else {
+    LOG << "unknown test case: " << test_case;
+  }
+  test_case_ptr->use_optimal_transport = true;
+  test_case_ptr->add_artificial_viscosity = false;
+  test_case_ptr->project_velocity = true;
+  test_case_ptr->stabilize_pressure_gradient = false;
+  ShallowWaterSimulation<Domain_t> solver(domain, n_sites, vertices[0],
+                                          vertices.dim(), *test_case_ptr);
+
+  // set up simulation
+  SimulationOptions solver_opts;
+  solver_opts.save_initial_mesh = true;
+  solver_opts.n_smoothing_iterations = n_smooth;
+  solver_opts.advect_from_centroid = true;
+  solver.initialize(domain, solver_opts);
+  solver.setup();
+
+  solver.statistics().n_particles = n_sites;
+  solver.statistics().name = test_case;
+
+  // step in time
+  double days = program.get<double>("--days");
+  solver_opts.time_step = program.get<double>("--step");
+  solver_opts.verbose = false;
+  solver_opts.backtrack = false;
+  solver_opts.restart_zero_weights = true;
+  solver_opts.max_iter = 3;
+  solver_opts.skip_initial_calculation = true;
+  double seconds = 0;
+  double hour = 0;
+  solver.save(prefix + "0.vtk");
+  while (seconds <= days_to_seconds(days)) {
+    double dt = solver.time_step(solver_opts);
+    solver_opts.iteration++;
+    seconds += dt;
+    solver_opts.time = seconds;
+    int current_hour = seconds / 3600;
+    if (current_hour == hour + 1) {
+      std::string filename = fmt::format("{}{}.vtk", prefix, current_hour);
+      solver.save(filename);
+      solver.save_json(fmt::format("{}{}.json", prefix, current_hour));
+      ++hour;
+    }
+  }
+
+  std::ofstream outfile(output_dir + "/" +
+                        program.get<std::string>("--statistics"));
+  outfile << std::setw(4) << solver.statistics().to_json() << std::endl;
+}
+
+nlohmann::json ShallowWaterStatistics::to_json() const {
+  nlohmann::json data;
+  data["n_particles"] = n_particles;
+  data["name"] = name;
+  data["rw"] = rw;
+  data["ra"] = ra;
+  data["rm"] = rm;
+  data["rp"] = rp;
+  data["re"] = re;
+  data["time"] = time;
+  data["h_error"] = h_error;
+  data["sdpd"] = sdpd;
+  data["voronoi_time"] = voronoi_time;
+  data["n_voronoi"] = n_voronoi;
+  data["linear_solver_time"] = linear_solver_time;
+  data["time_step_time"] = time_step_time;
+  return data;
 }
 
 template class ShallowWaterSimulation<SphereDomain>;

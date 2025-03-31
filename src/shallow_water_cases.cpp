@@ -76,9 +76,7 @@ WilliamsonCase2::WilliamsonCase2() {
   double h0 = 2.94e4 / g;
   double u0 = 2 * M_PI * a / (12 * 24 * 3600);
   surface_height = [](const double* x) -> double { return 0.0; };
-  initial_height = [h0, omega, a, u0, g](const double* x) -> double {
-    return h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[0] * x[0] / g;
-  };
+
   initial_velocity = [u0](const double* x) -> vec3d {
     double lambda, theta;
     xyz_to_latlon(x, theta, lambda);
@@ -93,6 +91,15 @@ WilliamsonCase2::WilliamsonCase2() {
   coriolis_parameter = [omega](const double* x) -> double {
     return -2.0 * omega * x[0];
   };
+
+  analytic_height = [h0, omega, a, u0, g](const double* x,
+                                          double time) -> double {
+    return h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[0] * x[0] / g;
+  };
+  initial_height = [this](const double* x) -> double {
+    return analytic_height(x, 0);
+  };
+  has_analytic_height = true;
 }
 
 WilliamsonCase5::WilliamsonCase5() {
@@ -193,6 +200,16 @@ WilliamsonCase6::WilliamsonCase6() {
   coriolis_parameter = [omega](const double* x) -> double {
     return 2.0 * omega * x[2];
   };
+
+  double nu = (m * (3 + m) * w - 2 * omega) / ((1 + m) * (2 + m));
+  analytic_height = [A, B, C, h0, a, m, g, nu](const double* x,
+                                               double time) -> double {
+    double l, t;
+    xyz_to_latlon(x, t, l);
+    l -= nu * time;
+    return h0 + a * a * (A(t) + B(t) * cos(m * l) + C(t) * cos(2 * m * l)) / g;
+  };
+  has_analytic_height = true;
 }
 
 }  // namespace vortex
