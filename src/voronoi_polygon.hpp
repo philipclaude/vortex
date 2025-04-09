@@ -115,11 +115,12 @@ class VoronoiPolygon {
         clip_by_plane(b);
 
         // check if no more bisectors contribute to the cell
-        double sr = squared_radius(ui);
+        double sr = squared_radius(ui) + ui.w * ui.w;
         max_radius_ = std::sqrt(sr);
-        // security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
-        security_radius_reached =
-            4.01 * sr < pow(Domain_t::length(ui.xyz(), uj.xyz()), 2) - wi + wj;
+        security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
+        // security_radius_reached =
+        //     4.01 * sr < pow(Domain_t::length(ui.xyz(), uj.xyz()), 2) - wi +
+        //     wj;
         if (security_radius_reached) break;
       }
 
@@ -218,7 +219,8 @@ class VoronoiPolygon {
     uint8_t bi = polygon_.back();
     for (size_t k = 0; k < polygon_.size(); k++) {
       vec4 p = cell_.compute(plane_[bi], plane_[polygon_[k]]);
-      double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
+      // double rk = distance_squared(c, {p.x / p.w, p.y / p.w, p.z / p.w, 0});
+      double rk = distance_squared(c.xyz(), {p.x / p.w, p.y / p.w, p.z / p.w});
       if (rk > r) r = rk;
       bi = polygon_[k];
     }
@@ -404,7 +406,7 @@ VoronoiStatusCode VoronoiPolygon<TriangulationDomain>::compute(
         clip_by_plane(b);
 
         // check if no more bisectors contribute to the cell
-        double sr = squared_radius(ui);
+        double sr = squared_radius(ui) + ui.w * ui.w;
         max_radius_ = std::sqrt(sr);
         security_radius_reached = 4.01 * sr < distance_squared(ui, uj);
         if (security_radius_reached) break;

@@ -71,11 +71,13 @@ UT_TEST_CASE(test1) {
   }
 
   // set up the fluid simulator
-  WilliamsonCase6 test_case;
+  WilliamsonCase1 test_case;
   test_case.use_optimal_transport = true;
   test_case.add_artificial_viscosity = false;
   test_case.project_velocity = true;
   test_case.stabilize_pressure_gradient = false;
+  // test_case.constrain = false;
+  test_case.time_stepping = TimeSteppingScheme::kExplicit;
   ShallowWaterSimulation<Domain_t> solver(domain, n_sites, vertices[0],
                                           vertices.dim(), test_case);
 
@@ -94,7 +96,7 @@ UT_TEST_CASE(test1) {
   std::filesystem::create_directories(output_dir);
 
   // step in time
-  int days = 15;
+  int days = 12;
   solver_opts.time_step = 90;
   solver_opts.verbose = false;
   solver_opts.backtrack = false;

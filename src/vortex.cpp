@@ -594,7 +594,8 @@ void run_simulation(argparse::ArgumentParser& program) {
     solver_opts.n_smoothing_iterations = program.get<int>("--n_smooth");
     bool is_sphere = std::is_same<Domain_t, SphereDomain>::value;
     if (is_sphere)
-      solver_opts.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+      solver_opts.neighbor_algorithm =
+          NearestNeighborAlgorithm::kSphereQuadtree;
 
     solver.initialize(domain, solver_opts);
     LOG << "initialized simulation";
@@ -905,7 +906,6 @@ int main(int argc, char** argv) {
   cmd_swe.add_argument("--output").help("output directory").default_value("");
   cmd_swe.add_argument("--days")
       .help("number simulation days")
-      .default_value(1.0)
       .scan<'g', double>();
   cmd_swe.add_argument("--step")
       .help("time step in seconds")

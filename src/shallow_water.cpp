@@ -176,11 +176,9 @@ double ShallowWaterSimulation<Domain_t>::time_step(
 
     Timer timer;
     timer.start();
-    vecd<double> rhs(n);
-    spmat<double> H(n, n);
     for (size_t i = 0; i < n; i++) {
-      H(i, i) = 1.0;
-      rhs(i) = height_[i] * (1 - dt * div_f[i] / a) / a;
+      h_mat_(i, i) = 1.0;
+      h_rhs_(i) = height_[i] * (1 - dt * div_f[i] / a) / a;
     }
     for (const auto& facet : voronoi_.facets()) {
       if (facet.bj < 0) continue;
@@ -196,21 +194,21 @@ double ShallowWaterSimulation<Domain_t>::time_step(
       const double wj = voronoi_.properties()[j].volume;
       double xij = std::sqrt(dot(rij, rij));
       double dij = -height_[i] * g * dt * dt * lij / xij / a / a;
-      H(i, j) = dij / wi;
-      H(j, i) = dij / wj;
-      H(i, i) -= H(i, j);
-      H(j, j) -= H(j, i);
+      h_mat_(i, j) = dij / wi;
+      h_mat_(j, i) = dij / wj;
+      h_mat_(i, i) -= h_mat_(i, j);
+      h_mat_(j, j) -= h_mat_(j, i);
     }
     SparseSolverOptions opts;
     // opts.tol = 1e-3;
     opts.symmetric = false;
     opts.max_iterations = 50;
     vecd<double> dh(n);
-    H.solve_nl(rhs, dh, opts);
+    h_mat_.solve_nl(h_rhs_, h_sol_, opts);
     timer.stop();
     linear_solver_time = timer.seconds();
     for (size_t i = 0; i < n; i++) {
-      height_[i] = dh[i];
+      height_[i] = h_sol_[i];
     }
   }
 
@@ -334,7 +332,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
       "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:+1.1e} | {:+1.1e} | "
       "{:+1.1e} "
       "| {:+1.1e} | {:6.1f} | {:+1.1e} |\n",
-      options.iteration, days_hours_minutes(options.time), dt,
+      options.iteration, days_hours_minutes(options.time + dt), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
       momentum_error, energy_error, sdpd, h_error);
   time_step_timer.stop();
@@ -646,17 +644,23 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
   solver.statistics().name = test_case;
 
   // step in time
-  double days = program.get<double>("--days");
+  double days = test_case_ptr->days;
+  if (program.present<double>("--days")) days = program.get<double>("--days");
   solver_opts.time_step = program.get<double>("--step");
   solver_opts.verbose = false;
   solver_opts.backtrack = false;
   solver_opts.restart_zero_weights = true;
   solver_opts.max_iter = 3;
   solver_opts.skip_initial_calculation = true;
+  solver_opts.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
+
+  Timer timer;
+  timer.start();
   double seconds = 0;
   double hour = 0;
   solver.save(prefix + "0.vtk");
-  while (seconds <= days_to_seconds(days)) {
+  solver.save_json(fmt::format("{}{}.json", prefix, hour));
+  while (seconds < days_to_seconds(days)) {
     double dt = solver.time_step(solver_opts);
     solver_opts.iteration++;
     seconds += dt;
@@ -665,10 +669,13 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
     if (current_hour == hour + 1) {
       std::string filename = fmt::format("{}{}.vtk", prefix, current_hour);
       solver.save(filename);
-      solver.save_json(fmt::format("{}{}.json", prefix, current_hour));
+      if (current_hour % 24 == 0)
+        solver.save_json(fmt::format("{}{}.json", prefix, current_hour));
       ++hour;
     }
   }
+  timer.stop();
+  solver.statistics().total_time = timer.seconds();
 
   std::ofstream outfile(output_dir + "/" +
                         program.get<std::string>("--statistics"));
@@ -691,6 +698,7 @@ nlohmann::json ShallowWaterStatistics::to_json() const {
   data["n_voronoi"] = n_voronoi;
   data["linear_solver_time"] = linear_solver_time;
   data["time_step_time"] = time_step_time;
+  data["total_time"] = total_time;
   return data;
 }
 

@@ -56,6 +56,7 @@ add_extern_repository(PCK GIT_REPOSITORY "https://github.com/middleburygcl/geogr
 add_extern_repository(trees GIT_REPOSITORY "https://github.com/middleburygcl/trees.git" SKIP_CONFIG TRUE)
 add_extern_repository(stlext GIT_REPOSITORY "https://github.com/middleburygcl/stlext.git" SKIP_CONFIG TRUE)
 add_extern_repository(json GIT_REPOSITORY "https://github.com/nlohmann/json")
+#add_extern_repository(amgcl GIT_REPOSITORY "https://github.com/ddemidov/amgcl.git")
 
 if (WITH_NETCDF)
 	# brew install netcdf first

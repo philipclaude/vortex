@@ -68,6 +68,7 @@ struct ShallowWaterOptions {
   ScalarFunctionXT analytic_height;
   VectorFunction surface_height_gradient;
   bool has_analytic_height{false};
+  double days{1};
 
   VectorFunction initial_velocity;
   VectorFunction analytic_velocity;
@@ -93,6 +94,7 @@ struct ShallowWaterStatistics {
   std::vector<int> n_voronoi;
   std::string name;
   size_t n_particles{0};
+  double total_time{0};
   nlohmann::json to_json() const;
 };
 
@@ -105,7 +107,10 @@ class ShallowWaterSimulation : public ParticleSimulation {
         domain_(domain),
         height_(np, 0.0),
         volume_(np, 0.0),
-        options_(test_case) {
+        options_(test_case),
+        h_mat_(np, np),
+        h_rhs_(np),
+        h_sol_(np) {
     timer_.start();
     for (int i = 0; i < np; i++) particles_.density()[i] = 1.0;
   }
@@ -143,6 +148,10 @@ class ShallowWaterSimulation : public ParticleSimulation {
   double initial_momentum_;
   double initial_energy_;
   ShallowWaterStatistics statistics_;
+
+  spmat<double> h_mat_;
+  vecd<double> h_rhs_;
+  vecd<double> h_sol_;
 };
 
 struct WilliamsonCase1 : ShallowWaterOptions {

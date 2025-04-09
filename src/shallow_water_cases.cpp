@@ -36,7 +36,8 @@ WilliamsonCase1::WilliamsonCase1() {
   const double h0 = 1000;
   const double lc = 3 * M_PI / 2;
   const double tc = 0;
-  const double u0 = 2 * M_PI * a / (12 * 24 * 3600);
+  const double twelve_days = 12 * 24 * 3600;
+  const double u0 = 2 * M_PI * a / twelve_days;
   const double hm = 1000;
 
   surface_height = [](const double* x) -> double { return 0.0; };
@@ -66,6 +67,15 @@ WilliamsonCase1::WilliamsonCase1() {
   };
   analytic_velocity = initial_velocity;
   use_analytic_velocity = true;
+
+  analytic_height = [this, twelve_days](const double* x,
+                                        double time) -> double {
+    if (time != twelve_days) return 1e20;
+    return initial_height(x);
+  };
+  has_analytic_height = true;
+  time_stepping = TimeSteppingScheme::kExplicit;
+  days = 12;
 }
 
 WilliamsonCase2::WilliamsonCase2() {
@@ -100,6 +110,7 @@ WilliamsonCase2::WilliamsonCase2() {
     return analytic_height(x, 0);
   };
   has_analytic_height = true;
+  days = 12;
 }
 
 WilliamsonCase5::WilliamsonCase5() {
@@ -140,6 +151,7 @@ WilliamsonCase5::WilliamsonCase5() {
   };
   double hmin = h0 - (omega * a * u0 + 0.5 * u0 * u0) / g;
   LOG << fmt::format("hmin = {}, hmax = {}", hmin, h0);
+  days = 15;
 }
 
 WilliamsonCase6::WilliamsonCase6() {
@@ -210,6 +222,7 @@ WilliamsonCase6::WilliamsonCase6() {
     return h0 + a * a * (A(t) + B(t) * cos(m * l) + C(t) * cos(2 * m * l)) / g;
   };
   has_analytic_height = true;
+  days = 15;
 }
 
 }  // namespace vortex
