@@ -36,7 +36,8 @@ WilliamsonCase1::WilliamsonCase1() {
   const double h0 = 1000;
   const double lc = 3 * M_PI / 2;
   const double tc = 0;
-  const double u0 = 2 * M_PI * a / (12 * 24 * 3600);
+  const double twelve_days = 12 * 24 * 3600;
+  const double u0 = 2 * M_PI * a / twelve_days;
   const double hm = 1000;
 
   surface_height = [](const double* x) -> double { return 0.0; };
@@ -66,6 +67,15 @@ WilliamsonCase1::WilliamsonCase1() {
   };
   analytic_velocity = initial_velocity;
   use_analytic_velocity = true;
+
+  analytic_height = [this, twelve_days](const double* x,
+                                        double time) -> double {
+    if (time != twelve_days) return 1e20;
+    return initial_height(x);
+  };
+  has_analytic_height = true;
+  time_stepping = TimeSteppingScheme::kExplicit;
+  days = 12;
 }
 
 WilliamsonCase2::WilliamsonCase2() {
@@ -76,9 +86,7 @@ WilliamsonCase2::WilliamsonCase2() {
   double h0 = 2.94e4 / g;
   double u0 = 2 * M_PI * a / (12 * 24 * 3600);
   surface_height = [](const double* x) -> double { return 0.0; };
-  initial_height = [h0, omega, a, u0, g](const double* x) -> double {
-    return h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[0] * x[0] / g;
-  };
+
   initial_velocity = [u0](const double* x) -> vec3d {
     double lambda, theta;
     xyz_to_latlon(x, theta, lambda);
@@ -93,6 +101,16 @@ WilliamsonCase2::WilliamsonCase2() {
   coriolis_parameter = [omega](const double* x) -> double {
     return -2.0 * omega * x[0];
   };
+
+  analytic_height = [h0, omega, a, u0, g](const double* x,
+                                          double time) -> double {
+    return h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[0] * x[0] / g;
+  };
+  initial_height = [this](const double* x) -> double {
+    return analytic_height(x, 0);
+  };
+  has_analytic_height = true;
+  days = 12;
 }
 
 WilliamsonCase5::WilliamsonCase5() {
@@ -133,6 +151,7 @@ WilliamsonCase5::WilliamsonCase5() {
   };
   double hmin = h0 - (omega * a * u0 + 0.5 * u0 * u0) / g;
   LOG << fmt::format("hmin = {}, hmax = {}", hmin, h0);
+  days = 15;
 }
 
 WilliamsonCase6::WilliamsonCase6() {
@@ -193,6 +212,17 @@ WilliamsonCase6::WilliamsonCase6() {
   coriolis_parameter = [omega](const double* x) -> double {
     return 2.0 * omega * x[2];
   };
+
+  double nu = (m * (3 + m) * w - 2 * omega) / ((1 + m) * (2 + m));
+  analytic_height = [A, B, C, h0, a, m, g, nu](const double* x,
+                                               double time) -> double {
+    double l, t;
+    xyz_to_latlon(x, t, l);
+    l -= nu * time;
+    return h0 + a * a * (A(t) + B(t) * cos(m * l) + C(t) * cos(2 * m * l)) / g;
+  };
+  has_analytic_height = true;
+  days = 15;
 }
 
 }  // namespace vortex

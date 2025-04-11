@@ -34,6 +34,20 @@ int stbi_write_jpg(char const *filename, int x, int y, int comp,
 void stbi_set_flip_vertically_on_load(int flag);
 }
 
+#if VORTEX_WITH_VIZ == 0
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+
+#pragma GCC diagnostic pop
+#endif
+
 namespace vortex {
 
 Texture::Texture(const std::string &filename, TextureOptions options)

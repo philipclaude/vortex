@@ -26,6 +26,8 @@
 #include "shaders/colormaps.h"
 #include "texture.h"
 #include "triangulate.h"
+
+#if VORTEX_WITH_VIZ
 #include "wings.h"
 #include "wings/util/glm.h"
 #include "wings/util/shader.h"
@@ -1266,3 +1268,13 @@ Viewer::Viewer(const Mesh& mesh, int port) {
 Viewer::~Viewer() {}
 
 }  // namespace vortex
+
+#else
+namespace vortex {
+Viewer::Viewer(const Mesh& mesh, int port) {
+  ASSERT(false) << "Please reconfigure vortex to include the visualizer.";
+}
+
+Viewer::~Viewer() {}
+}  // namespace vortex
+#endif

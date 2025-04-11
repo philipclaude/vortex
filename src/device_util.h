@@ -44,6 +44,10 @@ class device_vector {
   device_vector(T* buffer, size_t capacity)
       : size_(0), capacity_(capacity), data_(buffer), resizable_(false) {}
 
+  ~device_vector() {
+    if (resizable_) delete[] data_;
+  }
+
   const T& operator[](size_t k) const { return data_[k]; }
   T& operator[](size_t k) { return data_[k]; }
 
@@ -140,6 +144,11 @@ class device_hash_set {
     taken_ = (bool*)malloc(sizeof(bool) * capacity_);
 #endif
     for (size_t k = 0; k < capacity_; k++) taken_[k] = false;
+  }
+
+  ~device_hash_set() {
+    free(data_);
+    free(taken_);
   }
 
   void insert(const T& key) {

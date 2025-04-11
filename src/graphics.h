@@ -35,9 +35,11 @@ class Viewer {
   ~Viewer();
 
  private:
+#if VORTEX_WITH_VIZ
   std::unique_ptr<MeshScene> scene_;
   std::unique_ptr<wings::RenderingServer> renderer_;
   std::unique_ptr<ShaderLibrary> shaders_;
+#endif
 };
 
 #define GL_CALL(X)                                                          \

@@ -53,7 +53,7 @@ UT_TEST_CASE(test1) {
   }
 #else
   int n_smooth = 0;
-  SubdividedSphere<Icosahedron> mesh(6);
+  SubdividedSphere<Icosahedron> mesh(5);
   size_t n_sites = mesh.vertices().n();
   const auto& sites = mesh.vertices().data();
   LOG << fmt::format("n_sites = {}", n_sites);
@@ -71,11 +71,13 @@ UT_TEST_CASE(test1) {
   }
 
   // set up the fluid simulator
-  WilliamsonCase6 test_case;
+  WilliamsonCase1 test_case;
   test_case.use_optimal_transport = true;
   test_case.add_artificial_viscosity = false;
   test_case.project_velocity = true;
   test_case.stabilize_pressure_gradient = false;
+  // test_case.constrain = false;
+  test_case.time_stepping = TimeSteppingScheme::kSemiImplicit;
   ShallowWaterSimulation<Domain_t> solver(domain, n_sites, vertices[0],
                                           vertices.dim(), test_case);
 
@@ -87,19 +89,19 @@ UT_TEST_CASE(test1) {
   solver.initialize(domain, solver_opts);
   solver.setup();
 
-  std::string output_dir = "swe-case6-s6";
+  std::string output_dir = "swe-test";
   std::string prefix = output_dir + "/particles";
   size_t n_removed = std::filesystem::remove_all(output_dir);
   LOG << fmt::format("removed {} files with prefix {}", n_removed, prefix);
   std::filesystem::create_directories(output_dir);
 
   // step in time
-  int days = 15;
-  solver_opts.time_step = 60;
+  int days = 12;
+  solver_opts.time_step = 90;
   solver_opts.verbose = false;
   solver_opts.backtrack = false;
   solver_opts.restart_zero_weights = true;
-  solver_opts.max_iter = 5;
+  solver_opts.max_iter = 3;
   solver_opts.skip_initial_calculation = true;
   double seconds = 0;
   double hour = 0;
@@ -111,8 +113,10 @@ UT_TEST_CASE(test1) {
     solver_opts.time = seconds;
     int current_hour = seconds / 3600;
     if (current_hour == hour + 1) {
-      std::string filename = fmt::format("{}{}.vtk", prefix, ++hour);
+      std::string filename = fmt::format("{}{}.vtk", prefix, current_hour);
       solver.save(filename);
+      solver.save_json(fmt::format("{}{}.json", prefix, current_hour));
+      ++hour;
     }
   }
 }
