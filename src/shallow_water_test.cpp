@@ -77,7 +77,7 @@ UT_TEST_CASE(test1) {
   test_case.project_velocity = true;
   test_case.stabilize_pressure_gradient = false;
   // test_case.constrain = false;
-  test_case.time_stepping = TimeSteppingScheme::kExplicit;
+  test_case.time_stepping = TimeSteppingScheme::kSemiImplicit;
   ShallowWaterSimulation<Domain_t> solver(domain, n_sites, vertices[0],
                                           vertices.dim(), test_case);
 

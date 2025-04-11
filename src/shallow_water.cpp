@@ -176,6 +176,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
 
     Timer timer;
     timer.start();
+    h_mat_.clear();
     for (size_t i = 0; i < n; i++) {
       h_mat_(i, i) = 1.0;
       h_rhs_(i) = height_[i] * (1 - dt * div_f[i] / a) / a;
@@ -594,7 +595,6 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
     particles.erase(pos - 1, 11);
     mesh = std::make_shared<SubdividedSphere<Icosahedron>>(
         std::atoi(particles.data()));
-    ;
     n_sites = mesh->vertices().n();
     sites = mesh->vertices()[0];
     LOG << fmt::format("# sites = {}", n_sites);
@@ -614,13 +614,13 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
   // set up the fluid simulator
   std::shared_ptr<ShallowWaterOptions> test_case_ptr = nullptr;
   std::string test_case = program.get<std::string>("--case");
-  if (test_case == "wtc1") {
+  if (test_case == "williamson1") {
     test_case_ptr = std::make_shared<WilliamsonCase1>();
-  } else if (test_case == "wtc2") {
+  } else if (test_case == "williamson2") {
     test_case_ptr = std::make_shared<WilliamsonCase2>();
-  } else if (test_case == "wtc5") {
+  } else if (test_case == "williamson5") {
     test_case_ptr = std::make_shared<WilliamsonCase5>();
-  } else if (test_case == "wtc6") {
+  } else if (test_case == "willimason6") {
     test_case_ptr = std::make_shared<WilliamsonCase6>();
   } else {
     LOG << "unknown test case: " << test_case;
