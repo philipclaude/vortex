@@ -42,6 +42,7 @@ set(ABSL_USE_SYSTEM_INCLUDES ON)
 set(WITH_NLOPT FALSE)
 set(WITH_ABSL FALSE)
 set(WITH_NETCDF FALSE)
+set(WITH_VIZ TRUE)
 
 add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern/fmt/include)
@@ -82,17 +83,8 @@ endif()
 # utilities to clean up and update repositories
 add_custom_target(vortex_clean_extern COMMAND rm -rf ${extern_repositories})
 
-set(WINGS_SOURCES
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/wings.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/log.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/shader.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/util.cpp
-)
-add_library(vortex_wings ${WINGS_SOURCES})
-target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
-
 # external repositories
-set(external_libraries fmt argparse vortex_wings)
+set(external_libraries fmt argparse)
 if (WITH_NLOPT)
 	set(external_libraries ${external_libraries} nlopt)
 endif()
@@ -103,16 +95,32 @@ if (WITH_NETCDF)
 	set(external_libraries ${external_libraries} netcdf-cxx4)
 endif()
 
+if (WITH_VIZ)
 # OpenGL
 set(GL_LIBRARIES)
-if (APPLE)
-        find_library(OpenGL_LIBRARY OpenGL)
-        set(GL_LIBRARIES ${LIBRARIES} ${OpenGL_LIBRARY})
+	if (APPLE)
+					find_library(OpenGL_LIBRARY OpenGL)
+					set(GL_LIBRARIES ${LIBRARIES} ${OpenGL_LIBRARY})
+	else()
+					find_package(OpenGL COMPONENTS REQUIRED OpenGL EGL)
+					set(GL_LIBRARIES ${LIBRARIES} OpenGL::EGL pthread)
+	endif()
+
+	set(WINGS_SOURCES
+		${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/wings.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/log.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/shader.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/extern/wings/util/util.cpp
+	)
+	add_library(vortex_wings ${WINGS_SOURCES})
+	target_link_libraries(vortex_wings ${GL_LIBRARIES} fmt)
+
+	target_compile_definitions(vortex_wings PRIVATE WINGS_COMPILE_STB)
+	add_definitions(-DVORTEX_WITH_VIZ=1)
+	set(external_libraries ${external_libraries} vortex_wings)
 else()
-        find_package(OpenGL COMPONENTS REQUIRED OpenGL EGL)
-        set(GL_LIBRARIES ${LIBRARIES} OpenGL::EGL pthread)
+	add_definitions(-DVORTEX_WITH_VIZ=0)
 endif()
-target_link_libraries(vortex_wings ${GL_LIBRARIES} fmt)
 
 # TBB
 find_package(TBB)
