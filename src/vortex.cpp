@@ -912,7 +912,7 @@ int main(int argc, char** argv) {
       .default_value(30.0)
       .scan<'g', double>();
   cmd_swe.add_argument("--case")
-      .help("test case to run: wtc1, wtc2, wtc5, wtc6")
+      .help("test case to run: williamson{1,2,5,6}")
       .default_value("");
   cmd_swe.add_argument("--save_vtk_every")
       .help("frequency (in hours) to save solution data to VTK")

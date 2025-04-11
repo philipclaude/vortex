@@ -145,7 +145,11 @@ class spmat {
   auto& rows() { return rows_; }
 
   void clear() {
-    for (auto& row : rows_) row.clear();
+    for (auto& row : rows_) {
+      std::unordered_map<uint32_t, T>().swap(row);
+      // row.clear();
+    }
+    // std::vector<std::unordered_map<uint32_t, T>>().swap(rows_);
   }
 
  private:
