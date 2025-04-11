@@ -656,6 +656,7 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
 
   Timer timer;
   timer.start();
+  int save_every = program.get<int>("--save_every");
   double seconds = 0;
   double hour = 0;
   solver.save(prefix + "0.vtk");
@@ -667,10 +668,10 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
     solver_opts.time = seconds;
     int current_hour = seconds / 3600;
     if (current_hour == hour + 1) {
-      std::string filename = fmt::format("{}{}.vtk", prefix, current_hour);
-      solver.save(filename);
-      if (current_hour % 24 == 0)
+      if (current_hour % save_every == 0) {
+        solver.save(fmt::format("{}{}.vtk", prefix, current_hour));
         solver.save_json(fmt::format("{}{}.json", prefix, current_hour));
+      }
       ++hour;
     }
   }

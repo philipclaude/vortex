@@ -914,8 +914,8 @@ int main(int argc, char** argv) {
   cmd_swe.add_argument("--case")
       .help("test case to run: williamson{1,2,5,6}")
       .default_value("");
-  cmd_swe.add_argument("--save_vtk_every")
-      .help("frequency (in hours) to save solution data to VTK")
+  cmd_swe.add_argument("--save_every")
+      .help("frequency (in hours) to save solution data")
       .default_value(1)
       .scan<'i', int>();
   cmd_swe.add_argument("--save_json_every")
