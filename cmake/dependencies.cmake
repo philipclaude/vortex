@@ -43,7 +43,7 @@ set(WITH_NLOPT FALSE)
 set(WITH_ABSL FALSE)
 set(WITH_NETCDF FALSE)
 set(WITH_VIZ TRUE)
-set(DOWNLOAD_TBB TRUE)
+set(DOWNLOAD_TBB FALSE)
 
 add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern/fmt/include)
