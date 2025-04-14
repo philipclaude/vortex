@@ -620,7 +620,7 @@ void run_swe_solver(const argparse::ArgumentParser& program) {
     test_case_ptr = std::make_shared<WilliamsonCase2>();
   } else if (test_case == "williamson5") {
     test_case_ptr = std::make_shared<WilliamsonCase5>();
-  } else if (test_case == "willimason6") {
+  } else if (test_case == "williamson6") {
     test_case_ptr = std::make_shared<WilliamsonCase6>();
   } else {
     LOG << "unknown test case: " << test_case;
