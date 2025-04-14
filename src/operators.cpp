@@ -63,17 +63,33 @@ void VoronoiOperators<Domain_t>::calculate_gradient(const coord_t* f,
     ASSERT(wi > 0 || wj > 0) << fmt::format("wi = {}, wj = {}", wi, wj);
     ASSERT(rij > 0);
     ASSERT(!std::isnan(lij));
-    for (int d = 0; d < 3; d++) {
-#if 1
-      grad_f[3 * i + d] += lij * (xi[d] - mij[d]) * (fi - fj) / (rij * wi);
-      grad_f[3 * j + d] += lij * (xj[d] - mij[d]) * (fj - fi) / (rij * wj);
-#else
-      const coord_t cij_d = mij[d] - 0.5 * (xi[d] + xj[d]);
-      grad_f[3 * i + d] += lij * cij_d * (fj - fi) / (rij * wi);
-      grad_f[3 * j + d] += lij * cij_d * (fi - fj) / (rij * wj);
-      grad_f[3 * i + d] -= 0.5 * lij * (fi + fj) * (xi[d] - xj[d]) / (rij * wi);
-      grad_f[3 * j + d] -= 0.5 * lij * (fi + fj) * (xj[d] - xi[d]) / (rij * wj);
-#endif
+
+    if (method_ == OperatorMethod::kKincl) {
+      for (int d = 0; d < 3; d++) {
+        grad_f[3 * i + d] += lij * (xi[d] - mij[d]) * (fi - fj) / (rij * wi);
+        grad_f[3 * j + d] += lij * (xj[d] - mij[d]) * (fj - fi) / (rij * wj);
+      }
+    } else if (method_ == OperatorMethod::kSpringel) {
+      vec3d cij = mij - 0.5 * (xi + xj);
+      vec3d grad_ij =
+          (lij / rij) * ((fj - fi) * cij - 0.5 * (fi + fj) * (xi - xj)) / wi;
+      vec3d grad_ji =
+          (lij / rij) * ((fi - fj) * cij - 0.5 * (fi + fj) * (xj - xi)) / wj;
+      for (int d = 0; d < 3; d++) {
+        grad_f[3 * i + d] += grad_ij[d];
+        grad_f[3 * j + d] += grad_ji[d];
+      }
+    } else
+      ASSERT(false) << "unknown method";
+  }
+
+  if (project_) {
+    for (size_t i = 0; i < n_sites; i++) {
+      vec3d gip;
+      Domain_t::project(sites + dim * i, grad_f + 3 * i, &gip[0]);
+      for (size_t j = 0; j < 3; j++) {
+        grad_f[3 * i + j] = gip[j];
+      }
     }
   }
 }
@@ -109,10 +125,42 @@ void VoronoiOperators<Domain_t>::calculate_divergence(const coord_t* u,
     const double lij = facet.length;
     const double wi = voronoi_.properties()[i].volume;
     const double wj = voronoi_.properties()[j].volume;
-    const vec3d uij = ui - uj;
 
-    div_u[i] += lij * dot(xi - mij, uij) / (rij * wi);
-    div_u[j] -= lij * dot(xj - mij, uij) / (rij * wj);
+    if (method_ == OperatorMethod::kKincl) {
+      const vec3d uij = ui - uj;
+      vec3d uip = uij, ujp = uij;
+      if (project_) {
+        // We want to project (xi - mij) to calculate uij . P(xi - mij).
+        // This is = uij^T P(xi - mij) = (P(xi - mij))^T uij = (xi - mij)^TP^T
+        // uij, which is = (xi - mij)^T P uij = (xi - mij) . (P uij) since the
+        // projection P = I - nn^T is symmetric. So projecting uij works too.
+        Domain_t::project(sites + dim * i, &uij[0], &uip[0]);
+        Domain_t::project(sites + dim * j, &uij[0], &ujp[0]);
+      }
+
+      div_u[i] += lij * dot(xi - mij, uip) / (rij * wi);
+      div_u[j] -= lij * dot(xj - mij, ujp) / (rij * wj);
+    } else if (method_ == OperatorMethod::kSpringel) {
+      vec3d cij = mij - 0.5 * (xi + xj);
+      vec3d cijp = cij, cjip = cij;
+      vec3d xij = xi - xj, xji = xj - xi;
+      vec3d rijp = xij, rjip = xji;
+      vec3d uij_avg = 0.5 * (ui + uj);
+      if (project_) {
+        Domain_t::project(sites + dim * i, &cij[0], &cijp[0]);
+        Domain_t::project(sites + dim * j, &cij[0], &cjip[0]);
+        Domain_t::project(sites + dim * i, &xij[0], &rijp[0]);
+        Domain_t::project(sites + dim * j, &xji[0], &rjip[0]);
+      }
+
+      double div_i =
+          (lij / rij) * (dot(cijp, uj - ui) - dot(uij_avg, rijp)) / wi;
+      double div_j =
+          (lij / rij) * (dot(cjip, ui - uj) - dot(uij_avg, rjip)) / wj;
+      div_u[i] += div_i;
+      div_u[j] += div_j;
+    } else
+      ASSERT(false) << "unknown method";
   }
 }
 

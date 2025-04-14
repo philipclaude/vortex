@@ -71,7 +71,7 @@ UT_TEST_CASE(test1) {
   }
 
   // set up the fluid simulator
-  WilliamsonCase1 test_case;
+  WilliamsonCase6 test_case;
   test_case.use_optimal_transport = true;
   test_case.add_artificial_viscosity = false;
   test_case.project_velocity = true;
@@ -89,15 +89,15 @@ UT_TEST_CASE(test1) {
   solver.initialize(domain, solver_opts);
   solver.setup();
 
-  std::string output_dir = "swe-test";
+  std::string output_dir = "swe-test2";
   std::string prefix = output_dir + "/particles";
   size_t n_removed = std::filesystem::remove_all(output_dir);
   LOG << fmt::format("removed {} files with prefix {}", n_removed, prefix);
   std::filesystem::create_directories(output_dir);
 
   // step in time
-  int days = 12;
-  solver_opts.time_step = 90;
+  int days = 15;
+  solver_opts.time_step = 120;
   solver_opts.verbose = false;
   solver_opts.backtrack = false;
   solver_opts.restart_zero_weights = true;
