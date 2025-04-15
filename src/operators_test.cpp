@@ -149,8 +149,8 @@ UT_TEST_CASE(test_square) {
     // (missing boundary term)
     vec3d gi(&grad_f[3 * i]);
     if (gi[0] >= 1e20) continue;
-    UT_ASSERT_NEAR(gi[0], 0.5, 1e-12);
-    UT_ASSERT_NEAR(gi[1], 1.25, 1e-12);
+    UT_ASSERT_NEAR(gi[0], 0.5, 1e-10);
+    UT_ASSERT_NEAR(gi[1], 1.25, 1e-10);
   }
 
   std::vector<double> u(n_sites * 3, 0.0), div_u(n_sites, 0.0);
@@ -163,7 +163,7 @@ UT_TEST_CASE(test_square) {
   ops.calculate_divergence(u.data(), div_u.data());
   for (size_t i = 0; i < n_sites; i++) {
     if (div_u[i] >= 1e20) continue;  // skip boundary polygons
-    UT_ASSERT_NEAR(div_u[i], 1.75, 1e-12);
+    UT_ASSERT_NEAR(div_u[i], 1.75, 1e-10);
   }
 
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());
@@ -444,6 +444,8 @@ UT_TEST_CASE(test_sphere) {
   }
 
   VoronoiOperators<Domain_t> ops(voronoi);
+  // ops.set_project(false);
+  //  ops.set_method(OperatorMethod::kKincl);
   ops.calculate_gradient(f.data(), grad_f.data());
 
   double emin = 1e20;

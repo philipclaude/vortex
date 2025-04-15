@@ -26,18 +26,24 @@ namespace vortex {
 
 class VoronoiDiagram;
 
+enum OperatorMethod : uint8_t { kKincl, kSpringel };
+
 template <typename Domain_t>
 class VoronoiOperators {
  public:
   VoronoiOperators(const VoronoiDiagram& voronoi);
 
   void set_boundary_value(double x) { boundary_value_ = x; }
+  void set_project(bool x) { project_ = x; }
+  void set_method(OperatorMethod m) { method_ = m; }
   void calculate_gradient(const coord_t* f, coord_t* grad_f);
   void calculate_divergence(const coord_t* u, coord_t* div_u);
 
  private:
   const VoronoiDiagram& voronoi_;
   double boundary_value_{1e20};
+  bool project_{true};
+  OperatorMethod method_{OperatorMethod::kSpringel};
 };
 
 }  // namespace vortex
