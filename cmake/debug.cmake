@@ -3,8 +3,8 @@
 set(MEMCHECK_FLAGS --tool=memcheck --leak-check=yes --show-leak-kinds=all --errors-for-leak-kinds=all --num-callers=50 --error-exitcode=1 --gen-suppressions=all)
 
 # add the suppressions list to the memcheck flags
-list(APPEND MEMCHECK_FLAGS --suppressions=${CMAKE_SOURCE_DIR}/cmake/suppressions/osx)
-list(APPEND MEMCHECK_FLAGS --suppressions=${CMAKE_SOURCE_DIR}/cmake/suppressions/ubuntu)
+#list(APPEND MEMCHECK_FLAGS --suppressions=${CMAKE_SOURCE_DIR}/cmake/suppressions/osx)
+#list(APPEND MEMCHECK_FLAGS --suppressions=${CMAKE_SOURCE_DIR}/cmake/suppressions/ubuntu)
 
 # find gcov and valgrind
 find_program(COVERAGE_COMMAND NAMES gcov)

@@ -91,7 +91,7 @@ class GLPrimitive {
   }
 
   void write(const std::vector<GLuint>& indices,
-             const std::vector<char>& visibility,
+             const std::vector<GLchar>& visibility,
              const std::vector<GLuint>& primitive2cell) {
     GL_CALL(glGenBuffers(1, &index_buffer_));
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_));
@@ -102,7 +102,7 @@ class GLPrimitive {
 
     GL_CALL(glGenBuffers(1, &visibility_buffer_));
     GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, visibility_buffer_));
-    GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(char) * visibility.size(),
+    GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLchar) * visibility.size(),
                          visibility.data(), GL_STATIC_DRAW));
     GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
 
@@ -120,7 +120,7 @@ class GLPrimitive {
   void write(const Vertices& vertices, const Topology<T>& topology) {
     // write the elements
     std::vector<GLuint> indices(topology.data().begin(), topology.data().end());
-    std::vector<char> visibility(topology.data().size(), char(0));
+    std::vector<GLchar> visibility(topology.data().size(), GLchar(0));
     write(indices, visibility, {});
     n_draw_ = topology.data().size();
   }
@@ -180,7 +180,7 @@ class GLPrimitive {
     if (type_ == GL_TRIANGLES) {
       GL_CALL(glActiveTexture(GL_TEXTURE0 + kVisibility));
       GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, visibility_texture));
-      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R8, visibility_buffer_));
+      GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, visibility_buffer_));
       shader.set_uniform("visibility", int(kVisibility));
     }
 
@@ -232,7 +232,7 @@ void GLPrimitive::write(const Vertices& vertices,
                         const Topology<Polygon>& polygons) {
   // reserve enough space for the triangles
   std::vector<GLuint> indices, primitive2cell;
-  std::vector<char> visibility;
+  std::vector<GLchar> visibility;
   indices.reserve(polygons.data().size() * 3);
   visibility.reserve(indices.size());
   primitive2cell.reserve(polygons.data().size());
@@ -257,7 +257,7 @@ template <>
 void GLPrimitive::write(const Vertices& vertices, const Topology<Quad>& quads) {
   // reserve enough space for the triangles
   std::vector<GLuint> indices(quads.n() * 6), primitive2cell(2 * quads.n());
-  std::vector<char> visibility(indices.size());
+  std::vector<GLchar> visibility(indices.size());
 
   size_t t = 0;
   for (size_t k = 0; k < quads.n(); k++) {

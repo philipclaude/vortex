@@ -580,7 +580,7 @@ struct SphereDomain {
   /// @param cell polygon to initialize in the calculation.
   void initialize(vec4 z, VoronoiPolygon<SphereDomain>& cell) const;
   const double radius{1.0};
-  double initialization_fraction{0.7};  // use 0.7 for power diagrams
+  double initialization_fraction{0.1};  // use 0.7 for power diagrams
 
   static vec3d random_point() {
     coord_t theta = 2.0 * M_PI * irand(0, 1);

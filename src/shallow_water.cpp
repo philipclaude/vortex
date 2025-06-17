@@ -569,7 +569,7 @@ double ShallowWaterSimulation<Domain_t>::total_energy() const {
   return energy;
 }
 
-void run_swe_solver(const argparse::ArgumentParser& program) {
+void run_swe_simulation(const argparse::ArgumentParser& program) {
   static const int dim = 3;
   typedef SphereDomain Domain_t;
   Domain_t domain;
