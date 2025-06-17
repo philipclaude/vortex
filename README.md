@@ -15,7 +15,7 @@ Since `vortex` includes a visualizer built upon `wings`, it also requires `OpenG
 To get started building `vortex`, please use the following steps:
 
 ```sh
-git clone git@github.com:middleburygcl/vortex.git
+git clone git@github.com:philipclaude/vortex.git
 cd vortex
 dev/setup.sh
 mkdir build
