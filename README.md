@@ -1,6 +1,6 @@
 ### About
 
-`vortex` is a Voronoi mesher, visualizer and fluid simulator for the Earth's oceans and atmosphere. Currently, `vortex` is focused on providing meshing and visualization tools for ocean and atmospheric modeling - fluid simulations are under active development. In `vortex`, the distinction between land and water is usually made using an image "texture", similar to how textures are used in computer graphics for normal mapping and for looking up the reflection coefficient on a surface.
+`vortex` is a Voronoi mesher, visualizer and fluid simulator for geophysical fluids on the sphere. Currently, the main capability consists of solving the shallow water equations with a Lagrangian method to simulate the air in the Earth's atmosphere. Future work consists of applying this method to simulate the oceans.
 
 **Note:** `vortex` currently contains new unpublished research which is why it is a private repository - please do not share the code with anyone. It could be released publicly after the ideas are published.
 
@@ -58,7 +58,7 @@ make voronoi_test
 
 Many of the examples below are run by the `dev/examples.sh` script and elaborated upon in this section. All of these examples assume you are currently in the `build/release` directory.
 
-All `vortex` functionality is accessed through the `vortex` executable (in the `bin` directory). It provides "subprograms" to run specific functions. The subprogram should be the first argument passed to `vortex`. Current subprograms include `mesh`, `extract`, `voronoi`, `merge` and `viz`. Each of these subprograms will have it's own set of required and optional arguments. For more information, type:
+All `vortex` functionality is accessed through the `vortex` executable (in the `bin` directory). It provides "subprograms" to run specific functions. The subprogram should be the first argument passed to `vortex`. Current subprograms include `mesh`, `extract`, `voronoi`, `merge`, `viz`, `swe` and `gm`. Each of these subprograms will have it's own set of required and optional arguments. For more information, type:
 
 ```sh
 bin/vortex --help
@@ -176,9 +176,34 @@ bin/vortex merge example6.meshb --combine --output example8.meshb
 
 In contrast to visualizing the output meshes from Examples 5 or 6, now the "cell" field should display a single color for the Voronoi cell.
 
-#### 9. Fluid simulations
+#### 9. Shallow water equation fluid simulations
 
-The next few examples use a technique similar to that of Gallouët-Mérigot (2017) and Lévy (2018, 2021) to simulate fluids using semi-discrete optimal transport (SDOT). At each time step, an SDOT problem is solved to calculate the power diagram weights that preserve cell volumes using a Newton-based method, which requires a handful of power diagram calculations (usually 2-5) at each time step. As the simulations runs, you will see the following information:
+`vortex` can simulate the shallow water equations using Voronoi diagrams with the `swe` subprogram. Each Voronoi cell represents a particle that moves with the fluid, and a semi-discrete optimal transport (SDOT) problem is solved at every time step to conserve the total mass of the fluid. Some of the benchmarks proposed by [Williamson et al.](https://www.sciencedirect.com/science/article/abs/pii/S0021999105800166) are supported (cases 1, 2, 5, 6). For example:
+
+```sh
+bin/vortex swe --case williamson5 --output results --particles icosahedron6 --save_every 24 --step 60
+```
+
+will use the shallow water equation solver on test case 5 (zonal flow over an isolated mountain) from the Williamson paper. The depth field will be saved to `.vtk` files every 24 hours of simulated time in the `results` directory. The number of particles can be controlled by changing the number at the end of the `icosahedron` keyword (here, the particles are initialized as the vertices obtained from subdividing an icosahedron `6` times). The time step used in the simulation here (`--step`) is 60 seconds.
+
+The output will contain the following information:
+
+```sh
+-----------------------------------------------------------------------
+| Step   | day:hr:mn | dt (s)  | Rw  | Ra  | Rm | Rp | Re | SDPD | Eh |
+-----------------------------------------------------------------------
+```
+
+which refers to the time step counter, the time (in the simulation) at that time step, the time step used, and information about the simulation residuals (lower is better). Generally, `dt` will match what was prescribed by `--step` unless the time step is too big.
+
+`Rw` indicates how well the semi-discrete optimal transport problem succeeded at finding the weights and `Ra` refers to the error in representing the true sphere area with the Voronoi diagram at that step.
+
+`Rm`, `Rp` and `Re` refer to the residuals of mass, momentum and energy, respectively. `SDPD` refers to "simulated days per day", i.e. how many days of real-world time is the simulation achieving per day of computation time. `Eh` is the norm of the error in the height of the fluid, as compared with the analytical solution (if available for that test case).
+
+
+#### 10. Gallouët-Mérigot fluid simulations
+
+The `gm` subprogram can be used to perform fluid simulations using a technique similar to that of Gallouët-Mérigot (2017) and Lévy (2018, 2021), which also uses semi-discrete optimal transport. The output will contain the following information:
 
 ```sh
 -------------------------------------------------------------------
@@ -195,7 +220,7 @@ Currently, the particle simulation results are saved as a series of `.vtk` files
 The following command will simulate a Rayleigh-Taylor instability within a rectangle in which a high-density fluid is placed on top of a lower-density one:
 
 ```sh
-bin/vortex simulate --domain rectangle --corners -1 -3 1 3  --n_particles 50000 --output_directory rt50k --total_time_steps 10000 --density_ratio 3 --epsilon_scale 10 --time_step_scale 0.1
+bin/vortex gm --domain rectangle --corners -1 -3 1 3  --n_particles 50000 --output_directory rt50k --total_time_steps 10000 --density_ratio 3 --epsilon_scale 10 --time_step_scale 0.1
 ```
 
 The resulting fluid motion should look like [this](https://drive.google.com/file/d/1aGFSnAb4-hU3VrhjRZgdv3j2yqLOpPuz/view?usp=drive_link).
@@ -206,7 +231,7 @@ This example simulates a band of high density fluid around the equator with 100k
 The simulation is done in a frame of reference that rotates with the sphere, so the Coriolis force is included on the right-hand-side of the momentum equation (no other external forces are applied).
 
 ```
-bin/vortex simulate --domain sphere  --n_particles 100000 --output_directory sphere100k --total_time_steps 10000 --density_ratio 10 --epsilon_scale 10 --time_step_scale 0.15 --omega 0.01
+bin/vortex gm --domain sphere  --n_particles 100000 --output_directory sphere100k --total_time_steps 10000 --density_ratio 10 --epsilon_scale 10 --time_step_scale 0.15 --omega 0.01
 ```
 
 This takes approximately 1 second per time step (on a 2022 M1 MacBook Pro) so the full simulation will take about 3  hours to run. The resulting fluid motion should look like [this](https://drive.google.com/file/d/1OnLbWHb4ANTVTb80AoijXW1l_eiDheE0/view?usp=drive_link).
@@ -299,7 +324,6 @@ Many thanks to the following projects which `vortex` depends on:
 - `fmtlib`: https://github.com/fmtlib/fmt
 - `libMeshb`: https://github.com/LoicMarechal/libMeshb
 - `morton-nd`: https://github.com/morton-nd/morton-nd
-- `nlopt`: https://github.com/stevengj/nlopt
 - `OpenNL`: https://github.com/BrunoLevy/geogram.psm.OpenNL
 - `PCK`: https://github.com/BrunoLevy/geogram.psm.Predicates
 - `stb` (via `wings`): https://github.com/nothings/stb
@@ -309,7 +333,7 @@ Many thanks to the following projects which `vortex` depends on:
 
 All `vortex` source code (`C++`, `HTML`, `JavaScript` and `GLSL`) is distributed under the Apache-2.0 License.
 
-Copyright 2023 - 2024 Philip Claude Caplan
+Copyright 2023 - 2025 Philip Claude Caplan
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 

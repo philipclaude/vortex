@@ -503,7 +503,7 @@ void run_merge(argparse::ArgumentParser& program) {
   meshb::write(output_mesh, arg_output);
 }
 
-void run_simulation(argparse::ArgumentParser& program) {
+void run_gm_simulation(argparse::ArgumentParser& program) {
   const int dim = 3;
   auto arg_domain = program.get<std::string>("--domain");
   auto resolution = program.get<double>("--resolution");
@@ -827,79 +827,79 @@ int main(int argc, char** argv) {
   cmd_merge.add_argument("--output").help("path to output mesh file (.meshb)");
   program.add_subparser(cmd_merge);
 
-  argparse::ArgumentParser cmd_sim("simulate");
-  cmd_sim.add_description("simulate fluid flow");
-  cmd_sim.add_argument("--domain").help("simulation domain: rectangle, sphere");
-  cmd_sim.add_argument("--particles")
+  argparse::ArgumentParser cmd_gm("gm");
+  cmd_gm.add_description("simulate a fluid using the Gallouët-Mérigot method");
+  cmd_gm.add_argument("--domain").help("simulation domain: rectangle, sphere");
+  cmd_gm.add_argument("--particles")
       .help(
           "sampling technique to use for initial particle positions (random, "
           "random_oceans)")
       .default_value("random");
-  cmd_sim.add_argument("--n_particles")
+  cmd_gm.add_argument("--n_particles")
       .help("# particles to use in the simulation")
       .default_value(10000)
       .scan<'i', int>();
-  cmd_sim.add_argument("--resolution")
+  cmd_gm.add_argument("--resolution")
       .help(
           "an approximate size of the cell in kilometers, only applicable for "
           "sphere --domain option")
       .default_value(0.0)
       .scan<'g', double>();
-  cmd_sim.add_argument("--omega")
+  cmd_gm.add_argument("--omega")
       .help("y-component of rotational velocity")
       .default_value(0)
       .scan<'g', double>();
-  cmd_sim.add_argument("--boundary_reflection")
+  cmd_gm.add_argument("--boundary_reflection")
       .help(
           "option to add reflection boundary conditions (only for the "
           "rectangular domain)")
       .flag();
-  cmd_sim.add_argument("--density_ratio")
+  cmd_gm.add_argument("--density_ratio")
       .default_value(10.0)
       .scan<'g', double>();
-  cmd_sim.add_argument("--n_smooth")
+  cmd_gm.add_argument("--n_smooth")
       .help("# iterations of Lloyd relaxation for initial points")
       .default_value(100)
       .scan<'i', int>();
-  cmd_sim.add_argument("--epsilon_scale")
+  cmd_gm.add_argument("--epsilon_scale")
       .help(
           "scaling factor used to compute the inverse spring coefficient eps = "
           "epsilon_scale * hn")
       .default_value(10.0)
       .scan<'g', double>();
-  cmd_sim.add_argument("--time_step_scale")
+  cmd_gm.add_argument("--time_step_scale")
       .help(
           "scaling factor used to compute the time step: dt = time_step_scale "
           "* eps * eps")
       .default_value(0.15)
       .scan<'g', double>();
-  cmd_sim.add_argument("--output_directory")
+  cmd_gm.add_argument("--output_directory")
       .help("output location for .vtk files")
       .default_value("");
-  cmd_sim.add_argument("--save_every")
+  cmd_gm.add_argument("--save_every")
       .help("# time steps after which the solution is saved")
       .default_value(50)
       .scan<'i', int>();
-  cmd_sim.add_argument("--total_time_steps")
+  cmd_gm.add_argument("--total_time_steps")
       .help("total # time steps in simulation")
       .default_value(100)
       .scan<'i', int>();
-  cmd_sim.add_argument("--advect_from_site").flag();
-  cmd_sim.add_argument("--force_time_step")
+  cmd_gm.add_argument("--advect_from_site").flag();
+  cmd_gm.add_argument("--force_time_step")
       .default_value(-1.0)
       .scan<'g', double>();
-  cmd_sim.add_argument("--force_epsilon")
+  cmd_gm.add_argument("--force_epsilon")
       .default_value(-1.0)
       .scan<'g', double>();
-  cmd_sim.add_argument("--corners")
+  cmd_gm.add_argument("--corners")
       .help("xmin ymin xmax ymax")
       .nargs(4)
       .default_value(std::vector<double>{0.0, 0.0, 1.0, 1.0})
       .scan<'g', double>();
-  program.add_subparser(cmd_sim);
+  program.add_subparser(cmd_gm);
 
   argparse::ArgumentParser cmd_swe("swe");
-  cmd_swe.add_description("solve shallow water equation");
+  cmd_swe.add_description("simulate the shallow water equations");
   cmd_swe.add_argument("--particles")
       .help("initial particles: icosahedronN, file, or number")
       .default_value("icosahedron5");
@@ -945,10 +945,10 @@ int main(int argc, char** argv) {
     vortex::run_voronoi(program.at<argparse::ArgumentParser>("voronoi"));
   } else if (program.is_subcommand_used("merge")) {
     vortex::run_merge(program.at<argparse::ArgumentParser>("merge"));
-  } else if (program.is_subcommand_used("simulate")) {
-    vortex::run_simulation(program.at<argparse::ArgumentParser>("simulate"));
+  } else if (program.is_subcommand_used("gm")) {
+    vortex::run_gm_simulation(program.at<argparse::ArgumentParser>("gm"));
   } else if (program.is_subcommand_used("swe")) {
-    vortex::run_swe_solver(program.at<argparse::ArgumentParser>("swe"));
+    vortex::run_swe_simulation(program.at<argparse::ArgumentParser>("swe"));
   } else {
     std::cout << program.help().str();
   }
