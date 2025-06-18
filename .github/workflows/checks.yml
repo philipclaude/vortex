@@ -29,9 +29,10 @@ jobs:
       run: |
         dev/setup.sh
 
-    #- name: check format
-    #  run: |
-    #    dev/check-format.sh
+    - name: check format
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+       dev/check-format.sh
 
     - name: configure
       run: |
@@ -63,6 +64,7 @@ jobs:
         cat unit_tests_output.txt
 
     - name: coverage
+      if: matrix.os == 'ubuntu-latest'
       working-directory: ${{github.workspace}}/build/coverage
       run: |
         make unit_coverage
