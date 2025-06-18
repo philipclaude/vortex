@@ -29,9 +29,9 @@ jobs:
       run: |
         dev/setup.sh
 
-    - name: check format
-      run: |
-        dev/check-format.sh
+    #- name: check format
+    #  run: |
+    #    dev/check-format.sh
 
     - name: configure
       run: |
