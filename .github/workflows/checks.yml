@@ -26,6 +26,7 @@ jobs:
       run: git lfs checkout
 
     - name: install dev dependencies
+      if: matrix.os == 'ubuntu-latest'
       run: |
         dev/setup.sh
 
@@ -51,14 +52,22 @@ jobs:
         cd ${{github.workspace}}
         dev/examples.sh ${{github.workspace}}/build/release/bin/vortex 0.02
 
-    - name: test
-      id: tester
+    - name: test-debug
+      id: tester-ubuntu
+      if: matrix.os == 'ubuntu-latest'
       working-directory: ${{github.workspace}}/build/debug
       run: |
         make unit
     
+    - name: test-release
+      id: tester-macos
+      if: matrix.os == 'macos-latest'
+      working-directory: ${{github.workspace}}/build/release
+      run: |
+        make unit -j
+
     - name: report
-      if: '!cancelled()'
+      if: '!cancelled()' && matrix.os == 'ubuntu-latest'
       working-directory: ${{github.workspace}}/build/debug
       run: |
         cat unit_tests_output.txt
