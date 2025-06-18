@@ -67,7 +67,7 @@ jobs:
         make unit -j
 
     - name: report
-      if: expr(!cancelled()) && matrix.os == 'ubuntu-latest'
+      if: "!cancelled() && matrix.os == 'ubuntu-latest'"
       working-directory: ${{github.workspace}}/build/debug
       run: |
         cat unit_tests_output.txt
