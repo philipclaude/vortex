@@ -12,8 +12,8 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 	xcode-select --install
 	brew install clang-format
 	brew install lcov
-	brew install libgd
-	sudo cpan install GD
+	#brew install libgd
+	#sudo cpan install GD
 else
 	echo "unsupported operating system $OSTYPE"
 fi
