@@ -58,7 +58,7 @@ make voronoi_test
 
 Many of the examples below are run by the `dev/examples.sh` script and elaborated upon in this section. All of these examples assume you are currently in the `build/release` directory.
 
-All `vortex` functionality is accessed through the `vortex` executable (in the `bin` directory). It provides "subprograms" to run specific functions. The subprogram should be the first argument passed to `vortex`. Current subprograms include `mesh`, `extract`, `voronoi`, `merge`, `viz`, `swe` and `gm`. Each of these subprograms will have it's own set of required and optional arguments. For more information, type:
+All `vortex` functionality is accessed through the `vortex` executable (in the `bin` directory). It provides "subprograms" to run specific functions. The subprogram should be the first argument passed to `vortex`. Current subprograms include `mesh`, `extract`, `voronoi`, `merge`, `viz`, `gm` and `swe`. Each of these subprograms will have it's own set of required and optional arguments. For more information, type:
 
 ```sh
 bin/vortex --help
@@ -72,7 +72,7 @@ bin/vortex voronoi --help
 
 #### 1. Creating an adapted mesh of the Earth.
 
-Some of the algorithms below rely on being able to distinguish between land and water, as well as resolve and extract the coastlines. This can be done by creating a mesh which adapts an initial icosahedron mesh to the size defined by [this image](data/oceans_2048.png). Triangles in darker regions (land) will have a target size of `hmin` and lighter regions (water) will have a target size of `hmax` (the default is `hmax = 2 * hmin`). To create the adapted mesh using the `data/oceans_2048.png` image for sizing information:
+Some of the algorithms below rely on being able to distinguish between land and water, as well as resolve and extract the coastlines. This can be done by creating a mesh which adapts to a size inferred from [this image texture](data/oceans_2048.png). Triangles in darker regions (land) will have a target size of `hmin` and lighter regions (water) will have a target size of `hmax` (the default is `hmax = 2 * hmin`). To create the adapted mesh using the `data/oceans_2048.png` image for sizing information:
 
 ```sh
 bin/vortex mesh ../../data/oceans_2048.png --hmin 0.005 --hmax 0.01 --output earth.meshb
@@ -84,9 +84,9 @@ You can also pass `--n_iter X` to use `X` adaptation iterations (the default is 
 bin/vortex viz earth.meshb
 ```
 
-and open `vortex.html`.
+and open `vortex.html` from either the root of the repository, or [click here](https://philipclaude.github.io/vortex/vortex.html).
 
-At the end of the `mesh` subprogram, the background image (to determine triangle sizes) is used to assign "group" numbers to each triangle. There are two groups in the final mesh: one for water and one for land. Press the `f` key in the user interface to cycle between the fields and note that the message box will display which field is currently active.
+At the end of the `mesh` subprogram, the input texture is then used to assign "group" numbers to each triangle. There are two groups in the final mesh: one for water and one for land. Press the `f` key in the user interface to cycle between the fields and note that the message box will display which field is currently active.
 
 #### 2. Extracting the coast lines and separating the mesh from Example 1 into land and water meshes.
 
@@ -126,7 +126,7 @@ Instead of representing a surface analytically (e.g. for a sphere), we can repre
 
 **Using the vertices of the triangulation for the sites:**
 
-In this example we will use a subdivided icosahedron as the triangulation and will pass `--n_subdiv` to specify the number of subdivisions. It's also possible to pass a mesh file, and the triangles in this mesh will be used for the domain (see Example 6).
+In this example we will use a subdivided icosahedron as the triangulation and pass `--n_subdiv` to specify the number of subdivisions. It's also possible to pass a mesh file, and the triangles in this mesh will be used for the domain (see Example 6).
 
 The `--points` can be initialized to the vertices of the triangulation:
 
@@ -156,7 +156,7 @@ bin/vortex voronoi --domain water.meshb --points random --n_points 100000 --outp
 
 #### 7. Voronoi diagram of the oceans without a triangulation.
 
-Another idea for creating a Voronoi diagram of the oceans is to initially sample the oceans (using a texture) and then smooth the vertices. This will move some of the points into the continents and eventually converges to covering the entire sphere (this is a recent idea, so I have no theortical guarantees of this). The number of smoothing iterations needed to cover the sphere seems to depend on how many points are used:
+Another idea for creating a Voronoi diagram of the oceans is to initially sample the oceans (using a texture) and then smooth the vertices. This will move some of the points into the continents and eventually converges to covering the entire sphere (this was a lucky idea, so I have no theoretical guarantees of this). The number of smoothing iterations needed to cover the sphere seems to depend on how many points are used:
 
 ```sh
 bin/vortex voronoi --domain sphere --points random_oceans --n_points 1000000 --n_smooth 10 --output example7.meshb
@@ -176,7 +176,7 @@ bin/vortex merge example6.meshb --combine --output example8.meshb
 
 In contrast to visualizing the output meshes from Examples 5 or 6, now the "cell" field should display a single color for the Voronoi cell.
 
-#### 9. Shallow water equation fluid simulations
+#### 9. Shallow water equation fluid simulations.
 
 `vortex` can simulate the shallow water equations using Voronoi diagrams with the `swe` subprogram. Each Voronoi cell represents a particle that moves with the fluid, and a semi-discrete optimal transport (SDOT) problem is solved at every time step to conserve the total mass of the fluid. Some of the benchmarks proposed by [Williamson et al.](https://www.sciencedirect.com/science/article/abs/pii/S0021999105800166) are supported (cases 1, 2, 5, 6). For example:
 
@@ -201,7 +201,7 @@ which refers to the time step counter, the time (in the simulation) at that time
 `Rm`, `Rp` and `Re` refer to the residuals of mass, momentum and energy, respectively. `SDPD` refers to "simulated days per day", i.e. how many days of real-world time is the simulation achieving per day of computation time. `Eh` is the norm of the error in the height of the fluid, as compared with the analytical solution (if available for that test case).
 
 
-#### 10. Gallouët-Mérigot fluid simulations
+#### 10. Gallouët-Mérigot fluid simulations.
 
 The `gm` subprogram can be used to perform fluid simulations using a technique similar to that of Gallouët-Mérigot (2017) and Lévy (2018, 2021), which also uses semi-discrete optimal transport. The output will contain the following information:
 
