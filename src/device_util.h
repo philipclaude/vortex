@@ -104,7 +104,7 @@ class device_vector {
 #if USE_CUDA
     cudaMalloc(&new_data, sizeof(T) * capacity);
 #else
-    new_data = (T*)malloc(sizeof(T) * capacity);
+    new_data = new T[capacity];
 #endif
     size_t limit = MIN2(capacity, capacity_);
     for (size_t k = 0; k < limit; k++) {
@@ -113,7 +113,7 @@ class device_vector {
 #if USE_CUDA
     cudaFree(data_);
 #else
-    free(data_);
+    delete[] data_;
 #endif
     data_ = new_data;
     capacity_ = capacity;
@@ -143,7 +143,10 @@ class device_hash_set {
     data_ = (T*)malloc(sizeof(T) * capacity_);
     taken_ = (bool*)malloc(sizeof(bool) * capacity_);
 #endif
-    for (size_t k = 0; k < capacity_; k++) taken_[k] = false;
+    for (size_t k = 0; k < capacity_; k++) {
+      data_[k] = T(0);
+      taken_[k] = false;
+    }
   }
 
   ~device_hash_set() {
