@@ -99,8 +99,8 @@ UT_TEST_CASE_END(test_sort_points_on_zcurve_one_z)
 
 UT_TEST_CASE(test_sort_points_on_z_curve_grid) {
   const int dim = 3;
-  const int nx = 4;
-  const int ny = 4;
+  const int nx = 20;
+  const int ny = 20;
 
   Grid<Quad> grid({nx, ny});
 
