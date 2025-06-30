@@ -145,10 +145,13 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   ops.set_boundary_value(0.0);
   std::vector<double> grad_h(3 * n);
   std::vector<double> height(n, 0);
+  std::vector<double> hs(n), grad_hs(3 * n);
   for (size_t k = 0; k < n; k++) {
     height[k] = height_[k] + options_.surface_height(particles_[k]);
+    hs[k] = options_.surface_height(particles_[k]);
   }
   ops.calculate_gradient(height.data(), grad_h.data());
+  ops.calculate_gradient(hs.data(), grad_hs.data());
 
   // advance the height field according to governing differential equation
   double linear_solver_time = 0;
@@ -168,7 +171,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
       vec3d fc = f * cross(c, u);  // coriolis force
       if (options_.constrain) fc = fc + dot(u, u) * c / a;
       for (int d = 0; d < 3; d++) {
-        force[3 * i + d] = u[d] - dt * fc[d];
+        force[3 * i + d] = u[d] - dt * fc[d] - g * dt * grad_hs[3 * i + d] / a;
       }
     }
     std::vector<double> div_f(n);
