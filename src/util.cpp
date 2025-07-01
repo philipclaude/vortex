@@ -163,3 +163,6 @@ double irand(int min, int max) {
 }
 
 }  // namespace vortex
+
+template void vortex::get_bounding_box<double>(const double*, int64_t, int8_t,
+                                               double*, double*);
