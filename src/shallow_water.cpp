@@ -303,7 +303,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   } else {
     // use the analytic velocity, e.g. for Williamson Case 1
     for (size_t i = 0; i < n; i++) {
-      vec3d u = options_.analytic_velocity(particles_[i]);
+      vec3d u = options_.analytic_velocity(particles_[i], options.time);
       for (int d = 0; d < 3; d++) {
         velocity(i, d) = u[d];
       }
@@ -312,16 +312,33 @@ double ShallowWaterSimulation<Domain_t>::time_step(
 
   // calculate error
   double h_error = -1;
+  double h_total = -1;
   if (options_.has_analytic_height) {
     h_error = 0.0;
-    double h_total = 0.0;
+    h_total = 0.0;
     for (size_t k = 0; k < n; k++) {
       double ha = options_.analytic_height(particles_[k], options.time + dt);
       double dh = ha - height_[k];
-      h_error += dh * dh;
-      h_total += ha * ha;
+      h_error += dh * dh * voronoi_.properties()[k].volume;
+      h_total += ha * ha * voronoi_.properties()[k].volume;
     }
-    h_error = std::sqrt(h_error / h_total);
+    h_error = std::sqrt(h_error);
+    h_total = std::sqrt(h_total);
+  }
+  double u_error = -1;
+  double u_total = -1;
+  if (options_.has_analytic_velocity) {
+    u_error = 0.0;
+    u_total = 0.0;
+    for (size_t k = 0; k < n; k++) {
+      vec3d ua = options_.analytic_velocity(particles_[k], options.time + dt);
+      vec3d uk(particles_.velocity()[k]);
+      double du = dot(ua - uk, ua - uk);
+      u_error += du * du * voronoi_.properties()[k].volume;
+      u_total += dot(ua, ua) * voronoi_.properties()[k].volume;
+    }
+    u_error = std::sqrt(u_error);
+    u_total = std::sqrt(u_total);
   }
 
   // monitor the simulation
@@ -335,10 +352,10 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   std::cout << fmt::format(
       "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:+1.1e} | {:+1.1e} | "
       "{:+1.1e} "
-      "| {:+1.1e} | {:6.1f} | {:+1.1e} |\n",
+      "| {:+1.1e} | {:6.1f} | {:+1.1e} | {:+1.1e} |\n",
       options.iteration, days_hours_minutes(options.time + dt), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
-      momentum_error, energy_error, sdpd, h_error);
+      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total);
   time_step_timer.stop();
 
   statistics_.ra.push_back(area_error);
@@ -348,6 +365,9 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   statistics_.re.push_back(energy_error);
   statistics_.sdpd.push_back(sdpd);
   statistics_.h_error.push_back(h_error);
+  statistics_.h_total.push_back(h_total);
+  statistics_.u_error.push_back(u_error);
+  statistics_.u_total.push_back(u_total);
   statistics_.time.push_back(options.time + dt);
   statistics_.voronoi_time.push_back(voronoi_time_);
   statistics_.n_voronoi.push_back(n_voronoi_);
@@ -454,9 +474,9 @@ void ShallowWaterSimulation<Domain_t>::print_header(int n_bars) const {
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
   std::cout << fmt::format(
       "| {:6s} | {:9s} | {:7s} | {:10s} | {:8s} | {:8s} | {:8s} | {:8s} | "
-      "{:6s} | {:8s} |\n",
-      "Step", "day:hr:mn", "dt (s)", "Rw", "Ra", "Rm", "Rp", "Re", "SDPD",
-      "Eh");
+      "{:6s} | {:8s} | {:8s} |\n",
+      "Step", "day:hr:mn", "dt (s)", "Rw", "Ra", "Rm", "Rp", "Re", "SDPD", "Eh",
+      "Eu");
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
 }
 
@@ -697,6 +717,9 @@ nlohmann::json ShallowWaterStatistics::to_json() const {
   data["re"] = re;
   data["time"] = time;
   data["h_error"] = h_error;
+  data["h_total"] = h_total;
+  data["u_error"] = u_error;
+  data["u_total"] = u_total;
   data["sdpd"] = sdpd;
   data["voronoi_time"] = voronoi_time;
   data["n_voronoi"] = n_voronoi;

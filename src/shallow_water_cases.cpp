@@ -65,7 +65,9 @@ WilliamsonCase1::WilliamsonCase1() {
   coriolis_parameter = [&](const double* x) -> double {
     return 2.0 * omega * x[2];
   };
-  analytic_velocity = initial_velocity;
+  analytic_velocity = [&](const double* x, double time) -> vec3d {
+    return initial_velocity(x);
+  };
   use_analytic_velocity = true;
 
   analytic_height = [this, twelve_days](const double* x,
@@ -110,6 +112,10 @@ WilliamsonCase2::WilliamsonCase2() {
     return analytic_height(x, 0);
   };
   has_analytic_height = true;
+  has_analytic_velocity = true;
+  analytic_velocity = [this](const double* x, double time) -> vec3d {
+    return initial_velocity(x);
+  };
   days = 12;
 }
 
