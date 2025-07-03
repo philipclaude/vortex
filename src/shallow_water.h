@@ -170,6 +170,10 @@ struct WilliamsonCase6 : ShallowWaterOptions {
   WilliamsonCase6();
 };
 
+struct GalewskyCase : ShallowWaterOptions {
+  GalewskyCase();
+};
+
 void run_swe_simulation(const argparse::ArgumentParser& program);
 
 }  // namespace vortex

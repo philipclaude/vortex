@@ -622,6 +622,8 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     test_case_ptr = std::make_shared<WilliamsonCase5>();
   } else if (test_case == "williamson6") {
     test_case_ptr = std::make_shared<WilliamsonCase6>();
+  } else if (test_case == "galewsky") {
+    test_case_ptr = std::make_shared<GalewskyCase>();
   } else {
     LOG << "unknown test case: " << test_case;
   }
