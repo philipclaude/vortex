@@ -138,6 +138,7 @@ class ShallowWaterSimulation : public ParticleSimulation {
   const auto& height() const { return height_; }
 
   void save_json(const std::string& filename) const;
+  void save_power_diagram(const std::string& filename);
   const auto& statistics() const { return statistics_; }
   auto& statistics() { return statistics_; }
 

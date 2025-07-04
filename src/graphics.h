@@ -19,6 +19,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 namespace wings {
 class RenderingServer;
@@ -31,7 +32,7 @@ class MeshScene;
 class ShaderLibrary;
 class Viewer {
  public:
-  Viewer(const Mesh& mesh, int port);
+  Viewer(const Mesh& mesh, int port, const std::string view = "");
   ~Viewer();
 
  private:
