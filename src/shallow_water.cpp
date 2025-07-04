@@ -18,8 +18,6 @@
 //
 #include "shallow_water.h"
 
-#include <libmeshb7.h>
-
 #include <argparse/argparse.hpp>
 #include <filesystem>
 #include <fstream>
@@ -597,45 +595,6 @@ double ShallowWaterSimulation<Domain_t>::total_energy() const {
   return energy;
 }
 
-template <typename Domain_t>
-void ShallowWaterSimulation<Domain_t>::save_power_diagram(
-    const std::string& prefix) {
-  VoronoiDiagramOptions opts;
-  opts.store_mesh = true;
-  opts.verbose = false;
-  calculate_power_diagram(domain_, opts);
-  voronoi_.triangles().clear();
-  ASSERT(voronoi_.polygons().n() == height_.size());
-  for (size_t k = 0; k < particles_.n(); k++) {
-    voronoi_.polygons().set_group(k, int(height_[k]));
-  }
-  meshb::write(voronoi_, prefix + ".meshb");
-
-  return;
-  // write the sol file
-  int dim = 3;
-  int version = 3;
-
-  std::string filename = prefix + ".sol";
-  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, version, dim);
-  ASSERT(fid);
-
-  int soltab[GmfMaxTyp];
-  soltab[0] = GmfSca;
-  // soltab[1] = GmfSca;
-  GmfSetKwd(fid, GmfSolAtBoundaryPolygons, particles_.n(), 1, soltab);
-  for (size_t k = 0; k < particles_.n(); k++) {
-    // std::array<double, 2> sol = {height_[k], voronoi_.weights()[k]};
-    // double sol[2] = {height_[k], voronoi_.weights()[k]};
-    double sol = height_[k];
-    GmfSetLin(fid, GmfSolAtBoundaryPolygons, &sol);
-  }
-  GmfSetKwd(fid, GmfReferenceStrings, 1);
-  GmfSetLin(fid, GmfReferenceStrings, GmfSolAtBoundaryPolygons, 1, "height");
-
-  GmfCloseMesh(fid);
-}
-
 void run_swe_simulation(const argparse::ArgumentParser& program) {
   static const int dim = 3;
   typedef SphereDomain Domain_t;
@@ -728,7 +687,6 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   double hour = 0;
   solver.save(prefix + "0.vtk");
   solver.save_json(fmt::format("{}{}.json", prefix, hour));
-  // solver.save_power_diagram(fmt::format("{}{}", prefix, hour));
   while (seconds < days_to_seconds(days)) {
     double dt = solver.time_step(solver_opts);
     solver_opts.iteration++;
@@ -739,7 +697,6 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
       if (current_hour % save_every == 0) {
         solver.save(fmt::format("{}{}.vtk", prefix, current_hour));
         solver.save_json(fmt::format("{}{}.json", prefix, current_hour));
-        // solver.save_power_diagram(fmt::format("{}{}", prefix, current_hour));
       }
       ++hour;
     }
