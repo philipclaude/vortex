@@ -18,6 +18,7 @@
 //
 #include "graphics.h"
 
+#include <argparse/argparse.hpp>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <set>
@@ -50,6 +51,13 @@
 #ifndef VORTEX_SOURCE_DIR
 #define VORTEX_SOURCE_DIR "./"
 #endif
+
+// TODO move these to header file
+extern "C" {
+int stbi_write_jpg(char const* filename, int x, int y, int comp,
+                   const void* data, int quality);
+void stbi_flip_vertically_on_write(int flag);
+}
 
 namespace vortex {
 
@@ -1299,6 +1307,8 @@ class MeshScene : public wings::Scene {
     return shaders_[primitive.name() + "-p" + suffix];
   }
 
+  auto& view(size_t k) { return view_[k]; }
+
  private:
   const Mesh& mesh_;
   bool earth_{false};
@@ -1338,7 +1348,38 @@ class MeshScene : public wings::Scene {
 
 Viewer::Viewer(const Mesh& mesh, int port, const std::string view) {
   scene_ = std::make_unique<MeshScene>(mesh, view);
-  renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
+  if (port > 0)
+    renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
+}
+
+void Viewer::save(const std::string& filename,
+                  const argparse::ArgumentParser& program) {
+  std::string msg;
+  scene_->onconnect();
+
+  scene_->view(0).show_wireframe = true;
+  scene_->view(0).lighting = true;
+
+  // set the width and height
+  auto w = program.get<int>("--width");
+  auto h = program.get<int>("--height");
+  {
+    wings::ClientInput input;
+    input.type = wings::InputType::KeyValueInt;
+    input.key = 'H';
+    input.ivalue = h;
+    scene_->render(input, 0, &msg);
+  }
+  {
+    wings::ClientInput input;
+    input.type = wings::InputType::KeyValueInt;
+    input.key = 'W';
+    input.ivalue = w;
+    scene_->render(input, 0, &msg);
+  }
+
+  stbi_flip_vertically_on_write(true);
+  stbi_write_jpg(filename.c_str(), w, h, 3, scene_->pixels().data(), 100);
 }
 
 Viewer::~Viewer() {}

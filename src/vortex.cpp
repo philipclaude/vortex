@@ -51,7 +51,6 @@ void run_visualizer(argparse::ArgumentParser& program) {
   int port = 7681;
 
   std::string view = program.get<std::string>("--view");
-
   std::string ext = get_file_ext(filename);
   if (ext == "json") {
     LOG << "assuming spherical Voronoi diagram";
@@ -101,6 +100,14 @@ void run_visualizer(argparse::ArgumentParser& program) {
       size_t site = voronoi.polygons().group(k);
       hfld.polygons()[k][0] = h[site];
       wfld.polygons()[k][0] = w[site];
+    }
+
+    auto save = program.get<std::string>("--save");
+    if (!save.empty()) {
+      // -1 is a signal to not start the rendering server
+      Viewer viewer(voronoi, -1, view);
+      viewer.save(save, program);
+      return;
     }
 
     Viewer viewer(voronoi, port, view);
@@ -757,6 +764,9 @@ int main(int argc, char** argv) {
   cmd_viz.add_description("visualize a mesh");
   cmd_viz.add_argument("input").help("input file");
   cmd_viz.add_argument("--view").help("view file").default_value("");
+  cmd_viz.add_argument("--save").default_value("");
+  cmd_viz.add_argument("--width").default_value(800).scan<'d', int>();
+  cmd_viz.add_argument("--height").default_value(600).scan<'d', int>();
   program.add_subparser(cmd_viz);
 
   argparse::ArgumentParser cmd_mesh("mesh");
