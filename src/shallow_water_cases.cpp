@@ -225,4 +225,49 @@ WilliamsonCase6::WilliamsonCase6() {
   days = 15;
 }
 
+GalewskyCase::GalewskyCase() {
+  const double omega = earth.angular_velocity;
+  const double a = earth.radius;
+  const double g = earth.gravity;
+
+  const double umax = 80.0;
+  const double phi0 = M_PI / 7.0;
+  const double phi1 = M_PI / 2.0 - M_PI / 7.0;
+  const double en = std::exp(-4.0 / std::pow(phi1 - phi0, 2.0));
+  const double u0 = 20.0;
+  const double h0 = 5960;
+
+  surface_height = [](const double* x) -> double { return 0.0; };
+
+  coriolis_parameter = [omega](const double* x) -> double {
+    return 2.0 * omega * x[2];
+  };
+
+  // This initial height is from Williamson, test case 5
+  initial_height = [a, omega, g, u0, h0](const double* x) -> double {
+    double h = h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[2] * x[2] / g;
+    return h;
+  };
+
+  initial_velocity = [umax, phi0, phi1, en](const double* x) -> vec3d {
+    double lat, lon;
+    xyz_to_latlon(x, lat, lon);
+
+    double u_zonal = 0.0;
+    if (lat >= phi0 && lat <= phi1) {
+      double denom = (lat - phi0) * (lat - phi1);
+      u_zonal = umax * std::exp(1.0 / denom) / en;
+    }
+
+    double us = u_zonal;
+    double vs = 0.0;
+    double ux = -us * sin(lon) - vs * sin(lat) * cos(lon);
+    double uy = us * cos(lon) - vs * sin(lat) * sin(lon);
+    double uz = vs * cos(lat);
+
+    return {ux, uy, uz};
+  };
+  days = 6;
+}
+
 }  // namespace vortex
