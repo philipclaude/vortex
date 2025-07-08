@@ -226,37 +226,29 @@ WilliamsonCase6::WilliamsonCase6() {
 }
 
 GalewskyCase::GalewskyCase() {
-  // same from other cases
   const double omega = earth.angular_velocity;
   const double a = earth.radius;
   const double g = earth.gravity;
-  days = 6;
 
-  // variables needed for the initial velocity
   const double umax = 80.0;
   const double phi0 = M_PI / 7.0;
   const double phi1 = M_PI / 2.0 - M_PI / 7.0;
   const double en = std::exp(-4.0 / std::pow(phi1 - phi0, 2.0));
-  double vs = 0.0;
+  const double u0 = 20.0;
+  const double h0 = 5960;
 
-  const double u0 = 20.0;  // initial velocity
-  const double h0 = 5960;  // initial height
-
-  // no mountain
   surface_height = [](const double* x) -> double { return 0.0; };
 
-  // coriolis parameter - rotating around z
   coriolis_parameter = [omega](const double* x) -> double {
     return 2.0 * omega * x[2];
   };
 
-  // initial height from Willy92 test case 5
+  // This initial height is from Williamson, test case 5
   initial_height = [a, omega, g, u0, h0](const double* x) -> double {
     double h = h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[2] * x[2] / g;
     return h;
   };
 
-  // initial velocity
   initial_velocity = [umax, phi0, phi1, en](const double* x) -> vec3d {
     double lat, lon;
     xyz_to_latlon(x, lat, lon);
@@ -267,19 +259,15 @@ GalewskyCase::GalewskyCase() {
       u_zonal = umax * std::exp(1.0 / denom) / en;
     }
 
-    double us = u_zonal * cos(lon);
-    double vs = -u_zonal * sin(lon);
-    double ux = -us * sin(lon) - vs * sin(lat) * cos(lon);  // x
-    double uy = us * cos(lon) - vs * sin(lat) * sin(lon);   // y
-    double uz = vs * cos(lat);                              // z
+    double us = u_zonal;
+    double vs = 0.0;
+    double ux = -us * sin(lon) - vs * sin(lat) * cos(lon);
+    double uy = us * cos(lon) - vs * sin(lat) * sin(lon);
+    double uz = vs * cos(lat);
 
     return {ux, uy, uz};
   };
+  days = 6;
 }
-
-// steps:
-// add initial velocity
-// add actual initial height using quadriture
-// add preturbation
 
 }  // namespace vortex
