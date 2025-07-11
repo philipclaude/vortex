@@ -19,9 +19,14 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 namespace wings {
 class RenderingServer;
+}
+
+namespace argparse {
+class ArgumentParser;
 }
 
 namespace vortex {
@@ -31,7 +36,9 @@ class MeshScene;
 class ShaderLibrary;
 class Viewer {
  public:
-  Viewer(const Mesh& mesh, int port);
+  Viewer(const Mesh& mesh, int port, const std::string view = "");
+  void save(const std::string& filename,
+            const argparse::ArgumentParser& argparse);
   ~Viewer();
 
  private:

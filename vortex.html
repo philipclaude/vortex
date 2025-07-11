@@ -158,6 +158,7 @@
               <option>hot</option>
               <option>viridis</option>
               <option>giraffe</option>
+              <option>coolwarm</option>
             </select>
           </div>
           <div style="display: inline-block">
@@ -167,6 +168,13 @@
               onclick="centerView();"
             >
               center
+            </button>
+            <button
+              class="btn btn-primary"
+              id="button-save-scene"
+              onclick="saveScene()"
+            >
+              save
             </button>
           </div>
           <hr />
@@ -562,6 +570,10 @@
       img.setAttribute("height", h);
       ws.send("KIH" + h);
       setQuality(); // request an image update
+    };
+
+    const saveScene = () => {
+      ws.send("KIV0");
     };
 
     window.onload = () => {
