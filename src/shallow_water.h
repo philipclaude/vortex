@@ -48,6 +48,7 @@ static inline int days_to_seconds(double d) { return d * 24 * 3600; }
 typedef std::function<double(const coord_t*)> ScalarFunction;
 typedef std::function<double(const coord_t*, double)> ScalarFunctionXT;
 typedef std::function<vec3d(const coord_t*)> VectorFunction;
+typedef std::function<vec3d(const coord_t*, double)> VectorFunctionXT;
 
 enum TimeSteppingScheme : uint8_t { kExplicit, kSemiImplicit };
 
@@ -68,10 +69,11 @@ struct ShallowWaterOptions {
   ScalarFunctionXT analytic_height;
   VectorFunction surface_height_gradient;
   bool has_analytic_height{false};
+  bool has_analytic_velocity{false};
   double days{1};
 
   VectorFunction initial_velocity;
-  VectorFunction analytic_velocity;
+  VectorFunctionXT analytic_velocity;
 
   ScalarFunction coriolis_parameter;
 
@@ -86,7 +88,10 @@ struct ShallowWaterStatistics {
   std::vector<double> rp;       // momentum residual
   std::vector<double> re;       // energy residual
   std::vector<double> time;     // current time
-  std::vector<double> h_error;  // error in analytic solution (if available)
+  std::vector<double> h_error;  // error in analytic height (if available)
+  std::vector<double> h_total;  // total analytic height (if available)
+  std::vector<double> u_error;  // error in analytic velocity (if available)
+  std::vector<double> u_total;  // total analytic velocity (if available)
   std::vector<double> sdpd;     // simulated day per day
   std::vector<double> voronoi_time;
   std::vector<double> linear_solver_time;
@@ -122,7 +127,7 @@ class ShallowWaterSimulation : public ParticleSimulation {
   void stabilize_pressure_gradient(const std::vector<double>& h,
                                    std::vector<double>& dh);
 
-  void print_header(int n_bars = 108) const;
+  void print_header(int n_bars = 120) const;
   void save(const std::string& filename) const;
 
   double total_area() const;

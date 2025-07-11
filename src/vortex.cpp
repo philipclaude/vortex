@@ -48,6 +48,72 @@ namespace {
 void run_visualizer(argparse::ArgumentParser& program) {
   std::string filename = program.get<std::string>("input");
 
+  int port = 7681;
+
+  std::string view = program.get<std::string>("--view");
+  std::string ext = get_file_ext(filename);
+  if (ext == "json") {
+    LOG << "assuming spherical Voronoi diagram";
+    int dim = 3;
+    std::ifstream ifs(filename);
+    nlohmann::json data = nlohmann::json::parse(ifs);
+    std::vector<double> x = data["x"];
+    std::vector<double> y = data["y"];
+    std::vector<double> z = data["z"];
+    std::vector<double> w = data["w"];
+    std::vector<double> h = data["h"];
+    ASSERT(data["domain"] == "sphere");
+
+    size_t n_sites = x.size();
+    std::vector<double> sites(n_sites * 3);
+    for (size_t k = 0; k < n_sites; k++) {
+      sites[3 * k] = x[k];
+      sites[3 * k + 1] = y[k];
+      sites[3 * k + 2] = z[k];
+    }
+    LOG << "# sites = " << n_sites;
+
+    ASSERT(w.size() == n_sites);
+    VoronoiDiagram voronoi(dim, sites.data(), n_sites);
+    voronoi.weights().resize(n_sites);
+    for (size_t k = 0; k < n_sites; k++) {
+      voronoi.weights()[k] = w[k];
+    }
+    SphereDomain domain;
+
+    VoronoiDiagramOptions opts;
+    opts.store_mesh = true;
+    voronoi.compute(domain, opts);
+    voronoi.triangles().clear();
+
+    voronoi.fields().set_defaults(voronoi);
+
+    voronoi.fields().add("height", 1, 0);
+    auto& hfld = voronoi.fields().fields()["height"];
+    hfld.initialize(voronoi);
+
+    voronoi.fields().add("weight", 1, 0);
+    auto& wfld = voronoi.fields().fields()["weight"];
+    wfld.initialize(voronoi);
+
+    for (size_t k = 0; k < n_sites; k++) {
+      size_t site = voronoi.polygons().group(k);
+      hfld.polygons()[k][0] = h[site];
+      wfld.polygons()[k][0] = w[site];
+    }
+
+    auto save = program.get<std::string>("--save");
+    if (!save.empty()) {
+      // -1 is a signal to not start the rendering server
+      Viewer viewer(voronoi, -1, view);
+      viewer.save(save, program);
+      return;
+    }
+
+    Viewer viewer(voronoi, port, view);
+    return;
+  }
+
   Mesh mesh(3);
   read_mesh(filename, mesh);
 
@@ -68,7 +134,7 @@ void run_visualizer(argparse::ArgumentParser& program) {
   }
 
   mesh.fields().set_defaults(mesh);
-  Viewer viewer(mesh, 7681);
+  Viewer viewer(mesh, port, view);
 }
 
 void apply_mask(const std::string& input, double tmin, double tmax,
@@ -697,6 +763,10 @@ int main(int argc, char** argv) {
   argparse::ArgumentParser cmd_viz("viz");
   cmd_viz.add_description("visualize a mesh");
   cmd_viz.add_argument("input").help("input file");
+  cmd_viz.add_argument("--view").help("view file").default_value("");
+  cmd_viz.add_argument("--save").default_value("");
+  cmd_viz.add_argument("--width").default_value(800).scan<'d', int>();
+  cmd_viz.add_argument("--height").default_value(600).scan<'d', int>();
   program.add_subparser(cmd_viz);
 
   argparse::ArgumentParser cmd_mesh("mesh");

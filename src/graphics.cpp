@@ -18,7 +18,9 @@
 //
 #include "graphics.h"
 
+#include <argparse/argparse.hpp>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <set>
 
 #include "mesh.h"
@@ -49,6 +51,13 @@
 #ifndef VORTEX_SOURCE_DIR
 #define VORTEX_SOURCE_DIR "./"
 #endif
+
+// TODO move these to header file
+extern "C" {
+int stbi_write_jpg(char const* filename, int x, int y, int comp,
+                   const void* data, int quality);
+void stbi_flip_vertically_on_write(int flag);
+}
 
 namespace vortex {
 
@@ -471,7 +480,8 @@ class MeshScene : public wings::Scene {
   };
 
  public:
-  MeshScene(const Mesh& mesh) : mesh_(mesh), earth_(false) {
+  MeshScene(const Mesh& mesh, const std::string& view)
+      : mesh_(mesh), earth_(false), view_file_(view) {
     context_ =
         wings::RenderingContext::create(wings::RenderingContextType::kOpenGL);
     context_->print();
@@ -749,6 +759,7 @@ class MeshScene : public wings::Scene {
     if (name == "viridis") colormap = colormaps::color_viridis;
     if (name == "blue-white-red") colormap = colormaps::color_bwr;
     if (name == "blue-green-red") colormap = colormaps::color_bgr;
+    if (name == "coolwarm") colormap = colormaps::color_coolwarm;
     if (name == "jet") colormap = colormaps::color_jet;
     if (name == "hot") colormap = colormaps::color_hot;
     if (name == "hsv") colormap = colormaps::color_hsv;
@@ -760,6 +771,7 @@ class MeshScene : public wings::Scene {
     GL_CALL(glActiveTexture(GL_TEXTURE0 + kColormap));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, colormap_texture_));
     GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, colormap_buffer_));
+    current_colormap_ = name;
   }
 
   void change_field(const Field& field, int rank) {
@@ -767,6 +779,13 @@ class MeshScene : public wings::Scene {
     for (size_t k = 0; k < primitives_.size(); k++) {
       primitives_[k].write_field(field, rank);
     }
+  }
+
+  void change_field(int field_index) {
+    auto field_info = field_names_[field_index];
+    const auto& field = fields_->fields().at(field_info.first);
+    int rank = field_info.second;
+    change_field(field, rank);
   }
 
   void center_view(ClientView& view, const wings::vec3f& point) {
@@ -798,6 +817,7 @@ class MeshScene : public wings::Scene {
   bool render(const wings::ClientInput& input, int client_idx,
               std::string* msg) {
     ClientView& view = view_[client_idx];
+    bool save_scene_view = false;
     bool updated = false;
     switch (input.type) {
       case wings::InputType::MouseMotion: {
@@ -895,7 +915,9 @@ class MeshScene : public wings::Scene {
           view.lighting = input.ivalue > 0;
         else if (input.key == '#')
           view.numbers = input.ivalue > 0;
-        else if (input.key == 'x') {
+        else if (input.key == 'V') {
+          save_scene_view = true;
+        } else if (input.key == 'x') {
           view.picking_sphere = input.ivalue > 0;
         } else if (input.key == 'W') {
           int w = input.ivalue;
@@ -966,6 +988,34 @@ class MeshScene : public wings::Scene {
         break;
     }
     if (!updated) return false;
+
+    if (save_scene_view) {
+      LOG << "saving view";
+      nlohmann::json data;
+      std::vector<double> values(16);
+      auto set_values = [&values](const auto& m) {
+        int k = 0;
+        for (int i = 0; i < 4; i++)
+          for (int j = 0; j < 4; j++) values[k++] = m(i, j);
+      };
+      set_values(view.model_matrix);
+      data["model_matrix"] = values;
+      set_values(view.view_matrix);
+      data["fov"] = view.fov;
+      data["near"] = view.near;
+      data["far"] = view.far;
+      data["center"] = view.center;
+      data["eye"] = view.eye;
+      data["field_mode"] = view.field_mode;
+      data["field_index"] = view.field_index;
+      for (auto& [n, b] : view.active) {
+        data[n] = b;
+      }
+      data["wireframe"] = view.show_wireframe;
+      data["colormap"] = current_colormap_;
+      std::ofstream outfile("view.json");
+      outfile << std::setw(4) << data << std::endl;
+    }
 
     // write shader uniforms
     GL_CALL(glViewport(0, 0, view.canvas.width, view.canvas.height));
@@ -1177,18 +1227,60 @@ class MeshScene : public wings::Scene {
     // set up the view
     view_.emplace_back();
     ClientView& view = view_.back();
-    view.eye = {0, 0, 0};
-    view.center = {0, 0, 0};
-    wings::vec3f xmin{1e20f, 1e20f, 1e20f}, xmax{-1e20f, -1e20f, -1e20f};
-    for (size_t i = 0; i < mesh_.vertices().n(); i++) {
-      for (int d = 0; d < 3; d++) {
-        float x = mesh_.vertices()(i, d);
-        view.center[d] += x;
-        if (x > xmax[d]) xmax[d] = x;
-        if (x < xmin[d]) xmin[d] = x;
+    view.field_mode = 0;
+    if (!view_file_.empty()) {
+      std::ifstream f(view_file_);
+      nlohmann::json data = nlohmann::json::parse(f);
+      auto get_vec3 = [&data](const std::string& name) -> wings::vec3f {
+        wings::vec3f x;
+        std::vector<double> y = data[name];
+        for (int i = 0; i < 3; i++) x[i] = y[i];
+        return x;
+      };
+      auto get_mat4 = [&data](const std::string& name) -> wings::mat4f {
+        wings::mat4f x;
+        std::vector<double> y = data[name];
+        int k = 0;
+        for (int i = 0; i < 4; i++)
+          for (int j = 0; j < 4; j++) x(i, j) = y[k++];
+        return x;
+      };
+      view.eye = get_vec3("eye");
+      view.center = get_vec3("center");
+      view.model_matrix = get_mat4("model_matrix");
+      for (auto& [n, _] : view.active) {
+        bool b = data[n];
+        view.active[n] = b;
       }
+      view.show_wireframe = data["wireframe"];
+      view.field_mode = data["field_mode"];
+      view.field_index = data["field_index"];
+      change_field(view.field_index);
+      change_colormap(data["colormap"]);
+    } else {
+      view.eye = {0, 0, 0};
+      view.center = {0, 0, 0};
+      wings::vec3f xmin{1e20f, 1e20f, 1e20f}, xmax{-1e20f, -1e20f, -1e20f};
+      for (size_t i = 0; i < mesh_.vertices().n(); i++) {
+        for (int d = 0; d < 3; d++) {
+          float x = mesh_.vertices()(i, d);
+          view.center[d] += x;
+          if (x > xmax[d]) xmax[d] = x;
+          if (x < xmin[d]) xmin[d] = x;
+        }
+      }
+      view.center = view.center / (1.0f * mesh_.vertices().n());
+
+      wings::vec3f scale = aabb_.max - aabb_.min;
+      view.size = std::max(std::max(scale[0], scale[1]), scale[2]);
+      float d = scale[2] / 2.0 + scale[0] / (2.0 * tan(view.fov / 2.0));
+
+      wings::vec3f dir{0, 0, 1};
+      view.eye = view.center + 1.05f * d * dir;
+      // view.center = view.eye - 2.1f * d * dir;
+
+      view.model_matrix.eye();
     }
-    view.center = view.center / (1.0f * mesh_.vertices().n());
     view.center_translation.eye();
     view.inverse_center_translation.eye();
     for (int d = 0; d < 3; d++) {
@@ -1196,15 +1288,6 @@ class MeshScene : public wings::Scene {
       view.inverse_center_translation(d, 3) = -view.center[d];
     }
 
-    wings::vec3f scale = aabb_.max - aabb_.min;
-    view.size = std::max(std::max(scale[0], scale[1]), scale[2]);
-    float d = scale[2] / 2.0 + scale[0] / (2.0 * tan(view.fov / 2.0));
-
-    wings::vec3f dir{0, 0, 1};
-    view.eye = view.center + 1.05f * d * dir;
-    // view.center = view.eye - 2.1f * d * dir;
-
-    view.model_matrix.eye();
     wings::vec3f up{0, 1, 0};
     view.view_matrix = wings::glm::lookat(view.eye, view.center, up);
     view.projection_matrix = wings::glm::perspective(
@@ -1216,7 +1299,6 @@ class MeshScene : public wings::Scene {
     // threads (buffers & textures are though). Each client runs in a separate
     // thread so we need to create a vertex array upon each client connection.
     GL_CALL(glGenVertexArrays(1, &view.vertex_array));
-    view.field_mode = 0;
   }
 
   const wings::ShaderProgram& select_shader(const GLPrimitive& primitive,
@@ -1224,6 +1306,8 @@ class MeshScene : public wings::Scene {
     std::string suffix = (order < 0) ? "t" : std::to_string(order);
     return shaders_[primitive.name() + "-p" + suffix];
   }
+
+  auto& view(size_t k) { return view_[k]; }
 
  private:
   const Mesh& mesh_;
@@ -1258,11 +1342,44 @@ class MeshScene : public wings::Scene {
   std::vector<int> draw_order_;
   ShaderLibrary shaders_;
   std::vector<PickableObject> pickables_;
+  std::string view_file_;
+  std::string current_colormap_;
 };
 
-Viewer::Viewer(const Mesh& mesh, int port) {
-  scene_ = std::make_unique<MeshScene>(mesh);
-  renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
+Viewer::Viewer(const Mesh& mesh, int port, const std::string view) {
+  scene_ = std::make_unique<MeshScene>(mesh, view);
+  if (port > 0)
+    renderer_ = std::make_unique<wings::RenderingServer>(*scene_, port);
+}
+
+void Viewer::save(const std::string& filename,
+                  const argparse::ArgumentParser& program) {
+  std::string msg;
+  scene_->onconnect();
+
+  scene_->view(0).show_wireframe = true;
+  scene_->view(0).lighting = true;
+
+  // set the width and height
+  auto w = program.get<int>("--width");
+  auto h = program.get<int>("--height");
+  {
+    wings::ClientInput input;
+    input.type = wings::InputType::KeyValueInt;
+    input.key = 'H';
+    input.ivalue = h;
+    scene_->render(input, 0, &msg);
+  }
+  {
+    wings::ClientInput input;
+    input.type = wings::InputType::KeyValueInt;
+    input.key = 'W';
+    input.ivalue = w;
+    scene_->render(input, 0, &msg);
+  }
+
+  stbi_flip_vertically_on_write(true);
+  stbi_write_jpg(filename.c_str(), w, h, 3, scene_->pixels().data(), 100);
 }
 
 Viewer::~Viewer() {}
@@ -1271,7 +1388,7 @@ Viewer::~Viewer() {}
 
 #else
 namespace vortex {
-Viewer::Viewer(const Mesh& mesh, int port) {
+Viewer::Viewer(const Mesh& mesh, int port, const std::string) {
   ASSERT(false) << "Please reconfigure vortex to include the visualizer.";
 }
 
