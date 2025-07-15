@@ -482,7 +482,13 @@ void ShallowWaterSimulation<Domain_t>::print_header(int n_bars) const {
 
 template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
+  const auto a = earth_.radius;
   size_t n = particles_.n();
+  std::vector<double> rv(n, 0.0);
+  VoronoiOperators<Domain_t> ops(voronoi_);
+  ops.set_boundary_value(0.0);
+  ops.calculate_relative_vorticity(particles_.velocity()[0], rv.data());
+
   size_t n_data = n * 3;
   std::vector<float> data(n_data);
   size_t m = 0;
@@ -494,7 +500,6 @@ void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
       data[m++] = theta;
       data[m++] = lambda;
       data[m++] = 0;
-      //(height_[k] + options_.surface_height(particles_[k])) / 1000;
     } else {
       for (int d = 0; d < 3; d++) {
         data[m++] = x[d];
@@ -509,18 +514,26 @@ void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
   fwrite(&data[0], 4, n_data, fid);
   fprintf(fid, "\nCELLS 0 0\nCELL_TYPES 0\n");
   fprintf(fid, "POINT_DATA %zu\n", n);
-  fprintf(fid, "FIELD FieldData 1\n");
-  fprintf(fid, "height 1 %zu float\n", n);
-  std::vector<float> height_data(n);
+  fprintf(fid, "FIELD FieldData 3\n");
+  std::vector<float> height_data(n), pv_data(n), rv_data(n);
   for (size_t k = 0; k < n; k++) {
     height_data[k] = height_[k] + options_.surface_height(particles_[k]);
-    // vec3d u(particles_.velocity()[k]);
-    //  height_data[k] = length(u);
+    rv_data[k] = rv[k] / a;
+    pv_data[k] =
+        (rv[k] / a + options_.coriolis_parameter(particles_[k])) / height_[k];
   }
-  std::parafor_i(0, n, [&height_data](int tid, size_t k) {
+  std::parafor_i(0, n, [&](int tid, size_t k) {
     io::swap_end(height_data[k]);
+    io::swap_end(pv_data[k]);
+    io::swap_end(rv_data[k]);
   });
+
+  fprintf(fid, "Height 1 %zu float\n", n);
   fwrite(&height_data[0], 4, n, fid);
+  fprintf(fid, "RelativeVorticity 1 %zu float\n", n);
+  fwrite(&rv_data[0], 4, n, fid);
+  fprintf(fid, "PotentialVorticity 1 %zu float\n", n);
+  fwrite(&pv_data[0], 4, n, fid);
   fprintf(fid, "\n");
   fclose(fid);
 }
