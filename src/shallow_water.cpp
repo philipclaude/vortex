@@ -484,10 +484,10 @@ template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
   const auto a = earth_.radius;
   size_t n = particles_.n();
-  std::vector<double> rv(n, 0.0);
+  std::vector<double> w(3 * n, 0.0);
   VoronoiOperators<Domain_t> ops(voronoi_);
   ops.set_boundary_value(0.0);
-  ops.calculate_relative_vorticity(particles_.velocity()[0], rv.data());
+  ops.calculate_curl(particles_.velocity()[0], w.data());
 
   size_t n_data = n * 3;
   std::vector<float> data(n_data);
@@ -517,10 +517,13 @@ void ShallowWaterSimulation<Domain_t>::save(const std::string& filename) const {
   fprintf(fid, "FIELD FieldData 3\n");
   std::vector<float> height_data(n), pv_data(n), rv_data(n);
   for (size_t k = 0; k < n; k++) {
+    vec3d wk(w.data() + 3 * k);
+    vec3d n(particles_[k]);
+    double rv = dot(n, wk);
     height_data[k] = height_[k] + options_.surface_height(particles_[k]);
-    rv_data[k] = rv[k] / a;
+    rv_data[k] = rv / a;
     pv_data[k] =
-        (rv[k] / a + options_.coriolis_parameter(particles_[k])) / height_[k];
+        (rv / a + options_.coriolis_parameter(particles_[k])) / height_[k];
   }
   std::parafor_i(0, n, [&](int tid, size_t k) {
     io::swap_end(height_data[k]);

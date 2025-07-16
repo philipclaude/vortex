@@ -38,7 +38,7 @@ class VoronoiOperators {
   void set_method(OperatorMethod m) { method_ = m; }
   void calculate_gradient(const coord_t* f, coord_t* grad_f);
   void calculate_divergence(const coord_t* u, coord_t* div_u);
-  void calculate_relative_vorticity(const coord_t* u, coord_t* w);
+  void calculate_curl(const coord_t* u, coord_t* w);
 
  private:
   const VoronoiDiagram& voronoi_;

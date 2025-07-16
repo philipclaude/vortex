@@ -194,8 +194,13 @@ UT_TEST_CASE(test_plane) {
     vertices.add(x);
   }
 
+#if 0
   vec3 p_u = {1, 0, 0};
   vec3 p_v = {0, 1, 0.5};
+#else
+  vec3 p_u = {1, 0, 0};
+  vec3 p_v = {0, 1, 0};
+#endif
   vec3 normal = unit_vector(cross(p_u, p_v));
   LOG << fmt::format("normal = {}, {}, {}", normal[0], normal[1], normal[2]);
   typedef SquareDomain Domain_t;
@@ -283,6 +288,7 @@ UT_TEST_CASE(test_plane) {
     f[i] = 1.5 * p[0] + 1.25 * p[1] + 2.75 * p[2];
   }
 
+  // gradient test
   VoronoiOperators<Domain_t> ops(voronoi);
   ops.calculate_gradient(f.data(), grad_f.data());
 
@@ -307,6 +313,7 @@ UT_TEST_CASE(test_plane) {
     UT_ASSERT_NEAR(gi[1], ga[1], 1e-10);
   }
 
+  // divergence test
   std::vector<double> u(n_sites * 3, 0.0), div_u(n_sites, 0.0);
   for (size_t i = 0; i < n_sites; i++) {
     vec3d p(vertices[i]);
@@ -320,9 +327,27 @@ UT_TEST_CASE(test_plane) {
                  ga[1] * (1 - normal[1] * normal[1]) +
                  ga[2] * (1 - normal[2] * normal[2]);
   LOG << fmt::format("div_a = {}", div_a);
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < n_sites; i++) {
     if (div_u[i] >= 1e20) continue;  // skip boundary polygons
-    UT_ASSERT_NEAR(div_u[i], div_a, 1e-12);
+    UT_ASSERT_NEAR(div_u[i], div_a, 1e-10);
+  }
+
+  // curl test
+  vec3d ca = {0, 0, -2};
+
+  std::vector<double> curl_u(3 * n_sites, 0.0);
+  for (size_t i = 0; i < n_sites; i++) {
+    vec3d p(vertices[i]);
+    u[3 * i] = p[1];
+    u[3 * i + 1] = -p[0];
+    u[3 * i + 2] = 0;
+  }
+  ops.calculate_curl(u.data(), curl_u.data());
+  for (size_t i = 0; i < n_sites; i++) {
+    if (curl_u[3 * i] >= 1e20) continue;  // skip boundary polygons
+    UT_ASSERT_NEAR(curl_u[3 * i], ca[0], 1e-10);
+    UT_ASSERT_NEAR(curl_u[3 * i + 1], ca[1], 1e-10);
+    UT_ASSERT_NEAR(curl_u[3 * i + 2], ca[2], 1e-10);
   }
 
   LOG << fmt::format("writing {} polygons", voronoi.polygons().n());

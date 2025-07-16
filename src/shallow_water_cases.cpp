@@ -143,8 +143,6 @@ WilliamsonCase5::WilliamsonCase5() {
     double d = std::min(R * R, d_lambda * d_lambda + d_theta * d_theta);
     double hs = hs0 * (1 - std::pow(d, 0.5) / R);
     // return hs0 * std::exp(-2.8 * 2.8 * d / (R * R));
-    //  ASSERT(hs >= 0) << hs;
-    //   if (hs > 0) LOG << hs;
     return hs;
   };
   initial_height = [a, omega, g, u0, h0](const double* x) -> double {

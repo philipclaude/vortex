@@ -165,8 +165,8 @@ void VoronoiOperators<Domain_t>::calculate_divergence(const coord_t* u,
 }
 
 template <typename Domain_t>
-void VoronoiOperators<Domain_t>::calculate_relative_vorticity(const coord_t* u,
-                                                              coord_t* w) {
+void VoronoiOperators<Domain_t>::calculate_curl(const coord_t* u,
+                                                double* curl_u) {
   const size_t n_sites = voronoi_.n_sites();
   const coord_t* sites = voronoi_.sites();
   const int dim = voronoi_.dim();  // could be 3 or 4
@@ -174,15 +174,15 @@ void VoronoiOperators<Domain_t>::calculate_relative_vorticity(const coord_t* u,
   const auto& facets = voronoi_.facets();
   ASSERT(facets.size() > 0);
 
-  // zero vorticity
-  for (size_t i = 0; i < n_sites; i++) w[i] = 0.0;
+  // zero curl
+  for (size_t i = 0; i < n_sites * 3; i++) curl_u[i] = 0.0;
 
   // add contribution to sites on both sides of each facet
   for (const auto& facet : facets) {
     const auto i = facet.bi;
     const auto j = facet.bj;
     if (j < 0 || size_t(j) >= n_sites) {
-      for (int d = 0; d < 3; d++) w[i] = boundary_value_;
+      for (int d = 0; d < 3; d++) curl_u[3 * i + d] = boundary_value_;
       continue;
     }
     const vec3d xi(sites + dim * i, 3);
@@ -192,7 +192,6 @@ void VoronoiOperators<Domain_t>::calculate_relative_vorticity(const coord_t* u,
     const vec3d ui(u + 3 * i);
     const vec3d uj(u + 3 * j);
     const vec3d mij(&facet.midpoint.x);
-    const vec3d dl = normalize(cross(0.5 * (xi + xj), xj - xi));
     const double lij = facet.length;
     const double wi = voronoi_.properties()[i].volume;
     const double wj = voronoi_.properties()[j].volume;
@@ -201,14 +200,19 @@ void VoronoiOperators<Domain_t>::calculate_relative_vorticity(const coord_t* u,
     ASSERT(rij > 0);
     ASSERT(!std::isnan(lij));
 
-    const vec3d uij = 0.5 * (ui + uj);
-    vec3d uijf = uij;
+    vec3d du = uj - ui;
+    vec3d du_i = du, du_j = du;
     if (project_) {
-      Domain_t::project(&mij[0], &uij[0], &uijf[0]);
+      Domain_t::project(sites + dim * i, &du[0], &du_i[0]);
+      Domain_t::project(sites + dim * j, &du[0], &du_j[0]);
     }
 
-    w[i] += dot(uijf, dl) * lij / wi;
-    w[j] -= dot(uijf, dl) * lij / wj;
+    vec3d curl_i = cross(du_i, xi - mij) * lij / (rij * wi);
+    vec3d curl_j = cross(du_j, xj - mij) * lij / (rij * wj);
+    for (int d = 0; d < 3; d++) {
+      curl_u[3 * i + d] += curl_i[d];
+      curl_u[3 * j + d] -= curl_j[d];
+    }
   }
 }
 
