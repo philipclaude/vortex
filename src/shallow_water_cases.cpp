@@ -143,8 +143,6 @@ WilliamsonCase5::WilliamsonCase5() {
     double d = std::min(R * R, d_lambda * d_lambda + d_theta * d_theta);
     double hs = hs0 * (1 - std::pow(d, 0.5) / R);
     // return hs0 * std::exp(-2.8 * 2.8 * d / (R * R));
-    //  ASSERT(hs >= 0) << hs;
-    //   if (hs > 0) LOG << hs;
     return hs;
   };
   initial_height = [a, omega, g, u0, h0](const double* x) -> double {
@@ -238,9 +236,10 @@ GalewskyCase::GalewskyCase() {
 
   const double umax = 80.0;
   const double phi0 = M_PI / 7.0;
-  const double phi1 = M_PI / 2.0 - phi0;
+  const double phi1 = M_PI / 2.0 - M_PI / 7.0;
   const double en = std::exp(-4.0 / std::pow(phi1 - phi0, 2.0));
-  const double h0 = 10e3;
+  const double u0 = 20.0;
+  const double h0 = 5960;
 
   surface_height = [](const double* x) -> double { return 0.0; };
 
@@ -248,37 +247,10 @@ GalewskyCase::GalewskyCase() {
     return 2.0 * omega * x[2];
   };
 
-  // this initial height is from Williamson, test case 5
-  // initial_height = [a, omega, g, u0, h0](const double* x) -> double {
-  //   double h = h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[2] * x[2] / g;
-  //   return h;
-  // };
-
-  initial_height = [this, a, g, umax, phi0, phi1, en,
-                    h0](const double* x) -> double {
-    double lat, lon;
-    xyz_to_latlon(x, lat, lon);
-
-    const double theta_midpoint = 0.5 * (phi0 + phi1);
-
-    double denom = (theta_midpoint - phi0) * (theta_midpoint - phi1);
-    double u_zonal = umax * std::exp(1.0 / denom) / en;
-
-    double f = 2.0 * earth.angular_velocity * std::sin(theta_midpoint);
-    double integrand =
-        u_zonal * (a * f + std::tan(theta_midpoint) * u_zonal / a);
-
-    // below the jet
-    if (lat <= phi0) {
-      return h0;
-    }
-    // inside the jet
-    if (lat > phi0 && lat < phi1) {
-      return h0 - (1.0 / g) * (lat - phi0) * integrand;
-      // above the jet
-    } else {
-      return h0 - (1.0 / g) * (phi1 - phi0) * integrand;
-    }
+  // This initial height is from Williamson, test case 5
+  initial_height = [a, omega, g, u0, h0](const double* x) -> double {
+    double h = h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[2] * x[2] / g;
+    return h;
   };
 
   initial_velocity = [umax, phi0, phi1, en](const double* x) -> vec3d {
