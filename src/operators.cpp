@@ -164,6 +164,58 @@ void VoronoiOperators<Domain_t>::calculate_divergence(const coord_t* u,
   }
 }
 
+template <typename Domain_t>
+void VoronoiOperators<Domain_t>::calculate_curl(const coord_t* u,
+                                                double* curl_u) {
+  const size_t n_sites = voronoi_.n_sites();
+  const coord_t* sites = voronoi_.sites();
+  const int dim = voronoi_.dim();  // could be 3 or 4
+
+  const auto& facets = voronoi_.facets();
+  ASSERT(facets.size() > 0);
+
+  // zero curl
+  for (size_t i = 0; i < n_sites * 3; i++) curl_u[i] = 0.0;
+
+  // add contribution to sites on both sides of each facet
+  for (const auto& facet : facets) {
+    const auto i = facet.bi;
+    const auto j = facet.bj;
+    if (j < 0 || size_t(j) >= n_sites) {
+      for (int d = 0; d < 3; d++) curl_u[3 * i + d] = boundary_value_;
+      continue;
+    }
+    const vec3d xi(sites + dim * i, 3);
+    const vec3d xj(sites + dim * j, 3);
+    double rij = length(xi - xj);
+    // rij = Domain_t::length(xi, xj);
+    const vec3d ui(u + 3 * i);
+    const vec3d uj(u + 3 * j);
+    const vec3d mij(&facet.midpoint.x);
+    const double lij = facet.length;
+    const double wi = voronoi_.properties()[i].volume;
+    const double wj = voronoi_.properties()[j].volume;
+
+    ASSERT(wi > 0 || wj > 0) << fmt::format("wi = {}, wj = {}", wi, wj);
+    ASSERT(rij > 0);
+    ASSERT(!std::isnan(lij));
+
+    vec3d du = uj - ui;
+    vec3d du_i = du, du_j = du;
+    if (project_) {
+      Domain_t::project(sites + dim * i, &du[0], &du_i[0]);
+      Domain_t::project(sites + dim * j, &du[0], &du_j[0]);
+    }
+
+    vec3d curl_i = cross(du_i, xi - mij) * lij / (rij * wi);
+    vec3d curl_j = cross(du_j, xj - mij) * lij / (rij * wj);
+    for (int d = 0; d < 3; d++) {
+      curl_u[3 * i + d] += curl_i[d];
+      curl_u[3 * j + d] -= curl_j[d];
+    }
+  }
+}
+
 template class VoronoiOperators<SquareDomain>;
 template class VoronoiOperators<SphereDomain>;
 
