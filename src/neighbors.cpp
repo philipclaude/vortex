@@ -243,10 +243,11 @@ void SphereQuadtree::setup() {
 
 void SphereQuadtree::build() {
   // utility to determine if a point is inside a spherical triangle
+  static const double tol = -1e-8;
   auto intriangle = [](const vec3d& v0, const vec3d& v1, const vec3d& v2,
                        const vec3d& v) {
-    return dot(cross(v0, v1), v) >= 0 && dot(cross(v1, v2), v) >= 0 &&
-           dot(cross(v2, v0), v) >= 0;
+    return dot(cross(v0, v1), v) >= tol && dot(cross(v1, v2), v) >= tol &&
+           dot(cross(v2, v0), v) >= tol;
   };
 
   int last_level = mesh_.n_levels - 1;
