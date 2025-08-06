@@ -134,6 +134,15 @@ void run_visualizer(argparse::ArgumentParser& program) {
   }
 
   mesh.fields().set_defaults(mesh);
+
+  auto save = program.get<std::string>("--save");
+  if (!save.empty()) {
+    // -1 is a signal to not start the rendering server
+    Viewer viewer(mesh, -1, view);
+    viewer.save(save, program);
+    return;
+  }
+
   Viewer viewer(mesh, port, view);
 }
 
