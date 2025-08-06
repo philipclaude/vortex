@@ -113,10 +113,15 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
     int k = MAX_NEIGHBOR_CAPACITY;
     int n = np;
     int m = double(k) / kOneRingSize;
-    ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0));
+    ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0)) + 1;
   }
+set_levels:
   n_levels = ns + 1;
   n_points_per_triangle = np / (Octahedron::n_faces * std::pow(4, ns));
+  if (n_points_per_triangle < 10) {
+    ns--;
+    goto set_levels;
+  }
   LOG << fmt::format("# levels = {}, # triangles = {}, # pts/tri ~ {}",
                      n_levels, t_last(ns) - t_first(ns), n_points_per_triangle);
 
