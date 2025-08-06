@@ -322,7 +322,7 @@ GalewskyCase::GalewskyCase() {
   days = 6;
 }
 
-galewskySetInitial::galewskySetInitial() {
+GalewskySetInitial::GalewskySetInitial() {
   const double omega = earth.angular_velocity;
   const double a = earth.radius;
   const double g = earth.gravity;

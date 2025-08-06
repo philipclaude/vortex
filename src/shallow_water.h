@@ -181,8 +181,8 @@ struct GalewskyCase : ShallowWaterOptions {
   GalewskyCase();
 };
 
-struct galewskySetInitial : ShallowWaterOptions {
-  galewskySetInitial();
+struct GalewskySetInitial : ShallowWaterOptions {
+  GalewskySetInitial();
 };
 
 void run_swe_simulation(const argparse::ArgumentParser& program);

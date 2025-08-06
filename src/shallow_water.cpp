@@ -654,7 +654,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   } else if (test_case == "galewsky") {
     test_case_ptr = std::make_shared<GalewskyCase>();
   } else if (test_case == "galewsky_Set_Initial") {
-    test_case_ptr = std::make_shared<galewskySetInitial>();
+    test_case_ptr = std::make_shared<GalewskySetInitial>();
   } else {
     LOG << "unknown test case: " << test_case;
   }
