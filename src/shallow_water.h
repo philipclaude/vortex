@@ -121,6 +121,7 @@ class ShallowWaterSimulation : public ParticleSimulation {
   }
 
   void setup();
+  void calculate_initial_conservation_quantities();
 
   double time_step(const SimulationOptions& options);
   void compute_artificial_viscosity(std::vector<double>& fv);
@@ -136,6 +137,7 @@ class ShallowWaterSimulation : public ParticleSimulation {
   double total_energy() const;
 
   const auto& height() const { return height_; }
+  auto& height() { return height_; }
 
   void save_json(const std::string& filename) const;
   const auto& statistics() const { return statistics_; }
@@ -177,6 +179,10 @@ struct WilliamsonCase6 : ShallowWaterOptions {
 
 struct GalewskyCase : ShallowWaterOptions {
   GalewskyCase();
+};
+
+struct GalewskySetInitial : ShallowWaterOptions {
+  GalewskySetInitial();
 };
 
 void run_swe_simulation(const argparse::ArgumentParser& program);

@@ -34,11 +34,21 @@ namespace vortex {
 template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::setup() {
   for (size_t k = 0; k < particles_.n(); k++) {
-    height_[k] = options_.initial_height(particles_[k]) -
-                 options_.surface_height(particles_[k]);
+    double h0 = options_.initial_height(particles_[k]);
+    if (h0 >= 0) {
+      // negative height can be a signal from the case that means
+      // the height was imported from a file
+      height_[k] = h0 - options_.surface_height(particles_[k]);
+    }
   }
   particles_.set_velocity(options_.initial_velocity);
   particles_.set_density([](const double* x) { return 1.0; });
+  calculate_initial_conservation_quantities();
+}
+
+template <typename Domain_t>
+void ShallowWaterSimulation<
+    Domain_t>::calculate_initial_conservation_quantities() {
   for (size_t k = 0; k < particles_.n(); k++) {
     volume_[k] = height_[k] * voronoi_.properties()[k].volume;
   }
@@ -627,33 +637,10 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   std::filesystem::create_directories(output_dir);
   std::string prefix = output_dir + "/particles";
 
-  // initialize particles
-  double* sites = nullptr;
-  int n_smooth = 0;
-  size_t n_sites = 0;
-  std::string particles = program.get<std::string>("--particles");
-  std::shared_ptr<SubdividedSphere<Icosahedron>> mesh;
-  if (size_t pos = particles.find("icosahedron") != std::string::npos) {
-    particles.erase(pos - 1, 11);
-    mesh = std::make_shared<SubdividedSphere<Icosahedron>>(
-        std::atoi(particles.data()));
-    n_sites = mesh->vertices().n();
-    sites = mesh->vertices()[0];
-    LOG << fmt::format("# sites = {}", n_sites);
-  }
+  std::string import_height_from =
+      program.get<std::string>("--import_height_from");
 
-  // construct a better ordering of the points
-  std::vector<index_t> order(n_sites);
-  sort_points_on_zcurve(sites, n_sites, dim, order);
-  Vertices vertices(dim);
-  vertices.reserve(n_sites);
-  coord_t x[dim];
-  for (size_t i = 0; i < n_sites; i++) {
-    for (int d = 0; d < dim; d++) x[d] = sites[dim * order[i] + d];
-    vertices.add(x);
-  }
-
-  // set up the fluid simulator
+  // set up the test case
   std::shared_ptr<ShallowWaterOptions> test_case_ptr = nullptr;
   std::string test_case = program.get<std::string>("--case");
   if (test_case == "williamson1") {
@@ -666,13 +653,87 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     test_case_ptr = std::make_shared<WilliamsonCase6>();
   } else if (test_case == "galewsky") {
     test_case_ptr = std::make_shared<GalewskyCase>();
+  } else if (test_case == "galewsky_Set_Initial") {
+    test_case_ptr = std::make_shared<GalewskySetInitial>();
   } else {
     LOG << "unknown test case: " << test_case;
   }
   test_case_ptr->use_optimal_transport = true;
-  test_case_ptr->add_artificial_viscosity = false;
+  test_case_ptr->add_artificial_viscosity =
+      program.get<bool>("--add_artificial_viscosity");
+  if (program.get<bool>("--use_explicit_time_stepping"))
+    test_case_ptr->time_stepping = TimeSteppingScheme::kExplicit;
   test_case_ptr->project_velocity = true;
   test_case_ptr->stabilize_pressure_gradient = false;
+
+  // initialize particles
+  double* sites = nullptr;
+  int n_smooth = 0;
+  size_t n_sites = 0;
+  std::vector<index_t> order;
+  std::vector<double> heights;
+  std::shared_ptr<Mesh> mesh;
+  EarthProperties earth;
+
+  if (import_height_from.empty()) {
+    std::string particles = program.get<std::string>("--particles");
+    if (size_t pos = particles.find("icosahedron") != std::string::npos) {
+      particles.erase(pos - 1, 11);
+      mesh = std::make_shared<SubdividedSphere<Icosahedron>>(
+          std::atoi(particles.data()));
+      n_sites = mesh->vertices().n();
+      sites = mesh->vertices()[0];
+    }
+
+    // construct a better ordering of the points
+    order.resize(n_sites);
+    sort_points_on_zcurve(sites, n_sites, dim, order);
+  } else {
+    mesh = std::make_shared<Mesh>(3);
+
+    // Galewsky jet implementation using Darren Engwirda's initial condition
+    // https://github.com/dengwirda/swe-python
+    std::ifstream f(import_height_from);
+    nlohmann::json json;
+    f >> json;
+
+    std::vector<double> xs = json["x"];
+    std::vector<double> ys = json["y"];
+    std::vector<double> zs = json["z"];
+    std::vector<double> hs = json["h"];
+
+    size_t n = xs.size();
+    ASSERT(ys.size() == n);
+    ASSERT(zs.size() == n);
+    ASSERT(hs.size() == n) << fmt::format("|hs| = {}, n = {}", hs.size(), n);
+
+    const double a = earth.radius;
+    heights.resize(n);
+    std::array<coord_t, 3> coords;
+    for (size_t i = 0; i < n; ++i) {
+      coords[0] = xs[i] / a;
+      coords[1] = ys[i] / a;
+      coords[2] = zs[i] / a;
+      heights[i] = hs[i];
+      ASSERT(heights[i] > 0);
+      mesh->vertices().add(coords.data());
+    }
+    n_sites = mesh->vertices().n();
+    sites = mesh->vertices()[0];
+    order.resize(n_sites);
+    std::iota(order.begin(), order.end(), 0);
+  }
+  LOG << fmt::format("# sites = {}", n_sites);
+
+  Vertices vertices(dim);
+  vertices.reserve(n_sites);
+  coord_t x[dim];
+  for (size_t i = 0; i < n_sites; i++) {
+    for (int d = 0; d < dim; d++) x[d] = sites[dim * order[i] + d];
+    vertices.add(x);
+  }
+
+  // set up the solver
   ShallowWaterSimulation<Domain_t> solver(domain, n_sites, vertices[0],
                                           vertices.dim(), *test_case_ptr);
 
@@ -683,6 +744,14 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   solver_opts.advect_from_centroid = true;
   solver.initialize(domain, solver_opts);
   solver.setup();
+
+  if (!import_height_from.empty()) {
+    for (size_t k = 0; k < n_sites; k++) {
+      ASSERT(heights[k] > 0);
+      solver.height()[k] = heights[k];
+    }
+    solver.calculate_initial_conservation_quantities();
+  }
 
   solver.statistics().n_particles = n_sites;
   solver.statistics().name = test_case;

@@ -16,7 +16,15 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+#include <array>
+#include <fstream>
+#include <limits>
+#include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
+
 #include "shallow_water.h"
+using json = nlohmann::json;
 
 namespace vortex {
 
@@ -143,6 +151,7 @@ WilliamsonCase5::WilliamsonCase5() {
     double d = std::min(R * R, d_lambda * d_lambda + d_theta * d_theta);
     double hs = hs0 * (1 - std::pow(d, 0.5) / R);
     // return hs0 * std::exp(-2.8 * 2.8 * d / (R * R));
+
     return hs;
   };
   initial_height = [a, omega, g, u0, h0](const double* x) -> double {
@@ -236,10 +245,11 @@ GalewskyCase::GalewskyCase() {
 
   const double umax = 80.0;
   const double phi0 = M_PI / 7.0;
-  const double phi1 = M_PI / 2.0 - M_PI / 7.0;
+  const double phi1 = M_PI / 2.0 - phi0;
   const double en = std::exp(-4.0 / std::pow(phi1 - phi0, 2.0));
-  const double u0 = 20.0;
-  const double h0 = 5960;
+  // This h0 value is from Natasha Flyer's 2012 paper linked below:
+  // https://scholarworks.boisestate.edu/cgi/viewcontent.cgi?article=1095&context=math_facpubs
+  const double h0 = 10158.295;
 
   surface_height = [](const double* x) -> double { return 0.0; };
 
@@ -247,11 +257,89 @@ GalewskyCase::GalewskyCase() {
     return 2.0 * omega * x[2];
   };
 
-  // This initial height is from Williamson, test case 5
-  initial_height = [a, omega, g, u0, h0](const double* x) -> double {
-    double h = h0 - (omega * a * u0 + 0.5 * u0 * u0) * x[2] * x[2] / g;
-    return h;
+  initial_height = [this, a, g, umax, phi0, phi1, en,
+                    h0](const double* x) -> double {
+    double lat, lon;
+    xyz_to_latlon(x, lat, lon);
+    // below the jet
+    if (lat <= phi0) return h0;
+
+    int N = 1000;
+    double size_phi = (lat - phi0) / N;
+    double sum = 0.0;
+
+    for (int i = 0; i < N; ++i) {
+      // middle of each section
+      double phi_mid = phi0 + (i + 0.5) * size_phi;
+
+      // zonal wind
+      double u = 0.0;
+      if (phi_mid >= phi0 && phi_mid <= phi1) {
+        double denom = (phi_mid - phi0) * (phi_mid - phi1);
+        u = umax * std::exp(1.0 / denom) / en;
+      }
+      // coriolis
+      double f = 2.0 * earth.angular_velocity * std::sin(phi_mid);
+      // integrand
+      double integrand = a * u * (f + std::tan(phi_mid) * u / a);
+      // accumulation of integral
+      sum += integrand;
+    }
+
+    double integral = size_phi * sum;
+    double height = h0 - (1.0 / g) * integral;
+
+    const double h_hat = 120.0;
+    const double phi2 = M_PI / 4.0;
+    const double alpha = 1.0 / 3.0;
+    const double beta = 1.0 / 15.0;
+
+    double perturbation = h_hat * std::cos(lat) *
+                          std::exp(-std::pow(lon / alpha, 2.0)) *
+                          std::exp(-std::pow((phi2 - lat) / beta, 2.0));
+
+    return height + perturbation;
   };
+
+  initial_velocity = [umax, phi0, phi1, en](const double* x) -> vec3d {
+    double lat, lon;
+    xyz_to_latlon(x, lat, lon);
+
+    double u_zonal = 0.0;
+    if (lat >= phi0 && lat <= phi1) {
+      double denom = (lat - phi0) * (lat - phi1);
+      u_zonal = umax * std::exp(1.0 / denom) / en;
+    }
+
+    double us = u_zonal;
+    double vs = 0.0;
+    double ux = -us * sin(lon) - vs * sin(lat) * cos(lon);
+    double uy = us * cos(lon) - vs * sin(lat) * sin(lon);
+    double uz = vs * cos(lat);
+
+    return {ux, uy, uz};
+  };
+  days = 6;
+}
+
+GalewskySetInitial::GalewskySetInitial() {
+  const double omega = earth.angular_velocity;
+  const double a = earth.radius;
+  const double g = earth.gravity;
+
+  const double umax = 80.0;
+  const double phi0 = M_PI / 7.0;
+  const double phi1 = M_PI / 2.0 - phi0;
+  const double en = std::exp(-4.0 / std::pow(phi1 - phi0, 2.0));
+  const double h0 = 10e3;
+
+  surface_height = [](const double* x) -> double { return 0.0; };
+
+  coriolis_parameter = [omega](const double* x) -> double {
+    return 2.0 * omega * x[2];
+  };
+  // this value is -1 because it is imported from a file
+  initial_height = [](const double* x) { return -1; };
 
   initial_velocity = [umax, phi0, phi1, en](const double* x) -> vec3d {
     double lat, lon;
