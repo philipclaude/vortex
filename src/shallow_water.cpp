@@ -77,7 +77,6 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   std::vector<double> area(n, 0.0);
   for (size_t k = 0; k < n; k++) {
     area[k] = volume_[k] / height_[k];
-    // LOG << height_[k];
   }
 
   // from the latest Voronoi diagram, determine the maximum time step that
