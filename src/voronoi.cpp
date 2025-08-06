@@ -944,7 +944,6 @@ VoronoiDiagramProperties VoronoiDiagram::analyze() const {
   props.area = 0.0;
   double c = 0.0;
   for (size_t k = 0; k < n_sites_; k++) {
-    // props.area += properties_[k].volume;
     double y = properties_[k].volume - c;  // Kahan sum
     double t = props.area + y;
     c = (t - props.area) - y;

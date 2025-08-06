@@ -540,7 +540,7 @@ void run_voronoi(argparse::ArgumentParser& program) {
     {
       Mesh tmp(dim);
       points.copy(tmp.vertices());
-      meshb::write(tmp, program.get<std::string>("--output_points") + ".meshb");
+      meshb::write(tmp, output_points + ".meshb");
     }
     {
       std::string filename = output_points + ".dat";
