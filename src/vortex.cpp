@@ -992,6 +992,11 @@ int main(int argc, char** argv) {
       .help("frequency (in hours) to solution data to a JSON")
       .default_value(-1)
       .scan<'i', int>();
+  cmd_swe.add_argument("--import_height_from")
+      .help("filename to import initial height and coordinates from")
+      .default_value("");
+  cmd_swe.add_argument("--add_artificial_viscosity").flag();
+  cmd_swe.add_argument("--use_explicit_time_stepping").flag();
   cmd_swe.add_argument("--statistics")
       .help("statistics filename (in output dir)")
       .default_value("statistics.json");
