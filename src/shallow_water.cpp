@@ -654,7 +654,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   } else if (test_case == "galewsky") {
     test_case_ptr = std::make_shared<GalewskyCase>();
   } else if (test_case == "galewsky_Set_Initial") {
-    test_case_ptr = std::make_shared<galewsky_Set_Initial>();
+    test_case_ptr = std::make_shared<galewskySetInitial>();
   } else {
     LOG << "unknown test case: " << test_case;
   }
@@ -692,6 +692,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     mesh = std::make_shared<Mesh>(3);
 
     // Galewsky jet implementation using Darren Engwirda's initial condition
+    // https://github.com/dengwirda/swe-python
     std::ifstream f(import_height_from);
     nlohmann::json json;
     f >> json;
@@ -721,7 +722,6 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     sites = mesh->vertices()[0];
     order.resize(n_sites);
     std::iota(order.begin(), order.end(), 0);
-    // mesh->vertices().print();
   }
   LOG << fmt::format("# sites = {}", n_sites);
 
