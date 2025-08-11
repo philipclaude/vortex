@@ -324,14 +324,11 @@ GalewskyCase::GalewskyCase() {
 
 GalewskySetInitial::GalewskySetInitial() {
   const double omega = earth.angular_velocity;
-  const double a = earth.radius;
-  const double g = earth.gravity;
 
   const double umax = 80.0;
   const double phi0 = M_PI / 7.0;
   const double phi1 = M_PI / 2.0 - phi0;
   const double en = std::exp(-4.0 / std::pow(phi1 - phi0, 2.0));
-  const double h0 = 10e3;
 
   surface_height = [](const double* x) -> double { return 0.0; };
 

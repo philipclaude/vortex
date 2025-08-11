@@ -1392,6 +1392,11 @@ Viewer::Viewer(const Mesh& mesh, int port, const std::string) {
   ASSERT(false) << "Please reconfigure vortex to include the visualizer.";
 }
 
+void Viewer::save(const std::string& filename,
+                  const argparse::ArgumentParser& program) {
+  ASSERT(false) << "Please reconfigure vortex to include the visualizer.";
+}
+
 Viewer::~Viewer() {}
 }  // namespace vortex
 #endif
