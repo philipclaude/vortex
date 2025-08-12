@@ -28,7 +28,7 @@ def hs5(l, t):
   hs = hs0 * (1 - d ** 0.5 / r)
   return hs
 
-def main(name, src, out):
+def main(name, plot_type, src, out):
   '''
   Runs the main plotting program.
   '''
@@ -54,11 +54,17 @@ def main(name, src, out):
         h = d
 
       # plot
-      s = plt.scatter(l, t, c=h, cmap='coolwarm', s=5, edgecolors='none')
-      cbar = plt.colorbar(s, orientation='vertical', location='right', fraction=0.05, shrink=0.675)
-      cbar.ax.set_title('[m]', pad=10)
-      color_values = [round(min(h))] + SETUP[name]['height_labels'] + [round(max(h))]
-      cbar.set_ticks(color_values)
+      if plot_type == 'point':
+        s = plt.scatter(l, t, c=h, cmap='coolwarm', s=5, edgecolors='none')
+        cbar = plt.colorbar(s, orientation='vertical', location='right',
+                            fraction=0.05, shrink=0.675)
+        cbar.ax.set_title('[m]', pad=10)
+        color_values = [round(min(h))] + SETUP[name]['height_labels'] + [round(max(h))]
+        cbar.set_ticks(color_values)
+      elif plot_type == 'tri':
+        raise TypeError("not implemented yet")
+      else:
+        raise TypeError(f"unknown plot type {plot_type}")
 
       plt.xlabel('$\\lambda$')
       plt.ylabel('$\\theta$', rotation=0)
@@ -85,6 +91,7 @@ if __name__ == '__main__':
   parser.add_argument('--name', help='case to plot: either w2, w5 or w6')
   parser.add_argument('--src', help='directory containing particles*.json files')
   parser.add_argument('--out', help='output directory for images')
+  parser.add_argument('--type', help='either point or tri', default='point')
   args = parser.parse_args()
   assert args.name and args.src and args.out
-  main(args.name, args.src, args.out)
+  main(args.name, args.type, args.src, args.out)
