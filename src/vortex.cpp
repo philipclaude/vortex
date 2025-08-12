@@ -486,9 +486,20 @@ void run_voronoi(argparse::ArgumentParser& program) {
           options.neighbor_algorithm = NearestNeighborAlgorithm::kVoronoiBFS;
         }
       }
-      if (arg_domain == "sphere" && neighbors == "sqtree") {
+      if (arg_domain == "sphere") {
         options.neighbor_algorithm = NearestNeighborAlgorithm::kSphereQuadtree;
         options.store_facet_data = false;
+        if (program.is_used("--neighbors") && neighbors == "kdtree") {
+          options.neighbor_algorithm = NearestNeighborAlgorithm::kKdtree;
+        } else if (neighbors == "bfs") {
+          options.store_facet_data = true;
+          if (iter == 1) {
+            options.neighbor_algorithm =
+                NearestNeighborAlgorithm::kSphereQuadtree;
+          } else {
+            options.neighbor_algorithm = NearestNeighborAlgorithm::kVoronoiBFS;
+          }
+        }
       }
 
       if (points.n() < 100)
@@ -614,7 +625,6 @@ void run_gm_simulation(argparse::ArgumentParser& program) {
                           {corners[2], corners[3], 0});
       for (size_t k = 0; k < n_points; k++) {
         auto x = domain.random_point();
-        // for (int d = 0; d < 2; d++) x[d] = double(rand()) / double(RAND_MAX);
         sample.add(&x[0]);
       }
     } else
