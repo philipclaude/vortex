@@ -86,4 +86,4 @@ jobs:
         python-version: '3.12'
         cache: 'pip'
     - run: pip install -r scripts/requirements.txt
-    - run: python -m pylint scripts/*.py
+    - run: python -m pylint --rc-file scripts/.pylintrc scripts/*.py

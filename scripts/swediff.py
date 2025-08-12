@@ -3,7 +3,8 @@ Program to compare vortex solutions with swe-python.
 '''
 import argparse
 import json
-import netCDF4 as nc
+# pylint: disable=no-name-in-module
+from netCDF4 import Dataset
 from scipy.spatial import KDTree
 import numpy as np
 from matplotlib import pyplot as plt
@@ -28,7 +29,7 @@ def main(src, ref, n_days, out):
         zp = vtx_data["z"]
         hp = vtx_data["h"]
 
-      data = nc.Dataset(ref, "r", format="NETCDF4")
+      data = Dataset(ref, "r", format="NETCDF4")
       a = data.sphere_radius
 
       h = data.variables["hh_cell"][day, :, :]
@@ -72,9 +73,11 @@ def main(src, ref, n_days, out):
   plt.show()
 
 if __name__ == "__main__":
-  # Example run using vortex solutions for Williamson test case 5 (w5) with a time step of 30 seconds (t30)
-  # using 5, 6 and 7 icosahedron subdivisions to initialize the particles (i5, i6, i7):
-  # python3.11 swediff.py --ref out_wtc5-cvt8.nc --src w5-i5-t30/ w5-i6-t30/ w5-i7-t30/ --out w5-difference.pdf --days 15
+  # Example run using vortex solutions for Williamson test case 5 (w5)
+  # with a time step of 30 seconds (t30) using 5, 6 and 7 icosahedron
+  # subdivisions to initialize the particles (i5, i6, i7):
+  # python3.11 swediff.py --ref out_wtc5-cvt8.nc --src w5-i5-t30/ w5-i6-t30/ w5-i7-t30/
+  #                       --out w5-difference.pdf --days 15
   parser = argparse.ArgumentParser()
   parser.add_argument('--src', type=str, nargs='+',
                       help='list of directories containing particles*.json files')
