@@ -2,8 +2,6 @@
 
 `vortex` is a Voronoi mesher, visualizer and fluid simulator for geophysical fluids on the sphere. Currently, the main capability consists of solving the shallow water equations with a Lagrangian method to simulate the air in the Earth's atmosphere. Future work consists of applying this method to simulate the oceans.
 
-**Note:** `vortex` currently contains new unpublished research which is why it is a private repository - please do not share the code with anyone. It could be released publicly after the ideas are published.
-
 ### Installation
 
 To get started, `vortex` only requires `git`, `CMake` and a `C++` compiler that supports `C++17`. The `CMake` configuration will automatically download all required dependencies to the `extern` directory (which will be ignored by `git`). If you need to update a dependency (e.g. `wings`), delete the `extern/wings` directory and re-run the `CMake` configuration in your build directory.

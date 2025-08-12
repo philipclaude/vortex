@@ -134,6 +134,15 @@ void run_visualizer(argparse::ArgumentParser& program) {
   }
 
   mesh.fields().set_defaults(mesh);
+
+  auto save = program.get<std::string>("--save");
+  if (!save.empty()) {
+    // -1 is a signal to not start the rendering server
+    Viewer viewer(mesh, -1, view);
+    viewer.save(save, program);
+    return;
+  }
+
   Viewer viewer(mesh, port, view);
 }
 
@@ -391,6 +400,12 @@ void run_voronoi(argparse::ArgumentParser& program) {
       }
     } else
       sample_surface(background_mesh, sample, n_points);
+  } else if (arg_points == "icosahedron") {
+    int n_points_subdiv = program.get<int>("--n_points_subdiv");
+    SubdividedSphere<Icosahedron> subdiv(n_points_subdiv);
+    for (size_t k = 0; k < subdiv.vertices().n(); k++) {
+      sample.add(subdiv.vertices()[k]);
+    }
   } else if (arg_points == "random_oceans") {
     sample.reserve(n_points);
     std::string tex_file =
@@ -522,12 +537,14 @@ void run_voronoi(argparse::ArgumentParser& program) {
   if (program.present<std::string>("--output_points")) {
     auto output_points = program.get<std::string>("--output_points");
     auto ext = get_file_ext(output_points);
-    if (ext == "meshb") {
+    {
       Mesh tmp(dim);
       points.copy(tmp.vertices());
-      meshb::write(tmp, program.get<std::string>("--output_points"));
-    } else if (ext == "txt" || ext == "dat") {
-      FILE* fid = fopen(output_points.c_str(), "w");
+      meshb::write(tmp, output_points + ".meshb");
+    }
+    {
+      std::string filename = output_points + ".dat";
+      FILE* fid = fopen(filename.c_str(), "w");
       for (size_t k = 0; k < points.n(); k++)
         fprintf(fid, "%1.16e %1.16e %1.16e\n", points[k][0], points[k][1],
                 points[k][2]);
@@ -814,6 +831,12 @@ int main(int argc, char** argv) {
   cmd_voronoi.add_description("calculate Voronoi diagram on surface");
   cmd_voronoi.add_argument("--domain")
       .help("input surface: (.obj or .meshb), sphere or icosahedron");
+  cmd_voronoi.add_argument("--n_points_subdiv")
+      .default_value(5)
+      .help(
+          "# subdivisions of icosahedron used if this is used for point "
+          "initialization")
+      .scan<'i', int>();
   cmd_voronoi.add_argument("--n_subdiv")
       .help(
           "number of subdivisions of the sphere mesh (only applicable to "

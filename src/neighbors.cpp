@@ -113,10 +113,15 @@ SphereQuadtree::Subdivision::Subdivision(int np, int ns)
     int k = MAX_NEIGHBOR_CAPACITY;
     int n = np;
     int m = double(k) / kOneRingSize;
-    ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0));
+    ns = std::floor(std::log(n / (T ::n_faces * m)) / std::log(4.0)) + 1;
   }
+set_levels:
   n_levels = ns + 1;
   n_points_per_triangle = np / (Octahedron::n_faces * std::pow(4, ns));
+  if (n_points_per_triangle < 10) {
+    ns--;
+    goto set_levels;
+  }
   LOG << fmt::format("# levels = {}, # triangles = {}, # pts/tri ~ {}",
                      n_levels, t_last(ns) - t_first(ns), n_points_per_triangle);
 
@@ -243,10 +248,11 @@ void SphereQuadtree::setup() {
 
 void SphereQuadtree::build() {
   // utility to determine if a point is inside a spherical triangle
+  static const double tol = -1e-8;
   auto intriangle = [](const vec3d& v0, const vec3d& v1, const vec3d& v2,
                        const vec3d& v) {
-    return dot(cross(v0, v1), v) >= 0 && dot(cross(v1, v2), v) >= 0 &&
-           dot(cross(v2, v0), v) >= 0;
+    return dot(cross(v0, v1), v) >= tol && dot(cross(v1, v2), v) >= tol &&
+           dot(cross(v2, v0), v) >= tol;
   };
 
   int last_level = mesh_.n_levels - 1;
