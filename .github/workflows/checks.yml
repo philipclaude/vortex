@@ -1,4 +1,4 @@
-name: c++-checks
+name: checks
 
 on:
   pull_request:
@@ -77,8 +77,13 @@ jobs:
       run: |
         make unit_coverage
 
-    # - name: upload artifacts
-    #   uses: actions/upload-artifact@v3
-    #   with:
-    #     name: output
-    #     path: unit_tests_output.txt
+  py-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    - run: pip install -r scripts/requirements.txt
+    - run: python -m pylint --rc-file scripts/.pylintrc scripts/*.py
