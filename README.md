@@ -1,6 +1,6 @@
 ### About
 
-`vortex` is a Voronoi mesher, visualizer and fluid simulator for geophysical fluids on the sphere. Currently, the main capability consists of solving the shallow water equations with a Lagrangian method to simulate the air in the Earth's atmosphere (see Example 9 below). Future work consists of applying this method to simulate the oceans.
+`vortex` is a Voronoi mesher, visualizer and fluid simulator for geophysical fluids on the sphere. Currently, the main capability consists of solving the shallow water equations with a Lagrangian method to simulate the air in the Earth's atmosphere (see [Example 9 below](https://github.com/philipclaude/vortex?tab=readme-ov-file#9-shallow-water-equation-fluid-simulations)). Future work consists of applying this method to simulate the oceans.
 
 The methods implemented in `vortex` are described in the following preprint:
 
