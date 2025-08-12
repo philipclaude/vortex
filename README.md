@@ -1,6 +1,10 @@
 ### About
 
-`vortex` is a Voronoi mesher, visualizer and fluid simulator for geophysical fluids on the sphere. Currently, the main capability consists of solving the shallow water equations with a Lagrangian method to simulate the air in the Earth's atmosphere. Future work consists of applying this method to simulate the oceans.
+`vortex` is a Voronoi mesher, visualizer and fluid simulator for geophysical fluids on the sphere. Currently, the main capability consists of solving the shallow water equations with a Lagrangian method to simulate the air in the Earth's atmosphere (see Example 9 below). Future work consists of applying this method to simulate the oceans.
+
+The methods implemented in `vortex` are described in the following preprint:
+
+*A Lagrangian method for solving the spherical shallow water equations using power diagrams*: [https://arxiv.org/abs/2508.08129](https://arxiv.org/abs/2508.08129).
 
 ### Installation
 
@@ -29,28 +33,7 @@ The steps above will build the `vortex` library in `build/release/lib/`, unit te
 
 You can also compile `vortex` in "debug" mode (which will be slower). If you configure `vortex` from `build/debug`, the `CMake` configuration will detect that you wish to build in debug mode, and will add debugging symbols when compiling. The address sanitizer can be useful for catching memory leaks.
 
-#### Running tests
-
-Before running the tests, you'll need to create some sample files. From the root of the repository, run the `dev/examples.sh` script by providing the location of the main `vortex` executable, as well as a mesh size for some of the sample files (here 0.02):
-
-```sh
-dev/examples.sh build/release/bin/vortex 0.02
-```
-
-Then you can navigate back to the build directory and run all the unit tests:
-
-```sh
-cd build/release
-make unit
-```
-
-All unit test output (including details about possible failures) will be written to `unit_tests_output.txt`. The steps above are the same steps used in the workflow that runs on every pull request to ensure unit tests always pass.
-
-To run a single suite of unit tests (for example the suite of Voronoi diagram tests):
-
-```sh
-make voronoi_test
-```
+If you are interested in developing, please see [this wiki page](https://github.com/philipclaude/vortex/wiki/Developing) first.
 
 ### Examples
 
@@ -233,86 +216,6 @@ bin/vortex gm --domain sphere  --n_particles 100000 --output_directory sphere100
 ```
 
 This takes approximately 1 second per time step (on a 2022 M1 MacBook Pro) so the full simulation will take about 3  hours to run. The resulting fluid motion should look like [this](https://drive.google.com/file/d/1OnLbWHb4ANTVTb80AoijXW1l_eiDheE0/view?usp=drive_link).
-
-### Developing
-
-The `main` branch of `vortex` is protected, so every contribution must be made in the form of a pull request (PR). Please create a branch (`git checkout -b [branchname]`) when developing a new feature.
-
-Upon every PR, `vortex` will check (using a GitHub workflow) that the unit tests pass, and will also check that the format is in the correct style - this project uses the `Google` style for `C++`. The `clang-format` tool (downloaded by `dev/setup.sh` mentioned above) is used to check the style, which can also be used to update files to conform to the style. I strongly recommend using VS Code and in the Settings, set the **C_Cpp: Clang_format_fallback Style** to **Google** and set the **C_Cpp: Formatting** to **clangFormat**. In the **Text Editor -> Formatting** section, I would also recommend enabling the **Format On Save** option.
-
-#### Programming with `vortex`
-
-The first thing to note is the use of `index_t` and `coord_t` (defined in `src/defs.h`) for defining the integer type to use for element indices, and the floating-point type to use for vertex coordinates, respectively.
-
-The main container for elements and vertices is the `Mesh` structure, which stores all the possible mesh topologies. Each topology is of type `Topology<T>` where the template parameter `T` can be `Line`, `Triangle`, `Quad` or `Polygon`. These topologies inherit from `array2d<index_t>`, thus representing how vertices are connected to form elements. The number of entities in a topology is accessed using `.n()` and the `[]` operator will return a pointer to the first item stored in an entity. For example,
-
-```c++
-Mesh mesh(3); // initialize a mesh with 3d vertices
-
-// create 20 random vertices
-size_t n_vertices = 20;
-coord_t x[3];
-for (size_t k = 0; k < n_vertices; k++) {
-   for (int d = 0; d < 3; d++)
-      x[d] = coord_t(rand()) / coord_t(RAND_MAX);
-   mesh.vertices().add(x);
-}
-ASSERT(mesh.vertices().n() == n_vertices); // use of ASSERT
-LOG << fmt::format("mesh has {} vertices", mesh.vertices().n()); // use of LOG and fmt::format
-
-// retrieve y-coordinate of vertex 5
-LOG << fmt::format("y[5] = {}", mesh.vertices()[5][1]);
-
-auto& polygons = mesh.polygons(); // retrieve a reference to the polygons
-ASSERT(polygons.n() == 0);
-
-index_t polygon[5] = {0, 4, 12, 7, 2}; // some polygon
-polygons.add(polygon, 5);
-
-ASSERT(polygons.n() == 1);
-ASSERT(polygons.length(0) == 5); // there are 5 items in the first element (polygon)
-ASSERT(polygons[0][3] == 7); // see the polygon indices above
-```
-
-A half-edge representation of the mesh can be created using:
-
-```c++
-HalfMesh hmesh(mesh);
-
-for (auto& node : hmesh.nodes()) {} // loop through the HalfNode objects
-for (auto& edge : hmesh.edges()) {} // loop through the HalfEdge objects
-for (auto& face : hmesh.faces()) {} // loop through the HalfFace objects
-```
-
-Note that the half-edge mesh will be created using **all** polygons, triangles and quads. If you are using an output mesh from the Voronoi diagram calculation, you should either (1) clear the triangles with `mesh.triangles().clear()` (if you wish to work with the polygons) or (2) copy the polygons to a new mesh (using `mesh.polygons().copy(mesh2.polygons())`). Remember to copy the vertices as well if you choose to do the latter (`mesh.vertices().copy(mesh2.vertices())`).
-
-Please see the member functions and variables for `HalfNode`, `HalfEdge` and `HalfFace` in `src/halfedges.h`. One way to become familiar with this data structure is to study the `HalfMesh::flip`, `HalfMesh::split` or `HalfMesh::collapse` functions, in addition to how they are used in `mesher.cpp`. It may also be useful to look at the `run_extract` function in `src/vortex.cpp`.
-
-#### Checking code coverage.
-
-Code coverage reports let us know how many lines of the `vortex` source code are "covered" by the testing suite. Generating these reports requires a few extra dependencies (`gcov`, `lcov`, and `genhtml` which requires the Perl `GD.pm` module), which are installed by the `dev/setup.sh` script.
-
-Assuming you are starting from the root of the `vortex` repository, create a directory that will automatically be detected for code coverage:
-
-```sh
-mkdir build/coverage
-```
-
-Navigate to this directory, configure and build:
-
-```sh
-cd build/coverage
-cmake ../../
-make unit_coverage
-```
-
-This time, we are running the `unit_coverage` target which will run all of the unit tests and generate code coverage information. Now, display the code coverage results:
-
-```sh
-make coverage_show
-```
-
-and navigate through the `HTML` report to see which lines are being executed.
 
 ### Acknowledgements
 
