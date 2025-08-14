@@ -33,23 +33,20 @@ def hs5(l, t):
 lon_min, lon_max = -math.pi, math.pi
 lat_min, lat_max = -math.pi/2, math.pi/2
 # for Delaunay implementation
-def pad_corners(lon, lat, h):
+def pad_corners(lon: np.ndarray, lat: np.ndarray, height: np.ndarray):
   '''
   Extends the longitude and latitude arrays to include the corners
   '''
-  lon_arr = np.asarray(lon, float)
-  lat_arr = np.asarray(lat, float)
-  height_arr = np.asarray(h, float)
   corners = np.array([[lon_min, lat_min], [lon_max, lat_min],
                       [lon_min, lat_max], [lon_max, lat_max]], dtype=float)
   corner_heights = []
   for lonc, latc in corners:
-    d2 = (lon_arr - lonc)**2 + (lat_arr - latc)**2
-    corner_heights.append(height_arr[np.argmin(d2)])
+    d2 = (lon - lonc)**2 + (lat - latc)**2
+    corner_heights.append(height[np.argmin(d2)])
   corner_heights = np.asarray(corner_heights, float)
-  lon_ext = np.concatenate([lon_arr, corners[:, 0]])
-  lat_ext = np.concatenate([lat_arr, corners[:, 1]])
-  h_ext = np.concatenate([height_arr, corner_heights])
+  lon_ext = np.concatenate([lon, corners[:, 0]])
+  lat_ext = np.concatenate([lat, corners[:, 1]])
+  h_ext = np.concatenate([height, corner_heights])
   return lon_ext, lat_ext, h_ext
 
 def main(name, plot_type, src, out):
