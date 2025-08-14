@@ -34,6 +34,9 @@ lon_min, lon_max = -math.pi, math.pi
 lat_min, lat_max = -math.pi/2, math.pi/2
 # for Delaunay implementation
 def pad_corners(lon, lat, h):
+  '''
+  Extends the longitude and latitude arrays to include the corners
+  '''
   lon_arr = np.asarray(lon, float)
   lat_arr = np.asarray(lat, float)
   height_arr = np.asarray(h, float)
