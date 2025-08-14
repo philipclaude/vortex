@@ -5,6 +5,8 @@ import json
 import math
 import argparse
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial import Delaunay # pylint: disable=no-name-in-module
 
 # times are in hours, height_labels are in metres
 SETUP = {
@@ -27,6 +29,25 @@ def hs5(l, t):
   d = min(r * r, d_lambda * d_lambda + d_theta * d_theta)
   hs = hs0 * (1 - d ** 0.5 / r)
   return hs
+
+lon_min, lon_max = -math.pi, math.pi
+lat_min, lat_max = -math.pi/2, math.pi/2
+# for Delaunay implementation
+def pad_corners(lon: np.ndarray, lat: np.ndarray, height: np.ndarray):
+  '''
+  Extends the longitude and latitude arrays to include the corners
+  '''
+  corners = np.array([[lon_min, lat_min], [lon_max, lat_min],
+                      [lon_min, lat_max], [lon_max, lat_max]], dtype=float)
+  corner_heights = []
+  for lonc, latc in corners:
+    d2 = (lon - lonc)**2 + (lat - latc)**2
+    corner_heights.append(height[np.argmin(d2)])
+  corner_heights = np.asarray(corner_heights, float)
+  lon_ext = np.concatenate([lon, corners[:, 0]])
+  lat_ext = np.concatenate([lat, corners[:, 1]])
+  h_ext = np.concatenate([height, corner_heights])
+  return lon_ext, lat_ext, h_ext
 
 def main(name, plot_type, src, out):
   '''
@@ -62,7 +83,22 @@ def main(name, plot_type, src, out):
         color_values = [round(min(h))] + SETUP[name]['height_labels'] + [round(max(h))]
         cbar.set_ticks(color_values)
       elif plot_type == 'tri':
-        raise TypeError("not implemented yet")
+        l_arr = np.asarray(l, float)
+        t_arr = np.asarray(t, float)
+        h_arr = np.asarray(h, float)
+        lon_ext, lat_ext, height_ext = pad_corners(l_arr, t_arr, h_arr)
+        tri = Delaunay(np.column_stack([lon_ext, lat_ext]))
+        vmin = float(h_arr.min())
+        vmax = float(h_arr.max())
+        s = plt.tripcolor(
+          lon_ext, lat_ext, tri.simplices, height_ext,
+          cmap='coolwarm', vmin=vmin, vmax=vmax, edgecolors='none'
+        )
+        cbar = plt.colorbar(s, orientation='vertical', location='right',
+                            fraction=0.05, shrink=0.675)
+        cbar.ax.set_title('[m]', pad=10)
+        cbar.set_ticks([round(vmin)] + SETUP[name]['height_labels'] + [round(vmax)])
+
       else:
         raise TypeError(f"unknown plot type {plot_type}")
 
