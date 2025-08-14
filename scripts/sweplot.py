@@ -5,6 +5,8 @@ import json
 import math
 import argparse
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial import Delaunay
 
 # times are in hours, height_labels are in metres
 SETUP = {
@@ -62,7 +64,17 @@ def main(name, plot_type, src, out):
         color_values = [round(min(h))] + SETUP[name]['height_labels'] + [round(max(h))]
         cbar.set_ticks(color_values)
       elif plot_type == 'tri':
-        raise TypeError("not implemented yet")
+          l_arr = np.asarray(l, float)
+          t_arr = np.asarray(t, float)
+          tri = Delaunay(np.column_stack([l_arr, t_arr]))
+          plt.triplot(l_arr, t_arr, tri.simplices, linewidth=0.3)
+
+          s = plt.tripcolor(l_arr, t_arr, tri.simplices, np.asarray(h), cmap='coolwarm', edgecolors='none')
+          cbar = plt.colorbar(s, orientation='vertical', location='right',
+                        fraction=0.05, shrink=0.675)
+          cbar.ax.set_title('[m]', pad=10)
+          color_values = [round(min(h))] + SETUP[name]['height_labels'] + [round(max(h))]
+          cbar.set_ticks(color_values)
       else:
         raise TypeError(f"unknown plot type {plot_type}")
 
