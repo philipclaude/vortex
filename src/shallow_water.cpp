@@ -579,15 +579,16 @@ void ShallowWaterSimulation<Domain_t>::save_json(
     // vorticity calculation
     vec3d wk(w.data() + 3 * k);
     vec3d normal(particles_[k]);
-    double v = dot(normal, wk);
-    rv[k] = v / a;
-    pv[k] = (v / a + options_.coriolis_parameter(particles_[k])) / height_[k];
+    double v = dot(normal, wk) / a;
+    rv[k] = v;
+    pv[k] = (v + options_.coriolis_parameter(particles_[k])) / height_[k];
     
   }
   data["x"] = x;
   data["y"] = y;
   data["z"] = z;
   data["h"] = h;
+  data["hs"] = hs;
   data["w"] = voronoi_.weights();
   data["rv"] = rv;
   data["pv"] = pv;
@@ -801,7 +802,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   solver.initialize(domain, solver_opts);
   solver.setup();
 
-  if (!import_height_from.empty() && !interpolate_height_from.empty()) {
+  if (!import_height_from.empty() || !interpolate_height_from.empty()) {
     for (size_t k = 0; k < n_sites; k++) {
       ASSERT(heights[k] > 0);
       solver.height()[k] = heights[k];
