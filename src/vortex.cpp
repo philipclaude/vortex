@@ -1028,6 +1028,11 @@ int main(int argc, char** argv) {
   cmd_swe.add_argument("--import_height_from")
       .help("filename to import initial height and coordinates from")
       .default_value("");
+  cmd_swe.add_argument("--interpolate_height_from")
+      .help(
+          "filename to use to interpolate height field to initial particle "
+          "heights")
+      .default_value("");
   cmd_swe.add_argument("--add_artificial_viscosity").flag();
   cmd_swe.add_argument("--use_explicit_time_stepping").flag();
   cmd_swe.add_argument("--statistics")

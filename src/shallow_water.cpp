@@ -18,6 +18,8 @@
 //
 #include "shallow_water.h"
 
+#include <trees/kdtree.h>
+
 #include <argparse/argparse.hpp>
 #include <filesystem>
 #include <fstream>
@@ -272,7 +274,8 @@ double ShallowWaterSimulation<Domain_t>::time_step(
     for (size_t k = 0; k < n; k++) {
       height[k] = height_[k] + options_.surface_height(particles_[k]);
     }
-    ops.calculate_gradient(height.data(), grad_h.data());
+    if (options_.time_stepping != TimeSteppingScheme::kExplicit)
+      ops.calculate_gradient(height.data(), grad_h.data());
   } else {
     VoronoiDiagramOptions voro_opts;
     voro_opts.verbose = false;
@@ -658,6 +661,8 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
 
   std::string import_height_from =
       program.get<std::string>("--import_height_from");
+  std::string interpolate_height_from =
+      program.get<std::string>("--interpolate_height_from");
 
   // set up the test case
   std::shared_ptr<ShallowWaterOptions> test_case_ptr = nullptr;
@@ -730,9 +735,9 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     heights.resize(n);
     std::array<coord_t, 3> coords;
     for (size_t i = 0; i < n; ++i) {
-      coords[0] = xs[i] / a;
-      coords[1] = ys[i] / a;
-      coords[2] = zs[i] / a;
+      coords[0] = xs[i];
+      coords[1] = ys[i];
+      coords[2] = zs[i];
       heights[i] = hs[i];
       ASSERT(heights[i] > 0);
       mesh->vertices().add(coords.data());
@@ -742,6 +747,38 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     order.resize(n_sites);
     std::iota(order.begin(), order.end(), 0);
   }
+
+  if (!interpolate_height_from.empty()) {
+    std::ifstream f(interpolate_height_from);
+    nlohmann::json json;
+    f >> json;
+
+    // import the points and height
+    std::vector<double> xref = json["x"];
+    std::vector<double> yref = json["y"];
+    std::vector<double> zref = json["z"];
+    std::vector<double> href = json["h"];
+
+    size_t n = xref.size();
+    ASSERT(yref.size() == n);
+    ASSERT(zref.size() == n);
+    ASSERT(href.size() == n);
+    trees::KdTreeOptions kdtree_opts;
+    LOG << "N = " << n;
+    Vertices ref_points(3);
+    for (size_t k = 0; k < n; k++) {
+      std::array<coord_t, 3> coords = {xref[k], yref[k], zref[k]};
+      ref_points.add(coords.data());
+    }
+    trees::KdTree<3, double, index_t> tree(ref_points[0], n, kdtree_opts);
+    LOG << "built kdtree";
+    heights.resize(n_sites);
+    for (size_t k = 0; k < n_sites; k++) {
+      size_t idx = tree.nearest(sites + dim * order[k]);
+      heights[k] = href[idx];
+    }
+  }
+
   LOG << fmt::format("# sites = {}", n_sites);
 
   Vertices vertices(dim);
@@ -764,7 +801,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   solver.initialize(domain, solver_opts);
   solver.setup();
 
-  if (!import_height_from.empty()) {
+  if (!import_height_from.empty() && !interpolate_height_from.empty()) {
     for (size_t k = 0; k < n_sites; k++) {
       ASSERT(heights[k] > 0);
       solver.height()[k] = heights[k];
