@@ -13,6 +13,8 @@ SETUP = {
   'w2': { 'times': [0, 120, 288], 'height_labels': [1500, 2000, 2500]},
   'w5': { 'times': [0, 120, 240, 360], 'height_labels': [5250, 5500, 5750]},
   'w6': { 'times': [0, 120, 240, 360], 'height_labels': [8500, 9000, 9500, 10000]},
+  'jet': { 'times': [0, 24, 48, 72, 96, 120, 144], 'height_labels': [-1.2e-4, 0, 1.4e-4]} 
+
 }
 
 def hs5(l, t):
@@ -73,6 +75,9 @@ def main(name, plot_type, src, out):
         h = [d[i] + hs5(l[i], t[i]) for i in range(len(x))]
       else:
         h = d
+
+      if name == 'jet':
+          h = data['rv']
 
       # plot
       if plot_type == 'point':

@@ -555,20 +555,39 @@ template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::save_json(
     const std::string& filename) const {
   nlohmann::json data;
-
   size_t n = particles_.n();
-  std::vector<double> x(n), y(n), z(n), h(n);
+
+  // calculate curl for vorticity
+  std::vector<double> w(3 * n, 0.0);
+  VoronoiOperators<Domain_t> ops(voronoi_);
+  ops.set_boundary_value(0.0);
+  ops.calculate_curl(particles_.velocity()[0], w.data());
+
+  const auto a = earth_.radius;
+  std::vector<double> x(n), y(n), z(n), h(n), hs(n);
+  std::vector<double> pv(n), rv(n);
   for (size_t k = 0; k < n; k++) {
     x[k] = particles_[k][0];
     y[k] = particles_[k][1];
     z[k] = particles_[k][2];
-    h[k] = height_[k] + options_.surface_height(particles_[k]);
+    h[k] = height_[k];
+    hs[k] = options_.surface_height(particles_[k]);
+    
+    // vorticity calculation
+    vec3d wk(w.data() + 3 * k);
+    vec3d normal(particles_[k]);
+    double v = dot(normal, wk);
+    rv[k] = v / a;
+    pv[k] = (v / a + options_.coriolis_parameter(particles_[k])) / height_[k];
+    
   }
   data["x"] = x;
   data["y"] = y;
   data["z"] = z;
   data["h"] = h;
   data["w"] = voronoi_.weights();
+  data["rv"] = rv;
+  data["pv"] = pv;
   data["domain"] = "sphere";
 
   std::ofstream outfile(filename);
@@ -707,7 +726,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     ASSERT(zs.size() == n);
     ASSERT(hs.size() == n) << fmt::format("|hs| = {}, n = {}", hs.size(), n);
 
-    const double a = earth.radius;
+    const double a = 1.0;//earth.radius;
     heights.resize(n);
     std::array<coord_t, 3> coords;
     for (size_t i = 0; i < n; ++i) {

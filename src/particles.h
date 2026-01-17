@@ -186,7 +186,7 @@ class ParticleSimulation {
     for (size_t k = 0; k < particles_.n(); k++) {
       particles_.volume()[k] = voronoi_.properties()[k].volume;
       particles_.mass()[k] = particles_.density()[k] * particles_.volume()[k];
-      ASSERT(particles_.mass()[k] > 0);
+      ASSERT(particles_.mass()[k] > 0) << particles_.mass()[k];
     }
   }
 
