@@ -4,6 +4,7 @@ from swe-python solution.
 """
 import argparse
 import json
+# pylint: disable=no-name-in-module
 import netCDF4 as nc
 import numpy as np
 
