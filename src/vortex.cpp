@@ -62,6 +62,7 @@ void run_visualizer(argparse::ArgumentParser& program) {
     std::vector<double> z = data["z"];
     std::vector<double> w = data["w"];
     std::vector<double> h = data["h"];
+    std::vector<double> hs = data["hs"];
     ASSERT(data["domain"] == "sphere");
 
     size_t n_sites = x.size();
@@ -98,7 +99,7 @@ void run_visualizer(argparse::ArgumentParser& program) {
 
     for (size_t k = 0; k < n_sites; k++) {
       size_t site = voronoi.polygons().group(k);
-      hfld.polygons()[k][0] = h[site];
+      hfld.polygons()[k][0] = h[site] + hs[site];
       wfld.polygons()[k][0] = w[site];
     }
 
@@ -1027,6 +1028,11 @@ int main(int argc, char** argv) {
       .scan<'i', int>();
   cmd_swe.add_argument("--import_height_from")
       .help("filename to import initial height and coordinates from")
+      .default_value("");
+  cmd_swe.add_argument("--interpolate_height_from")
+      .help(
+          "filename to use to interpolate height field to initial particle "
+          "heights")
       .default_value("");
   cmd_swe.add_argument("--add_artificial_viscosity").flag();
   cmd_swe.add_argument("--use_explicit_time_stepping").flag();

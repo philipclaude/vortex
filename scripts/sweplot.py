@@ -3,102 +3,150 @@ Program to create images from vortex .json particle output.
 '''
 import json
 import math
+import os
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import Delaunay # pylint: disable=no-name-in-module
+from scipy.spatial import KDTree
+# pylint: disable=no-name-in-module
+from netCDF4 import Dataset
 
-# times are in hours, height_labels are in metres
-SETUP = {
-  'w2': { 'times': [0, 120, 288], 'height_labels': [1500, 2000, 2500]},
-  'w5': { 'times': [0, 120, 240, 360], 'height_labels': [5250, 5500, 5750]},
-  'w6': { 'times': [0, 120, 240, 360], 'height_labels': [8500, 9000, 9500, 10000]},
+UNITS = {
+  'h': 'm',
+  'd': 'm',
+  'rv': '1/s'
 }
 
-def hs5(l, t):
-  '''
-  Calculates the surface height for Williamson Case 5 because the vortex
-   .json files only save the depth.
-  '''
-  hs0 = 2000
-  r = math.pi / 9.0
-  lambda_c = -math.pi / 2
-  theta_c = math.pi / 6
-  d_lambda = l - lambda_c
-  d_theta = t - theta_c
-  d = min(r * r, d_lambda * d_lambda + d_theta * d_theta)
-  hs = hs0 * (1 - d ** 0.5 / r)
-  return hs
-
-lon_min, lon_max = -math.pi, math.pi
-lat_min, lat_max = -math.pi/2, math.pi/2
 # for Delaunay implementation
-def pad_corners(lon: np.ndarray, lat: np.ndarray, height: np.ndarray):
+def pad_corners(lon: np.ndarray, lat: np.ndarray, quantity: np.ndarray):
   '''
   Extends the longitude and latitude arrays to include the corners
   '''
-  corners = np.array([[lon_min, lat_min], [lon_max, lat_min],
-                      [lon_min, lat_max], [lon_max, lat_max]], dtype=float)
-  corner_heights = []
+  corners = np.array([[-math.pi, -math.pi/2], [math.pi, -math.pi/2],
+                      [-math.pi, math.pi/2], [math.pi, math.pi/2]], dtype=float)
+  corner_values = []
   for lonc, latc in corners:
     d2 = (lon - lonc)**2 + (lat - latc)**2
-    corner_heights.append(height[np.argmin(d2)])
-  corner_heights = np.asarray(corner_heights, float)
+    corner_values.append(quantity[np.argmin(d2)])
+  corner_values = np.asarray(corner_values, float)
   lon_ext = np.concatenate([lon, corners[:, 0]])
   lat_ext = np.concatenate([lat, corners[:, 1]])
-  h_ext = np.concatenate([height, corner_heights])
-  return lon_ext, lat_ext, h_ext
+  q_ext = np.concatenate([quantity, corner_values])
+  return lon_ext, lat_ext, q_ext
 
-def main(name, plot_type, src, out):
+def get_quantity(data, field, qref, tree, a):
+  """
+  Retrieves the quantity to plot from data.
+  """
+  q = np.array(data['h'])
+  assert q is not None
+
+  if 'hs' in data and field == 'h':
+    q += np.array(data['hs'])
+  elif 'rv' in data:
+    q = np.array(data['rv'])
+  if tree:
+    x = data['x']
+    y = data['y']
+    z = data['z']
+    if 'hs' in data:
+      q -= np.array(data['hs']) # compare depth saved by swe-python
+    # pylint: disable=consider-using-enumerate
+    for i in range(len(q)):
+      info = tree.query([a * x[i], a * y[i], a * z[i]])
+      q[i] = (q[i] - qref[info[1]]) * 100 / qref[info[1]]
+  return q
+
+def main(days, plot_type, src, out, field, diff):
   '''
   Runs the main plotting program.
   '''
-  for step in SETUP[name]['times']:
-    with open(f"{src}/particles{step}.json", encoding='utf-8') as f:
+  # import reference solution at the last day if provided
+  ref = None
+  tree = None
+  a = None
+  if diff:
+    assert field == 'h'
+    ref = Dataset(diff, "r", format="NETCDF4")
+    a = ref.sphere_radius
+    xc = np.array(ref["xCell"])
+    yc = np.array(ref["yCell"])
+    zc = np.array(ref["zCell"])
+    n_cells = len(xc)
+    assert len(yc) == n_cells and len(zc) == n_cells
+
+    # build a kdtree from the stationary points (cell centers)
+    points = np.zeros([n_cells, 3])
+    points[:, 0] = xc
+    points[:, 1] = yc
+    points[:, 2] = zc
+    tree = KDTree(points)
+
+  minval = float('inf')
+  maxval = -minval
+  if len(days) == 1:
+    days = range(days[0] + 1)
+  for day in days:
+    print(f"Processing day {day}")
+    href = None
+    if ref:
+      assert field == 'h'
+      href = ref.variables["hh_cell"][day, :, :].squeeze()
+    assert os.path.exists(f"{src}/particles{24 * day}.json")
+    with open(f"{src}/particles{24 * day}.json", encoding='utf-8') as f:
       plt.figure()
 
       # import the particle locations and height
       data = json.loads(f.read())
-      x = data['x']
-      y = data['y']
-      z = data['z']
-      d = data['h']
+      q = get_quantity(data, field, href, tree, a)
+      qmin = min(q)
+      qmax = max(q)
+      minval = min(qmin, minval)
+      maxval = max(qmax, maxval)
+      print(f"Day {day}: qmin = {qmin}, qmax = {qmax}")
+  print(f"min = {minval}, max = {maxval}")
 
-      # compute latitude and longitude
-      t = [math.asin(value) for value in z]
-      l = [math.atan2(y[i], x[i]) for i in range(len(x))]
+  for day in days:
+    print(f"Processing day {day}")
+    href = None
+    if ref:
+      assert field == 'h'
+      href = ref.variables["hh_cell"][day, :, :].squeeze()
+    with open(f"{src}/particles{24 * day}.json", encoding='utf-8') as f:
+      plt.figure()
 
-      # determine height to plot
-      if name == 'w5':
-        h = [d[i] + hs5(l[i], t[i]) for i in range(len(x))]
-      else:
-        h = d
+      # import the particle locations and height
+      data = json.loads(f.read())
+      x = np.array(data['x'])
+      y = np.array(data['y'])
+      z = np.array(data['z'])
+      q = get_quantity(data, field, href, tree, a)
+      t = np.asin(z) # latitude (theta)
+      l = np.atan2(y, x) # longitude (lambda)
 
       # plot
       if plot_type == 'point':
-        s = plt.scatter(l, t, c=h, cmap='coolwarm', s=5, edgecolors='none')
+        s = plt.scatter(l, t, c=q, cmap='coolwarm', s=5, edgecolors='none')
         cbar = plt.colorbar(s, orientation='vertical', location='right',
                             fraction=0.05, shrink=0.675)
-        cbar.ax.set_title('[m]', pad=10)
-        color_values = [round(min(h))] + SETUP[name]['height_labels'] + [round(max(h))]
-        cbar.set_ticks(color_values)
+        if diff:
+          cbar.ax.set_title("%", pad=10)
+        else:
+          cbar.ax.set_title(f"[{UNITS[field]}]", pad=10)
       elif plot_type == 'tri':
-        l_arr = np.asarray(l, float)
-        t_arr = np.asarray(t, float)
-        h_arr = np.asarray(h, float)
-        lon_ext, lat_ext, height_ext = pad_corners(l_arr, t_arr, h_arr)
+        lon_ext, lat_ext, height_ext = pad_corners(l, t, q)
         tri = Delaunay(np.column_stack([lon_ext, lat_ext]))
-        vmin = float(h_arr.min())
-        vmax = float(h_arr.max())
         s = plt.tripcolor(
-          lon_ext, lat_ext, tri.simplices, height_ext,
-          cmap='coolwarm', vmin=vmin, vmax=vmax, edgecolors='none'
+          lon_ext, lat_ext, tri.simplices, height_ext, vmin=minval, vmax=maxval,
+          cmap='coolwarm', edgecolors='none'
         )
         cbar = plt.colorbar(s, orientation='vertical', location='right',
                             fraction=0.05, shrink=0.675)
-        cbar.ax.set_title('[m]', pad=10)
-        cbar.set_ticks([round(vmin)] + SETUP[name]['height_labels'] + [round(vmax)])
-
+        if diff:
+          cbar.ax.set_title("%", pad=10)
+        else:
+          cbar.ax.set_title(f"[{UNITS[field]}]", pad=10)
       else:
         raise TypeError(f"unknown plot type {plot_type}")
 
@@ -118,16 +166,19 @@ def main(name, plot_type, src, out):
 
       plt.tight_layout()
       ax.set_aspect('equal')
-      plt.savefig(f"{out}/{name}-t{step}.png", dpi=200, bbox_inches='tight', pad_inches=0.0)
+      plt.savefig(f"{out}-{field}-day{day}.png", dpi=200, bbox_inches='tight', pad_inches=0.0)
       plt.close()
 
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--name', help='case to plot: either w2, w5 or w6')
   parser.add_argument('--src', help='directory containing particles*.json files')
-  parser.add_argument('--out', help='output directory for images')
-  parser.add_argument('--type', help='either point or tri', default='point')
+  parser.add_argument('--out', help='output prefix for images')
+  parser.add_argument('--type', help='either point or tri', default='tri')
+  parser.add_argument('--field', help='which quantity to plot (h, rv)', default='h')
+  parser.add_argument('--days', type=int, nargs='+', help='how many days to plot', default=1)
+  parser.add_argument('--diff', default='',
+                      help="plots the difference in the field, given a reference solution")
   args = parser.parse_args()
-  assert args.name and args.src and args.out
-  main(args.name, args.type, args.src, args.out)
+  assert args.src and args.out
+  main(args.days, args.type, args.src, args.out, args.field, args.diff)

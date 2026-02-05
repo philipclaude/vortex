@@ -18,6 +18,8 @@
 //
 #include "shallow_water.h"
 
+#include <trees/kdtree.h>
+
 #include <argparse/argparse.hpp>
 #include <filesystem>
 #include <fstream>
@@ -272,7 +274,8 @@ double ShallowWaterSimulation<Domain_t>::time_step(
     for (size_t k = 0; k < n; k++) {
       height[k] = height_[k] + options_.surface_height(particles_[k]);
     }
-    ops.calculate_gradient(height.data(), grad_h.data());
+    if (options_.time_stepping != TimeSteppingScheme::kExplicit)
+      ops.calculate_gradient(height.data(), grad_h.data());
   } else {
     VoronoiDiagramOptions voro_opts;
     voro_opts.verbose = false;
@@ -285,6 +288,15 @@ double ShallowWaterSimulation<Domain_t>::time_step(
       height_[i] = volume_[i] / voronoi_.properties()[i].volume;
     }
   }
+
+  // calculate the difference between the particle positions and centroids
+  double dpc = 0.0;
+  for (size_t i = 0; i < n; i++) {
+    vec3d x(particles_[i]);
+    vec3d c(particles_.centroids()[i]);
+    dpc += std::pow(length(x - c), 2.0);
+  }
+  dpc = std::sqrt(dpc / n);
 
   // compute artificial viscosity
   std::vector<double> viscous(3 * n, 0.0);
@@ -362,10 +374,11 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   std::cout << fmt::format(
       "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:+1.1e} | {:+1.1e} | "
       "{:+1.1e} "
-      "| {:+1.1e} | {:6.1f} | {:+1.1e} | {:+1.1e} |\n",
+      "| {:+1.1e} | {:6.1f} | {:+1.1e} | {:+1.1e} | {:1.2e} \n",
       options.iteration, days_hours_minutes(options.time + dt), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
-      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total);
+      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total,
+      dpc);
   time_step_timer.stop();
 
   statistics_.ra.push_back(area_error);
@@ -384,6 +397,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   statistics_.linear_solver_time.push_back(linear_solver_time_ +
                                            linear_solver_time);
   statistics_.time_step_time.push_back(time_step_timer.seconds());
+  statistics_.dpc.push_back(dpc);
 
   return dt;
 }
@@ -484,9 +498,9 @@ void ShallowWaterSimulation<Domain_t>::print_header(int n_bars) const {
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
   std::cout << fmt::format(
       "| {:6s} | {:9s} | {:7s} | {:10s} | {:8s} | {:8s} | {:8s} | {:8s} | "
-      "{:6s} | {:8s} | {:8s} |\n",
+      "{:6s} | {:8s} | {:8s} | {:8s}\n",
       "Step", "day:hr:mn", "dt (s)", "Rw", "Ra", "Rm", "Rp", "Re", "SDPD", "Eh",
-      "Eu");
+      "Eu", "DC");
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
 }
 
@@ -555,20 +569,39 @@ template <typename Domain_t>
 void ShallowWaterSimulation<Domain_t>::save_json(
     const std::string& filename) const {
   nlohmann::json data;
-
   size_t n = particles_.n();
-  std::vector<double> x(n), y(n), z(n), h(n);
+
+  // calculate curl for vorticity
+  std::vector<double> w(3 * n, 0.0);
+  VoronoiOperators<Domain_t> ops(voronoi_);
+  ops.set_boundary_value(0.0);
+  ops.calculate_curl(particles_.velocity()[0], w.data());
+
+  const auto a = earth_.radius;
+  std::vector<double> x(n), y(n), z(n), h(n), hs(n);
+  std::vector<double> pv(n), rv(n);
   for (size_t k = 0; k < n; k++) {
     x[k] = particles_[k][0];
     y[k] = particles_[k][1];
     z[k] = particles_[k][2];
-    h[k] = height_[k] + options_.surface_height(particles_[k]);
+    h[k] = height_[k];
+    hs[k] = options_.surface_height(particles_[k]);
+
+    // vorticity calculation
+    vec3d wk(w.data() + 3 * k);
+    vec3d normal(particles_[k]);
+    double v = dot(normal, wk) / a;
+    rv[k] = v;
+    pv[k] = (v + options_.coriolis_parameter(particles_[k])) / height_[k];
   }
   data["x"] = x;
   data["y"] = y;
   data["z"] = z;
   data["h"] = h;
+  data["hs"] = hs;
   data["w"] = voronoi_.weights();
+  data["rv"] = rv;
+  data["pv"] = pv;
   data["domain"] = "sphere";
 
   std::ofstream outfile(filename);
@@ -639,6 +672,8 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
 
   std::string import_height_from =
       program.get<std::string>("--import_height_from");
+  std::string interpolate_height_from =
+      program.get<std::string>("--interpolate_height_from");
 
   // set up the test case
   std::shared_ptr<ShallowWaterOptions> test_case_ptr = nullptr;
@@ -707,13 +742,13 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     ASSERT(zs.size() == n);
     ASSERT(hs.size() == n) << fmt::format("|hs| = {}, n = {}", hs.size(), n);
 
-    const double a = earth.radius;
+    const double a = 1.0;  // earth.radius;
     heights.resize(n);
     std::array<coord_t, 3> coords;
     for (size_t i = 0; i < n; ++i) {
-      coords[0] = xs[i] / a;
-      coords[1] = ys[i] / a;
-      coords[2] = zs[i] / a;
+      coords[0] = xs[i];
+      coords[1] = ys[i];
+      coords[2] = zs[i];
       heights[i] = hs[i];
       ASSERT(heights[i] > 0);
       mesh->vertices().add(coords.data());
@@ -723,6 +758,38 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     order.resize(n_sites);
     std::iota(order.begin(), order.end(), 0);
   }
+
+  if (!interpolate_height_from.empty()) {
+    std::ifstream f(interpolate_height_from);
+    nlohmann::json json;
+    f >> json;
+
+    // import the points and height
+    std::vector<double> xref = json["x"];
+    std::vector<double> yref = json["y"];
+    std::vector<double> zref = json["z"];
+    std::vector<double> href = json["h"];
+
+    size_t n = xref.size();
+    ASSERT(yref.size() == n);
+    ASSERT(zref.size() == n);
+    ASSERT(href.size() == n);
+    trees::KdTreeOptions kdtree_opts;
+    LOG << "N = " << n;
+    Vertices ref_points(3);
+    for (size_t k = 0; k < n; k++) {
+      std::array<coord_t, 3> coords = {xref[k], yref[k], zref[k]};
+      ref_points.add(coords.data());
+    }
+    trees::KdTree<3, double, index_t> tree(ref_points[0], n, kdtree_opts);
+    LOG << "built kdtree";
+    heights.resize(n_sites);
+    for (size_t k = 0; k < n_sites; k++) {
+      size_t idx = tree.nearest(sites + dim * order[k]);
+      heights[k] = href[idx];
+    }
+  }
+
   LOG << fmt::format("# sites = {}", n_sites);
 
   Vertices vertices(dim);
@@ -745,7 +812,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
   solver.initialize(domain, solver_opts);
   solver.setup();
 
-  if (!import_height_from.empty()) {
+  if (!import_height_from.empty() || !interpolate_height_from.empty()) {
     for (size_t k = 0; k < n_sites; k++) {
       ASSERT(heights[k] > 0);
       solver.height()[k] = heights[k];
@@ -816,6 +883,7 @@ nlohmann::json ShallowWaterStatistics::to_json() const {
   data["linear_solver_time"] = linear_solver_time;
   data["time_step_time"] = time_step_time;
   data["total_time"] = total_time;
+  data["dpc"] = dpc;
   return data;
 }
 
