@@ -5,7 +5,7 @@ from swe-python solution.
 import argparse
 import json
 # pylint: disable=no-name-in-module
-import netCDF4 as nc
+from netCDF4 import Dataset
 import numpy as np
 
 def main(ref_file, out_file):
@@ -13,7 +13,7 @@ def main(ref_file, out_file):
   Generates an initial condition from swe-python solution in ref_file,
   writing a .json to out_file with x,y,z,h.
   """
-  data = nc.Dataset(ref_file, "r", format="NETCDF4")
+  data = Dataset(ref_file, "r", format="NETCDF4")
   a = data.sphere_radius
 
   hc = data.variables["hh_cell"][0, :, :].squeeze()
