@@ -96,7 +96,7 @@ struct ShallowWaterStatistics {
   std::vector<double> voronoi_time;
   std::vector<double> linear_solver_time;
   std::vector<double> time_step_time;
-  std::vector<double> dpc; // difference from position to centroid
+  std::vector<double> dpc;  // difference from position to centroid
   std::vector<int> n_voronoi;
   std::string name;
   size_t n_particles{0};
