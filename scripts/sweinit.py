@@ -1,9 +1,17 @@
+"""
+Program to generate an initial condition for vortex
+from swe-python solution.
+"""
 import argparse
+import json
 import netCDF4 as nc
 import numpy as np
-import json
 
 def main(ref_file, out_file):
+  """
+  Generates an initial condition from swe-python solution in ref_file,
+  writing a .json to out_file with x,y,z,h.
+  """
   data = nc.Dataset(ref_file, "r", format="NETCDF4")
   a = data.sphere_radius
 
@@ -20,7 +28,7 @@ def main(ref_file, out_file):
       'y': yc.tolist(),
       'z': zc.tolist()
   }
-  with open(out_file, 'w') as f:
+  with open(out_file, 'w', encoding='utf-8') as f:
     f.write(json.dumps(ic))
 
 

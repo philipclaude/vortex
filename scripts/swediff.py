@@ -15,6 +15,7 @@ def main(src, ref, n_days, out, use_log):
   Compares all vortex solutions (in src) with the reference solution.
   '''
   plt.style.use('tableau-colorblind10')
+  # pylint: disable=consider-using-enumerate
   for src_idx in range(len(src)):
     s = src[src_idx]
 

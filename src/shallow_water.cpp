@@ -294,7 +294,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   for (size_t i = 0; i < n; i++) {
     vec3d x(particles_[i]);
     vec3d c(particles_.centroids()[i]);
-    dpc += std::pow(length(x - c), 2.0); 
+    dpc += std::pow(length(x - c), 2.0);
   }
   dpc = std::sqrt(dpc / n);
 
@@ -377,7 +377,8 @@ double ShallowWaterSimulation<Domain_t>::time_step(
       "| {:+1.1e} | {:6.1f} | {:+1.1e} | {:+1.1e} | {:1.2e} \n",
       options.iteration, days_hours_minutes(options.time + dt), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
-      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total, dpc);
+      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total,
+      dpc);
   time_step_timer.stop();
 
   statistics_.ra.push_back(area_error);
@@ -585,14 +586,13 @@ void ShallowWaterSimulation<Domain_t>::save_json(
     z[k] = particles_[k][2];
     h[k] = height_[k];
     hs[k] = options_.surface_height(particles_[k]);
-    
+
     // vorticity calculation
     vec3d wk(w.data() + 3 * k);
     vec3d normal(particles_[k]);
     double v = dot(normal, wk) / a;
     rv[k] = v;
     pv[k] = (v + options_.coriolis_parameter(particles_[k])) / height_[k];
-    
   }
   data["x"] = x;
   data["y"] = y;
@@ -742,7 +742,7 @@ void run_swe_simulation(const argparse::ArgumentParser& program) {
     ASSERT(zs.size() == n);
     ASSERT(hs.size() == n) << fmt::format("|hs| = {}, n = {}", hs.size(), n);
 
-    const double a = 1.0;//earth.radius;
+    const double a = 1.0;  // earth.radius;
     heights.resize(n);
     std::array<coord_t, 3> coords;
     for (size_t i = 0; i < n; ++i) {

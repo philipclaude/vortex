@@ -36,8 +36,11 @@ def pad_corners(lon: np.ndarray, lat: np.ndarray, quantity: np.ndarray):
   return lon_ext, lat_ext, q_ext
 
 def get_quantity(data, field, qref, tree, a):
+  """
+  Retrieves the quantity to plot from data.
+  """
   q = np.array(data['h'])
-  assert type(q) != None
+  assert q is not None
 
   if 'hs' in data and field == 'h':
     q += np.array(data['hs'])
@@ -49,6 +52,7 @@ def get_quantity(data, field, qref, tree, a):
     z = data['z']
     if 'hs' in data:
       q -= np.array(data['hs']) # compare depth saved by swe-python
+    # pylint: disable=consider-using-enumerate
     for i in range(len(q)):
       info = tree.query([a * x[i], a * y[i], a * z[i]])
       q[i] = (q[i] - qref[info[1]]) * 100 / qref[info[1]]
@@ -98,10 +102,8 @@ def main(days, plot_type, src, out, field, diff):
       q = get_quantity(data, field, href, tree, a)
       qmin = min(q)
       qmax = max(q)
-      if qmin < minval:
-        minval = qmin
-      if qmax > maxval:
-        maxval = qmax
+      minval = min(qmin, minval)
+      maxval = max(qmax, maxval)
       print(f"Day {day}: qmin = {qmin}, qmax = {qmax}")
   print(f"min = {minval}, max = {maxval}")
 
@@ -175,7 +177,8 @@ if __name__ == '__main__':
   parser.add_argument('--type', help='either point or tri', default='tri')
   parser.add_argument('--field', help='which quantity to plot (h, rv)', default='h')
   parser.add_argument('--days', type=int, nargs='+', help='how many days to plot', default=1)
-  parser.add_argument('--diff', default='', help="plots the difference in the field, given the provided reference solution")
+  parser.add_argument('--diff', default='',
+                      help="plots the difference in the field, given a reference solution")
   args = parser.parse_args()
   assert args.src and args.out
   main(args.days, args.type, args.src, args.out, args.field, args.diff)
