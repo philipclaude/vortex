@@ -289,6 +289,15 @@ double ShallowWaterSimulation<Domain_t>::time_step(
     }
   }
 
+  // calculate the difference between the particle positions and centroids
+  double dpc = 0.0;
+  for (size_t i = 0; i < n; i++) {
+    vec3d x(particles_[i]);
+    vec3d c(particles_.centroids()[i]);
+    dpc += std::pow(length(x - c), 2.0); 
+  }
+  dpc = std::sqrt(dpc / n);
+
   // compute artificial viscosity
   std::vector<double> viscous(3 * n, 0.0);
   if (options_.add_artificial_viscosity) compute_artificial_viscosity(viscous);
@@ -365,10 +374,10 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   std::cout << fmt::format(
       "| {:6d} | {:9s} | {:1.1e} | {:2d}:{:1.1e} | {:+1.1e} | {:+1.1e} | "
       "{:+1.1e} "
-      "| {:+1.1e} | {:6.1f} | {:+1.1e} | {:+1.1e} |\n",
+      "| {:+1.1e} | {:6.1f} | {:+1.1e} | {:+1.1e} | {:1.2e} \n",
       options.iteration, days_hours_minutes(options.time + dt), dt,
       convergence.n_iterations, convergence.error, area_error, mass_error,
-      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total);
+      momentum_error, energy_error, sdpd, h_error / h_total, u_error / u_total, dpc);
   time_step_timer.stop();
 
   statistics_.ra.push_back(area_error);
@@ -387,6 +396,7 @@ double ShallowWaterSimulation<Domain_t>::time_step(
   statistics_.linear_solver_time.push_back(linear_solver_time_ +
                                            linear_solver_time);
   statistics_.time_step_time.push_back(time_step_timer.seconds());
+  statistics_.dpc.push_back(dpc);
 
   return dt;
 }
@@ -487,9 +497,9 @@ void ShallowWaterSimulation<Domain_t>::print_header(int n_bars) const {
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
   std::cout << fmt::format(
       "| {:6s} | {:9s} | {:7s} | {:10s} | {:8s} | {:8s} | {:8s} | {:8s} | "
-      "{:6s} | {:8s} | {:8s} |\n",
+      "{:6s} | {:8s} | {:8s} | {:8s}\n",
       "Step", "day:hr:mn", "dt (s)", "Rw", "Ra", "Rm", "Rp", "Re", "SDPD", "Eh",
-      "Eu");
+      "Eu", "DC");
   std::cout << fmt::format("{:->{}}", "", n_bars) << std::endl;
 }
 
@@ -873,6 +883,7 @@ nlohmann::json ShallowWaterStatistics::to_json() const {
   data["linear_solver_time"] = linear_solver_time;
   data["time_step_time"] = time_step_time;
   data["total_time"] = total_time;
+  data["dpc"] = dpc;
   return data;
 }
 

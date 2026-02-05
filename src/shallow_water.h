@@ -96,6 +96,7 @@ struct ShallowWaterStatistics {
   std::vector<double> voronoi_time;
   std::vector<double> linear_solver_time;
   std::vector<double> time_step_time;
+  std::vector<double> dpc; // difference from position to centroid
   std::vector<int> n_voronoi;
   std::string name;
   size_t n_particles{0};
@@ -128,7 +129,7 @@ class ShallowWaterSimulation : public ParticleSimulation {
   void stabilize_pressure_gradient(const std::vector<double>& h,
                                    std::vector<double>& dh);
 
-  void print_header(int n_bars = 120) const;
+  void print_header(int n_bars = 130) const;
   void save(const std::string& filename) const;
 
   double total_area() const;
