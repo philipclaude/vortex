@@ -62,6 +62,7 @@ void run_visualizer(argparse::ArgumentParser& program) {
     std::vector<double> z = data["z"];
     std::vector<double> w = data["w"];
     std::vector<double> h = data["h"];
+    std::vector<double> hs = data["hs"];
     ASSERT(data["domain"] == "sphere");
 
     size_t n_sites = x.size();
@@ -98,7 +99,7 @@ void run_visualizer(argparse::ArgumentParser& program) {
 
     for (size_t k = 0; k < n_sites; k++) {
       size_t site = voronoi.polygons().group(k);
-      hfld.polygons()[k][0] = h[site];
+      hfld.polygons()[k][0] = h[site] + hs[site];
       wfld.polygons()[k][0] = w[site];
     }
 

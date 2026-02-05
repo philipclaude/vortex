@@ -3,25 +3,29 @@ Program to compare vortex solutions with swe-python.
 '''
 import argparse
 import json
+import os
 # pylint: disable=no-name-in-module
 from netCDF4 import Dataset
 from scipy.spatial import KDTree
 import numpy as np
 from matplotlib import pyplot as plt
 
-def main(src, ref, n_days, out):
+def main(src, ref, n_days, out, use_log):
   '''
   Compares all vortex solutions (in src) with the reference solution.
   '''
   plt.style.use('tableau-colorblind10')
-  days = list(range(n_days + 1))
-  for s in src:
+  for src_idx in range(len(src)):
+    s = src[src_idx]
 
+    n_particles = 0
     h_error = []
-    for day in range(0, n_days + 1):
+    for day in range(n_days + 1):
 
       hour = day * 24
       vtx_file = f"{s}/particles{hour}.json"
+      if not os.path.exists(vtx_file):
+        continue
       with open(vtx_file, encoding='utf-8') as f:
         vtx_data = json.loads(f.read())
         xp = vtx_data["x"]
@@ -29,7 +33,8 @@ def main(src, ref, n_days, out):
         zp = vtx_data["z"]
         hp = vtx_data["h"]
 
-      data = Dataset(ref, "r", format="NETCDF4")
+      ref_file = ref if len(ref) == 1 else ref[src_idx]
+      data = Dataset(ref_file, "r", format="NETCDF4")
       a = data.sphere_radius
 
       h = data.variables["hh_cell"][day, :, :]
@@ -52,25 +57,33 @@ def main(src, ref, n_days, out):
       for i in range(n_particles):
         # get closest point and height value
         info = tree.query([a * xp[i], a * yp[i], a * zp[i]])
-        ha = h[info[1]][0]
-        error += (ha - hp[i]) ** 2
-        sum_h += ha ** 2
+        href = h[info[1]][0]
+        error += (href - hp[i]) ** 2
+        sum_h += href ** 2
       eh = (error / sum_h) ** 0.5
       print(f"Day {day}: error = {eh}")
       h_error.append(eh)
 
-    plt.semilogy(days, h_error, '-o', label=f'{n_particles} particles')
+    assert n_particles > 0
+    days = list(range(len(h_error)))
+    if use_log:
+      plt.semilogy(days, h_error, '-o', label=f'{n_particles} particles')
+    else:
+      plt.plot(days, h_error, '-o', label=f'{n_particles} particles')
+
 
   plt.xlabel('day', size=14)
-  plt.ylabel(r'$\Delta I_h$', rotation=0, loc='top', labelpad=-20, size=14)
+  plt.ylabel(r'$\Delta I_h$', rotation=0, loc='top', labelpad=-80, size=14)
   plt.xlim([0, n_days])
   days_label = list(range(0, n_days + 1, n_days // 3))
   plt.xticks(ticks=days_label, labels=days_label, size='large')
   plt.yticks(size='large')
   plt.grid('major', axis='y')
-  plt.legend(frameon=False, prop={'size': 14}, loc='lower right')
-  plt.savefig(out)
-  plt.show()
+  plt.legend(frameon=False, prop={'size': 14}, loc='upper left')
+  if out:
+    plt.savefig(out)
+  else:
+    plt.show()
 
 if __name__ == "__main__":
   # Example run using vortex solutions for Williamson test case 5 (w5)
@@ -81,9 +94,10 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--src', type=str, nargs='+',
                       help='list of directories containing particles*.json files')
-  parser.add_argument('--ref', help='reference NetCDF file from swe-python')
+  parser.add_argument('--ref', type=str, nargs='+', help='reference NetCDF file from swe-python')
   parser.add_argument('--days', type=int, help='# days to plot')
-  parser.add_argument('--out', help='output file with comparison')
+  parser.add_argument('--out', help='output file with comparison', default='')
+  parser.add_argument('--log', action='store_true', help='plot the result with a semi-log scale')
   args = parser.parse_args()
-  assert args.src and args.ref and args.out
-  main(args.src, args.ref, args.days, args.out)
+  assert args.src and args.ref and args.days
+  main(args.src, args.ref, args.days, args.out, args.log)
